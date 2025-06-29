@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import apiService from '../services/apiService';
+import socketService from '../services/socketService';
 
 // デイリープランナーコンポーネント（講師視点）
 const InstructorDailyPlanner = () => {
