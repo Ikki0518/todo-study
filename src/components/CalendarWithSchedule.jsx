@@ -1,12 +1,22 @@
 import { useState } from 'react'
 import { MonthlyCalendar } from './MonthlyCalendar'
 
-export function CalendarWithSchedule({ 
-  studyBooks = [], 
+export function CalendarWithSchedule({
+  studyBooks = [],
   studyPlans = {},
   onDateClick,
   selectedDate,
-  dailyTasks = []
+  dailyTasks = [],
+  dailyTaskPool,
+  onTasksUpdate,
+  onTaskDragStart,
+  scheduledTasks,
+  completedTasks,
+  onDragOver,
+  onDrop,
+  onTaskComplete,
+  onDragStart,
+  overdueTasks = []
 }) {
   const [currentDate, setCurrentDate] = useState(new Date())
 

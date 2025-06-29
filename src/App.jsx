@@ -31,10 +31,47 @@ function App() {
   const [studyPlans, setStudyPlans] = useState({})
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [dailyTaskPool, setDailyTaskPool] = useState([])
+  const [allTasksHistory, setAllTasksHistory] = useState({})
 
   // AI機能の状態
   const [currentAIMode, setCurrentAIMode] = useState('select');
   const [userKnowledge, setUserKnowledge] = useState(null);
+
+  // 未達成タスクを収集する関数
+  const getOverdueTasks = () => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const todayKey = today.toISOString().split('T')[0]
+    
+    const overdue = []
+    
+    // allTasksHistoryから過去の未完了タスクを収集
+    Object.entries(allTasksHistory).forEach(([dateKey, tasks]) => {
+      if (dateKey < todayKey) {
+        tasks.forEach(task => {
+          if (!task.completed) {
+            overdue.push({
+              ...task,
+              originalDate: dateKey
+            })
+          }
+        })
+      }
+    })
+    
+    // scheduledTasksから過去の未完了タスクを収集
+    Object.entries(scheduledTasks).forEach(([taskKey, task]) => {
+      const dateKey = taskKey.split('-').slice(0, 3).join('-')
+      if (dateKey < todayKey && !completedTasks[taskKey]) {
+        overdue.push({
+          ...task,
+          originalDate: dateKey
+        })
+      }
+    })
+    
+    return overdue
+  }
 
   // 新機能のハンドラー関数
   const handleDateClick = (date) => {
@@ -301,7 +338,29 @@ function App() {
       }
     }
     
+    // タスク履歴を読み込む
+    const savedTasksHistory = localStorage.getItem('allTasksHistory');
+    if (savedTasksHistory) {
+      try {
+        setAllTasksHistory(JSON.parse(savedTasksHistory));
+      } catch (error) {
+        console.error('Failed to load tasks history:', error);
+      }
+    }
   }, []);
+
+  // タスクが更新されたら履歴を保存
+  useEffect(() => {
+    if (todayTasks.length > 0 || Object.keys(scheduledTasks).length > 0) {
+      const today = new Date().toISOString().split('T')[0];
+      const updatedHistory = {
+        ...allTasksHistory,
+        [today]: todayTasks
+      };
+      setAllTasksHistory(updatedHistory);
+      localStorage.setItem('allTasksHistory', JSON.stringify(updatedHistory));
+    }
+  }, [todayTasks, scheduledTasks]);
 
 
 
@@ -460,6 +519,7 @@ function App() {
                   onTasksUpdate={dailyTaskPool.length > 0 ? setDailyTaskPool : setTodayTasks}
                   onTaskDragStart={handleTaskDragStart}
                   selectedDate={selectedDate}
+                  overdueTasks={getOverdueTasks()}
                 />
               </div>
 
@@ -623,6 +683,7 @@ function App() {
             dailyTaskPool={dailyTaskPool}
             onTasksUpdate={setDailyTaskPool}
             onTaskDragStart={handleTaskDragStart}
+            overdueTasks={getOverdueTasks()}
             scheduledTasks={scheduledTasks}
             completedTasks={completedTasks}
             onDragOver={handleDragOver}
