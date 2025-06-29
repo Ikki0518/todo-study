@@ -59,9 +59,9 @@ export const PersonalizeMode = ({ studentId, onComplete }) => {
         setMessages([{ role: 'assistant', content: initialResponse }]);
       } catch (error) {
         // フォールバック
-        setMessages([{ 
-          role: 'assistant', 
-          content: "こんにちは！😊 学習のお手伝いをさせてもらいます！まずは、どんな目標に向かって頑張ってるか教えてもらえる？大学受験とか、資格取得とか、なんでも大丈夫だよ〜✨" 
+        setMessages([{
+          role: 'assistant',
+          content: "こんにちは！😊 私はあなたの学習目標達成をサポートするパートナーAIです。一緒に夢を叶えるための計画を立てていきましょう！まずは、あなたの大きな目標を教えていただけますか？（例: TOEIC 900点取得、〇〇大学合格など）"
         }]);
       }
     };
@@ -92,56 +92,107 @@ export const PersonalizeMode = ({ studentId, onComplete }) => {
       const messageText = message.toLowerCase();
       const conversationContext = messages.length;
       
-      // 会話の文脈に基づいてデータを分類
-      if (conversationContext <= 2) {
-        // 最初の1-2回の応答は目標と期限
-        if (!newData.goal && (messageText.includes('toeic') || messageText.includes('大学') || messageText.includes('試験') || messageText.includes('資格') || messageText.includes('検定'))) {
-          // 目標から数値を抽出
-          const goalMatch = message.match(/toeic\s*(\d+)/i) || message.match(/(\d+)\s*点/);
-          if (goalMatch) {
+      // 会話履歴を保存
+      newData.additionalInfo.conversationHistory.push({
+        timestamp: new Date().toISOString(),
+        userMessage: message,
+        context: conversationContext
+      });
+      
+      // 基本情報の収集（目標は1回目の会話でのみ抽出）
+      if (!newData.goal && conversationContext === 1 && (messageText.includes('toeic') || messageText.includes('大学') || messageText.includes('試験') || messageText.includes('資格') || messageText.includes('検定') || messageText.includes('英検'))) {
+        const goalMatch = message.match(/toeic\s*(\d+)/i) || message.match(/(\d+)\s*点/) || message.match(/英検\s*(\d+)\s*級/i);
+        if (goalMatch) {
+          if (messageText.includes('toeic')) {
             newData.goal = `TOEIC ${goalMatch[1]}点取得`;
+          } else if (messageText.includes('英検')) {
+            newData.goal = `英検${goalMatch[1]}級合格`;
           } else {
-            newData.goal = message;
+            newData.goal = `${goalMatch[1]}点取得`;
           }
+        } else {
+          newData.goal = message;
         }
+      }
+      
+      // 期限は2回目の会話でのみ抽出
+      if (!newData.deadline && conversationContext === 2 && (messageText.includes('年') || messageText.includes('月') || messageText.includes('まで') || messageText.includes('日'))) {
+        // 明確な日付形式を抽出（YYYY年MM月DD日、MM月DD日など）
+        const fullDateMatch = message.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
+        const monthDayMatch = message.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
+        const yearMonthMatch = message.match(/(\d{4})\s*年\s*(\d{1,2})\s*月/);
+        const monthOnlyMatch = message.match(/(\d{1,2})\s*月/);
         
-        // 期限の抽出（年月日を含む表現）
-        if (!newData.deadline && (messageText.includes('年') || messageText.includes('月') || messageText.includes('まで') || messageText.includes('日'))) {
-          const dateMatch = message.match(/(\d{4})\s*年\s*(\d{1,2})\s*月/) || message.match(/(\d{1,2})\s*月/);
-          if (dateMatch) {
-            newData.deadline = message;
-          }
+        if (fullDateMatch) {
+          newData.deadline = `${fullDateMatch[1]}年${fullDateMatch[2]}月${fullDateMatch[3]}日`;
+        } else if (monthDayMatch) {
+          const currentYear = new Date().getFullYear();
+          newData.deadline = `${currentYear}年${monthDayMatch[1]}月${monthDayMatch[2]}日`;
+        } else if (yearMonthMatch) {
+          newData.deadline = `${yearMonthMatch[1]}年${yearMonthMatch[2]}月末`;
+        } else if (monthOnlyMatch) {
+          const currentYear = new Date().getFullYear();
+          newData.deadline = `${currentYear}年${monthOnlyMatch[1]}月末`;
         }
-      } else if (conversationContext <= 4) {
-        // 3-4回目の応答は現在のレベル
-        if (!newData.currentStatus && (messageText.includes('点') || messageText.includes('偏差値') || messageText.includes('レベル') || messageText.includes('初心者') || messageText.includes('中級') || messageText.includes('現在') || messageText.includes('今'))) {
-          // 現在のスコアを抽出
-          const currentMatch = message.match(/(\d+)\s*点/) || message.match(/偏差値\s*(\d+)/);
-          if (currentMatch) {
-            newData.currentStatus = `現在 ${currentMatch[1]}点`;
-          } else {
-            newData.currentStatus = message;
-          }
+      }
+
+      // 現在のレベルは3回目の会話でのみ抽出
+      if (!newData.currentStatus && conversationContext === 3 && (messageText.includes('点') || messageText.includes('偏差値') || messageText.includes('レベル') || messageText.includes('初心者') || messageText.includes('中級') || messageText.includes('現在') || messageText.includes('今'))) {
+        const currentMatch = message.match(/(\d+)\s*点/) || message.match(/偏差値\s*(\d+)/);
+        if (currentMatch) {
+          newData.currentStatus = `現在 ${currentMatch[1]}点`;
+        } else {
+          newData.currentStatus = message;
         }
-      } else {
-        // 5回目以降は学習時間や頻度
-        if (!newData.studyHours && (messageText.includes('時間') || messageText.includes('分'))) {
-          newData.studyHours = message;
-        }
-        
-        if (!newData.studyDays && (messageText.includes('日') || messageText.includes('週') || messageText.includes('毎日'))) {
-          newData.studyDays = message;
-        }
+      }
+      
+      // 学習時間は4回目の会話でのみ抽出
+      if (!newData.studyHours && conversationContext === 4 && (messageText.includes('時間') || messageText.includes('分'))) {
+        newData.studyHours = message;
+      }
+
+      // 追加情報の収集（備考として保存）
+      if (messageText.includes('苦手') || messageText.includes('弱い') || messageText.includes('難しい')) {
+        newData.additionalInfo.weakAreas += message + '; ';
+      }
+      if (messageText.includes('得意') || messageText.includes('強い') || messageText.includes('好き')) {
+        newData.additionalInfo.strongAreas += message + '; ';
+      }
+      if (messageText.includes('やる気') || messageText.includes('目的') || messageText.includes('理由')) {
+        newData.additionalInfo.motivation += message + '; ';
+      }
+      if (messageText.includes('経験') || messageText.includes('前に') || messageText.includes('以前')) {
+        newData.additionalInfo.previousExperience += message + '; ';
+      }
+      if (messageText.includes('教材') || messageText.includes('本') || messageText.includes('アプリ')) {
+        newData.additionalInfo.availableResources += message + '; ';
+      }
+      if (messageText.includes('環境') || messageText.includes('場所') || messageText.includes('家') || messageText.includes('図書館')) {
+        newData.additionalInfo.studyEnvironment += message + '; ';
+      }
+      if (messageText.includes('問題') || messageText.includes('困って') || messageText.includes('悩み')) {
+        newData.additionalInfo.challenges += message + '; ';
       }
 
       setCollectedData(newData);
       
-      // 十分な情報が集まったら完了
-      if (newData.goal && newData.deadline && newData.currentStatus && newData.studyHours) {
+      // 基本4項目が揃った場合のみ完了
+      const hasBasicInfo = newData.goal && newData.deadline && newData.currentStatus && newData.studyHours;
+      
+      if (hasBasicInfo) {
         setTimeout(() => {
           setIsCompleted(true);
           if (onComplete) {
-            onComplete(newData);
+            // 4項目が全て揃っている場合のみコンパニオンモードに移行
+            // 目標管理ページで使用できる形式に変換
+            const goalData = {
+              goal: newData.goal,
+              deadline: newData.deadline,
+              currentStatus: newData.currentStatus,
+              studyHours: newData.studyHours,
+              additionalInfo: newData.additionalInfo
+            };
+            onComplete(goalData);
           }
         }, 2000);
       }
@@ -250,9 +301,35 @@ export const PersonalizeMode = ({ studentId, onComplete }) => {
               <div className="text-green-800 font-semibold mb-2">
                 🎉 学習計画の作成が完了しました！
               </div>
-              <p className="text-green-600 text-sm">
+              <p className="text-green-600 text-sm mb-4">
                 コンパニオンモードで日々の学習をサポートします
               </p>
+              
+              {/* AI学習コンパニオンボタン */}
+              <div className="mt-4 p-4 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg">
+                <h4 className="text-white font-bold mb-2">🤖 AI学習コンパニオン</h4>
+                <p className="text-blue-100 text-sm mb-3">
+                  あなたの学習をサポートします
+                </p>
+                <button
+                  onClick={() => {
+                    // 自動的にコンパニオンモードに移行
+                    if (onComplete) {
+                      const completeData = {
+                        goal: collectedData.goal || '学習目標',
+                        deadline: collectedData.deadline || '未設定',
+                        currentStatus: collectedData.currentStatus || '未設定',
+                        studyHours: collectedData.studyHours || '1時間とかかなー',
+                        additionalInfo: collectedData.additionalInfo
+                      };
+                      onComplete(completeData);
+                    }
+                  }}
+                  className="bg-white text-blue-600 px-6 py-2 rounded-md font-semibold hover:bg-blue-50 transition-colors"
+                >
+                  学習サポートを開始
+                </button>
+              </div>
             </div>
           </div>
         )}

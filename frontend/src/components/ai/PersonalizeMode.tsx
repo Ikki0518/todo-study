@@ -64,6 +64,10 @@ export const PersonalizeMode: React.FC<PersonalizeModeProps> = ({
 
       if (aiResponse.isCompleted && aiResponse.knowledge) {
         setIsCompleted(true);
+        // AI学習アシスタントで作成された目標をローカルストレージに保存
+        // 目標管理ページでも読み込めるように統一されたキーを使用
+        localStorage.setItem('userKnowledge', JSON.stringify(aiResponse.knowledge));
+        localStorage.setItem(`ai_knowledge_${studentId}`, JSON.stringify(aiResponse.knowledge));
         onComplete(aiResponse.knowledge);
       }
 

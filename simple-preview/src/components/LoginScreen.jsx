@@ -132,12 +132,22 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
     }
   };
 
-  const handleDemoLogin = (userType) => {
-    const demoUser = users.find(u => u.userRole === userType);
-    if (demoUser) {
-      localStorage.setItem('currentUser', JSON.stringify(demoUser));
-      onRoleChange(demoUser.userRole);
-      onLogin(true);
+  const handleDemoLogin = async (userType) => {
+    setIsLoading(true);
+    try {
+      // デモ用の遅延を追加
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const demoUser = users.find(u => u.userRole === userType);
+      if (demoUser) {
+        localStorage.setItem('currentUser', JSON.stringify(demoUser));
+        onRoleChange(demoUser.userRole);
+        onLogin(true);
+      }
+    } catch (error) {
+      setErrors({ general: 'デモログインに失敗しました。' });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -325,15 +335,25 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
             <div className="space-y-2">
               <button
                 onClick={() => handleDemoLogin('STUDENT')}
-                className="w-full py-2 px-4 bg-green-100 text-green-700 rounded-md hover:bg-green-200 transition-colors"
+                disabled={isLoading}
+                className={`w-full py-2 px-4 rounded-md transition-colors ${
+                  isLoading
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-green-100 text-green-700 hover:bg-green-200'
+                }`}
               >
-                生徒としてログイン (student@example.com)
+                {isLoading ? '処理中...' : '生徒としてログイン (student@example.com)'}
               </button>
               <button
                 onClick={() => handleDemoLogin('INSTRUCTOR')}
-                className="w-full py-2 px-4 bg-purple-100 text-purple-700 rounded-md hover:bg-purple-200 transition-colors"
+                disabled={isLoading}
+                className={`w-full py-2 px-4 rounded-md transition-colors ${
+                  isLoading
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                }`}
               >
-                講師としてログイン (teacher@example.com)
+                {isLoading ? '処理中...' : '講師としてログイン (teacher@example.com)'}
               </button>
             </div>
           </div>

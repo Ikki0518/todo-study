@@ -1,7 +1,7 @@
 // OpenAI API サービス
 class OpenAIService {
   constructor() {
-    this.apiKey = import.meta.env.VITE_OPENAI_API_KEY || process.env.OPENAI_API_KEY || '';
+    this.apiKey = import.meta.env.VITE_OPENAI_API_KEY || '';
     this.baseURL = 'https://api.openai.com/v1';
   }
 
@@ -30,7 +30,11 @@ class OpenAIService {
       return data.choices[0].message.content;
     } catch (error) {
       console.error('OpenAI API Error:', error);
-      // フォールバック: エラー時は愛嬌のあるエラーメッセージを返す
+      // フォールバック: APIキーがない場合のデモ応答
+      if (!this.apiKey || this.apiKey === 'your_openai_api_key_here') {
+        return this.getDemoResponse(messages);
+      }
+      // その他のエラー時は愛嬌のあるエラーメッセージを返す
       return "あ、ちょっと調子が悪いみたいです😅 もう一度お話しかけてもらえますか？";
     }
   }
@@ -51,29 +55,28 @@ class OpenAIService {
 **ステップ1: 自己紹介と目標の確認**
 1. まず、自己紹介とあなたの役割を伝えます。
    発話例: 「こんにちは！私はあなたの学習目標達成をサポートするパートナーAIです。一緒に夢を叶えるための計画を立てていきましょう。まずは、あなたの大きな目標を教えていただけますか？（例: 〇〇大学合格、TOEICで900点取得 など）」
-2. ユーザーから「最終目標」と「目標達成の期限」を聞き出します。
+2. ユーザーから「最終目標」のみを聞き出します。期限は次のステップで別途質問してください。
 
-**ステップ2: 現状の把握**
+**ステップ2: 期限の確認**
+1. 目標を確認した後、期限について質問します。
+   発話例: 「素晴らしい目標ですね！次に、その目標をいつまでに達成したいですか？具体的な日付（○年○月○日）で教えてください。」
+2. **期限については必ず具体的な日付（○年○月○日）で答えてもらってください。「来年の夏まで」「年内に」などの曖昧な表現の場合は、「具体的に何月何日までに達成したいですか？」と再度質問してください。**
+
+**ステップ3: 現状の把握**
 1. 次に、ユーザーの現在の立ち位置を把握します。
-   発話例: 「目標を教えてくださり、ありがとうございます！次に、現在のあなたの学力を教えてください。模試の偏差値やテストの点数など、具体的な数字で教えていただけると、より正確な計画が立てられます。」
+   発話例: 「期限を教えてくださり、ありがとうございます！次に、現在のあなたの学力を教えてください。模試の偏差値やテストの点数など、具体的な数字で教えていただけると、より正確な計画が立てられます。」
 2. ユーザーから「現在の学力を示す数値（偏差値、スコアなど）」を聞き出します。
 
-**ステップ3: ギャップの認識と計画立案の宣言**
-1. （内部処理）ユーザーから得た「目標」と「現状」のギャップを認識します。そのギャップを埋めるために、一般的にどのような学習が必要かを大まかに推論します。
-2. 推論した内容を基に、計画立案への意欲を示し、詳細なヒアリングに移ることを伝えます。
-   発話例: 「なるほど、現状を把握しました。目標まで一緒に駆け上がるための道筋が見えてきましたね！ここからは、あなただけのオーダーメイドプランを作るために、いくつか具体的な質問をさせてください。」
+**ステップ4: 学習時間の確認**
+1. 現在のレベルを確認した後、学習時間について質問します。
+   発話例: 「現在のレベルを把握しました！最後に、学習時間について教えてください。平日は1日に平均して何時間くらい、休日は何時間くらい勉強できそうですか？」
+2. ユーザーから「学習可能時間」を聞き出します。
 
-**ステップ4: 詳細ヒアリング（最重要）**
-以下の項目について、一つずつ丁寧に質問し、情報を収集します。
-
-1. 学習教材のヒアリング:
-   質問例: 「学習に使う予定の参考書や問題集はありますか？あれば、その名前と、全体のページ数（または問題数）を教えてください。」
-2. 稼働可能時間のヒアリング:
-   質問例: 「素晴らしい教材ですね！次に、学習時間について教えてください。平日は1日に平均して何時間くらい、休日は何時間くらい勉強できそうですか？」
-3. 稼働日数のヒアリング:
-   質問例: 「承知しました。では、週に何日くらい学習する予定ですか？お休みする曜日があれば、それも教えてください。」
-4. （任意）その他パーソナルな情報のヒアリング:
-   質問例: 「ありがとうございます。あと少しです！特に苦手だと感じている科目や分野はありますか？今後の計画の参考にさせてください。」
+**ステップ5: 完了とまとめ**
+1. 4つの基本情報（目標、期限、現在のレベル、学習時間）が揃ったら、感謝を伝えます。
+   発話例: 「たくさんの情報を教えていただき、本当にありがとうございます！これで、あなた専用の学習計画の設計図が完成しました。」
+2. 今後の関わり方について触れ、対話を締めくくります。
+   発話例: 「この情報を基に、明日からあなたのための具体的な日々のタスクを生成していきます。これから一緒に頑張りましょう！」
 
 **ステップ5: 全情報の集約とナレッジ出力**
 1. 全てのヒアリングが完了したら、感謝を伝えます。
@@ -90,7 +93,7 @@ class OpenAIService {
   "user_profile": {
     "goal": {
       "name": "（ここに目標名を入力）",
-      "deadline": "（ここに目標期限を入力 YYYY-MM-DD形式）"
+      "deadline": "（ここに目標期限を入力 必ずYYYY年MM月DD日形式で入力）"
     },
     "current_status": {
       "type": "（ここに指標の種類を入力 例: 偏差値）",
@@ -169,6 +172,122 @@ class OpenAIService {
 - 専門用語を避け、分かりやすい言葉でコミュニケーションをとってください
 - 常にポジティブで、ユーザーを励ましてください
 - 具体的で実行可能な提案を心がけてください`;
+  }
+
+  // デモ用の応答機能（APIキーがない場合）
+  getDemoResponse(messages) {
+    const lastMessage = messages[messages.length - 1];
+    const userMessage = lastMessage?.content?.toLowerCase() || '';
+    const messageCount = messages.filter(msg => msg.role === 'user').length;
+    const systemMessage = messages.find(msg => msg.role === 'system')?.content || '';
+    
+    // コンパニオンモードの判定
+    const isCompanionMode = systemMessage.includes('コンパニオンモード') || userMessage.includes('今日の学習について');
+    
+    if (isCompanionMode) {
+      return this.getCompanionDemoResponse(userMessage, messageCount);
+    }
+    
+    // パーソナライズモードの応答
+    return this.getPersonalizeDemoResponse(userMessage, messageCount);
+  }
+
+  // パーソナライズモード用のデモ応答
+  getPersonalizeDemoResponse(userMessage, messageCount) {
+    // 初回挨拶
+    if (userMessage.includes('初回挨拶')) {
+      return "こんにちは！😊 私はあなたの学習目標達成をサポートするパートナーAIです。一緒に夢を叶えるための計画を立てていきましょう！まずは、あなたの大きな目標を教えていただけますか？（例: TOEIC 900点取得、〇〇大学合格など）";
+    }
+    
+    // 1回目: 目標について
+    if (messageCount === 1 && (userMessage.includes('toeic') || userMessage.includes('大学') || userMessage.includes('試験') || userMessage.includes('資格') || userMessage.includes('英検'))) {
+      return "素晴らしい目標ですね！✨ 次に、その目標をいつまでに達成したいですか？具体的な日付（○年○月○日）で教えてください。";
+    }
+    
+    // 2回目: 期限について
+    if (messageCount === 2 && (userMessage.includes('年') || userMessage.includes('月') || userMessage.includes('日'))) {
+      return "期限を教えてくださり、ありがとうございます！次に、現在のあなたの学力を教えてください。模試の偏差値やテストの点数など、具体的な数字で教えていただけると、より正確な計画が立てられます。";
+    }
+    
+    // 3回目: 現在のレベルについて
+    if (messageCount === 3 && (userMessage.includes('点') || userMessage.includes('スコア') || userMessage.includes('偏差値') || userMessage.includes('レベル') || userMessage.includes('初心者') || userMessage.includes('中級'))) {
+      return "現在のレベルを把握しました！最後に、学習時間について教えてください。平日は1日に平均して何時間くらい、休日は何時間くらい勉強できそうですか？";
+    }
+    
+    // 4回目: 学習時間について
+    if (messageCount === 4 && (userMessage.includes('時間') || userMessage.includes('分'))) {
+      return "学習時間についてありがとうございます！これで基本的な情報が揃いました。あなた専用の学習計画を作成する準備が整いました！✨";
+    }
+    
+    // その他の応答
+    return "ありがとうございます！とても参考になります。順番に質問させていただいているので、お答えいただけると嬉しいです😊";
+  }
+
+  // コンパニオンモード用のデモ応答
+  getCompanionDemoResponse(userMessage, messageCount) {
+    // 初回挨拶
+    if (userMessage.includes('今日の学習について')) {
+      return "おはよう！😊 今日も目標に向けて一緒に頑張ろうね〜✨ 今日はどんな感じ？やる気はどう？";
+    }
+    
+    // ユーザーの入力内容に基づいた応答
+    if (userMessage.includes('疲れ') || userMessage.includes('つかれ') || userMessage.includes('きつい')) {
+      return "お疲れさま！😌 無理は禁物だよ。少し休憩してリフレッシュしてから続けよう。水分補給も忘れずにね！";
+    }
+    
+    if (userMessage.includes('やる気') && (userMessage.includes('ない') || userMessage.includes('でない') || userMessage.includes('下がっ'))) {
+      return "そんな日もあるよ！大丈夫😊 小さなことから始めてみよう。5分だけでも机に向かってみる？きっと気分が変わるはず！";
+    }
+    
+    if (userMessage.includes('頑張') || userMessage.includes('がんば') || userMessage.includes('やる気')) {
+      return "その意気だ！💪 やる気に満ちてるね！今日のタスクから一つ選んで始めてみよう。応援してるよ〜✨";
+    }
+    
+    if (userMessage.includes('勉強') || userMessage.includes('学習')) {
+      return "勉強について話そう！📚 今日はどの分野に取り組む予定？苦手なところから攻めるか、得意なところで調子を上げるか、どっちがいい？";
+    }
+    
+    if (userMessage.includes('時間') && userMessage.includes('ない')) {
+      return "時間がないときこそ、効率的な学習が大切だね⏰ 短時間でも集中してやれば効果的！15分だけでも何かできることはある？";
+    }
+    
+    if (userMessage.includes('分から') || userMessage.includes('わから') || userMessage.includes('難しい')) {
+      return "分からないところがあるのは成長のチャンス！🌱 どの部分が難しい？一緒に考えてみよう。基礎から確認してみる？";
+    }
+    
+    if (userMessage.includes('休憩') || userMessage.includes('休み')) {
+      return "休憩も大切な学習の一部だよ！😊 適度な休憩で脳をリフレッシュ。散歩したり、好きな音楽を聞いたりしてリラックスしよう♪";
+    }
+    
+    if (userMessage.includes('進捗') || userMessage.includes('進歩') || userMessage.includes('できた')) {
+      return "素晴らしい進歩だね！🎉 継続は力なり。小さな積み重ねが大きな成果につながるよ。この調子で頑張ろう！";
+    }
+    
+    if (userMessage.includes('まあまあ') || userMessage.includes('普通') || userMessage.includes('そこそこ')) {
+      return "まあまあでも全然OK！😊 毎日コツコツ続けることが一番大切。今日も一歩ずつ前進していこう！何から始める？";
+    }
+    
+    if (userMessage.includes('1時間') || userMessage.includes('一時間')) {
+      return "1時間の学習、いいペースだね！⏰ 集中して取り組めば十分効果的。途中で5分休憩を入れると更に効率アップするよ！";
+    }
+    
+    // デフォルトの応答パターン（より多様化）
+    const responses = [
+      "いいね！その調子で頑張ろう！💪 今日のタスクはどれから始める？",
+      "素晴らしい！継続は力なりだよ〜✨ 何か困ったことはある？",
+      "お疲れさま！今日もよく頑張ってるね😊 休憩も大切だから無理しないでね",
+      "その意気だ！目標に向かって着実に進んでるよ🎯 今の気分はどう？",
+      "いい感じ！学習のリズムができてきてるね👍 今日は何時間くらい勉強する予定？",
+      "頑張ってるね！でも疲れたら休憩も忘れずに😌 今日の調子はどう？",
+      "素晴らしい進歩だよ！🌟 この調子で続けていこう！何かサポートできることはある？",
+      "今日も一緒に頑張ろう！😊 どんな小さなことでも、前進は前進だよ！",
+      "調子はどう？🤔 学習で気になることがあったら何でも聞いてね！",
+      "今日のエネルギーレベルはどんな感じ？⚡ それに合わせて学習プランを調整しよう！"
+    ];
+    
+    // メッセージ数に基づいてランダムに応答を選択
+    const responseIndex = (messageCount - 1) % responses.length;
+    return responses[responseIndex];
   }
 }
 

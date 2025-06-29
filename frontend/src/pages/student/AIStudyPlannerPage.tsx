@@ -52,6 +52,11 @@ export const AIStudyPlannerPage: React.FC = () => {
     setCurrentMode(mode);
   };
 
+  const handleGoToGoals = () => {
+    // 目標管理ページへのナビゲーション
+    window.location.href = '/student/goals';
+  };
+
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -82,19 +87,28 @@ export const AIStudyPlannerPage: React.FC = () => {
               </p>
             </div>
             
-            {userKnowledge && (
-              <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-4">
+              {userKnowledge && (
                 <div className="text-sm text-gray-600">
                   目標: {userKnowledge.user_profile.goal.name}
                 </div>
+              )}
+              <button
+                onClick={handleGoToGoals}
+                className="px-4 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center space-x-2"
+              >
+                <span>📊</span>
+                <span>目標管理</span>
+              </button>
+              {userKnowledge && (
                 <button
                   onClick={handleResetKnowledge}
                   className="px-4 py-2 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600"
                 >
                   リセット
                 </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </div>

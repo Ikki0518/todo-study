@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { PersonalizeMode } from './components/PersonalizeMode';
 import { CompanionMode } from './components/CompanionMode';
 import { LoginScreen } from './components/LoginScreen';
+import InstructorDailyPlanner from './components/InstructorView';
 
 function App() {
   const [currentView, setCurrentView] = useState('goals')
@@ -42,6 +43,41 @@ function App() {
   const handlePersonalizationComplete = (knowledge) => {
     setUserKnowledge(knowledge);
     localStorage.setItem('ai_knowledge_demo', JSON.stringify(knowledge));
+    
+    // AI学習アシスタントで作成された目標を目標管理に追加
+    if (knowledge && knowledge.goal) {
+      const aiGoal = {
+        id: `ai-goal-${Date.now()}`,
+        title: knowledge.goal,
+        deadline: knowledge.deadline || '未設定',
+        description: `AI学習アシスタントで作成された目標`,
+        progress: 0,
+        measurementType: 'percentage',
+        unit: 'percent',
+        targetValue: 100,
+        currentValue: 0,
+        progressHistory: [],
+        source: 'AI',
+        currentStatus: knowledge.currentStatus || '未設定',
+        studyHours: knowledge.studyHours || '未設定',
+        additionalInfo: knowledge.additionalInfo || {}
+      };
+      
+      // 既存のAI目標があれば更新、なければ追加
+      setGoals(prevGoals => {
+        const existingAIGoalIndex = prevGoals.findIndex(g => g.source === 'AI');
+        if (existingAIGoalIndex >= 0) {
+          // 既存のAI目標を更新
+          const updatedGoals = [...prevGoals];
+          updatedGoals[existingAIGoalIndex] = { ...updatedGoals[existingAIGoalIndex], ...aiGoal };
+          return updatedGoals;
+        } else {
+          // 新しいAI目標を追加
+          return [...prevGoals, aiGoal];
+        }
+      });
+    }
+    
     setCurrentAIMode('companion');
   };
 
@@ -88,6 +124,33 @@ function App() {
       try {
         const knowledge = JSON.parse(savedKnowledge);
         setUserKnowledge(knowledge);
+        
+        // 既存のAI目標があるかチェックし、なければ作成
+        if (knowledge && knowledge.goal) {
+          setGoals(prevGoals => {
+            const hasAIGoal = prevGoals.some(g => g.source === 'AI');
+            if (!hasAIGoal) {
+              const aiGoal = {
+                id: `ai-goal-${Date.now()}`,
+                title: knowledge.goal,
+                deadline: knowledge.deadline || '未設定',
+                description: `AI学習アシスタントで作成された目標`,
+                progress: 0,
+                measurementType: 'percentage',
+                unit: 'percent',
+                targetValue: 100,
+                currentValue: 0,
+                progressHistory: [],
+                source: 'AI',
+                currentStatus: knowledge.currentStatus || '未設定',
+                studyHours: knowledge.studyHours || '未設定',
+                additionalInfo: knowledge.additionalInfo || {}
+              };
+              return [...prevGoals, aiGoal];
+            }
+            return prevGoals;
+          });
+        }
       } catch (error) {
         console.error('Failed to parse saved knowledge:', error);
       }
@@ -609,13 +672,36 @@ function App() {
                   <h3 className="font-semibold mb-4">現在の目標</h3>
                   <div className="space-y-4">
                     {goals.map((goal) => (
-                      <div key={goal.id} className="border-l-4 border-blue-500 pl-4">
+                      <div key={goal.id} className={`border-l-4 pl-4 ${goal.source === 'AI' ? 'border-green-500 bg-green-50' : 'border-blue-500'}`}>
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
-                            <h4 className="font-medium">{goal.title}</h4>
-                            <p className="text-sm text-gray-600">期限: {new Date(goal.deadline).toLocaleDateString('ja-JP')}</p>
+                            <div className="flex items-center space-x-2">
+                              <h4 className="font-medium">{goal.title}</h4>
+                              {goal.source === 'AI' && (
+                                <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                                  🤖 AI作成
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-600">
+                              期限: {goal.deadline === '未設定' ? '未設定' :
+                                     goal.deadline.includes('年') ? goal.deadline :
+                                     new Date(goal.deadline).toLocaleDateString('ja-JP')}
+                            </p>
                             {goal.description && (
                               <p className="text-sm text-gray-500 mt-1">{goal.description}</p>
+                            )}
+                            
+                            {/* AI作成目標の追加情報 */}
+                            {goal.source === 'AI' && (
+                              <div className="mt-2 space-y-1 text-xs text-gray-600">
+                                {goal.currentStatus && goal.currentStatus !== '未設定' && (
+                                  <p><strong>現在のレベル:</strong> {goal.currentStatus}</p>
+                                )}
+                                {goal.studyHours && goal.studyHours !== '未設定' && (
+                                  <p><strong>学習時間:</strong> {goal.studyHours}</p>
+                                )}
+                              </div>
                             )}
                             <div className="mt-3">
                               {goal.measurementType && goal.targetValue && (
@@ -766,32 +852,7 @@ function App() {
         )}
 
         {userRole === 'INSTRUCTOR' && currentView === 'dashboard' && (
-          <div>
-            <h1 className="text-2xl font-bold mb-6">講師ダッシュボード</h1>
-            <div className="grid grid-cols-2 gap-6">
-              <div className="bg-white rounded-lg shadow p-6">
-                <h2 className="font-semibold mb-4">担当生徒一覧</h2>
-                <div className="space-y-2">
-                  <div className="p-3 border rounded-md hover:bg-gray-50 cursor-pointer">
-                    <p className="font-medium">山田太郎</p>
-                    <p className="text-sm text-gray-500">未達成タスク: 2件</p>
-                  </div>
-                  <div className="p-3 border rounded-md hover:bg-gray-50 cursor-pointer">
-                    <p className="font-medium">鈴木花子</p>
-                    <p className="text-sm text-gray-500">未達成タスク: 0件</p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white rounded-lg shadow p-6">
-                <h2 className="font-semibold mb-4">通知</h2>
-                <div className="space-y-2">
-                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-                    <p className="text-sm">山田太郎さんの未達成タスクが10件を超えました</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <InstructorDailyPlanner />
         )}
 
         {userRole === 'STUDENT' && currentView === 'ai-assistant' && (

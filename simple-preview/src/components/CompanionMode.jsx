@@ -37,9 +37,14 @@ export const CompanionMode = ({ userKnowledge, onKnowledgeUpdate, onTasksGenerat
         generateTodayTasks();
       } catch (error) {
         // フォールバック
-        setMessages([{ 
-          role: 'assistant', 
-          content: `おはよう！😊 今日も${userKnowledge.goal}に向けて一緒に頑張ろうね〜✨ 今日はどんな感じ？やる気はどう？` 
+        const goalText = userKnowledge.goal || '目標達成';
+        setMessages([{
+          role: 'assistant',
+          content: `こんにちは！😊 ${goalText}に向けて、今日も一緒に頑張りましょう！✨
+
+左側に今日のおすすめタスクを用意しました。どれから始めますか？
+
+今日の気分や調子はいかがですか？何でも気軽に話しかけてくださいね〜😊`
         }]);
         generateTodayTasks();
       }
@@ -215,6 +220,35 @@ export const CompanionMode = ({ userKnowledge, onKnowledgeUpdate, onTasksGenerat
               <div><strong>現在のレベル:</strong> {userKnowledge.currentStatus}</div>
               {userKnowledge.studyHours && (
                 <div><strong>学習時間:</strong> {userKnowledge.studyHours}</div>
+              )}
+              
+              {/* 追加情報の表示（備考として） */}
+              {userKnowledge.additionalInfo && (
+                <details className="mt-3">
+                  <summary className="cursor-pointer text-blue-600 hover:text-blue-800">
+                    📝 詳細情報を表示
+                  </summary>
+                  <div className="mt-2 pl-4 border-l-2 border-blue-200 space-y-1 text-xs text-gray-600">
+                    {userKnowledge.additionalInfo.weakAreas && (
+                      <div><strong>苦手分野:</strong> {userKnowledge.additionalInfo.weakAreas}</div>
+                    )}
+                    {userKnowledge.additionalInfo.strongAreas && (
+                      <div><strong>得意分野:</strong> {userKnowledge.additionalInfo.strongAreas}</div>
+                    )}
+                    {userKnowledge.additionalInfo.motivation && (
+                      <div><strong>学習動機:</strong> {userKnowledge.additionalInfo.motivation}</div>
+                    )}
+                    {userKnowledge.additionalInfo.availableResources && (
+                      <div><strong>利用可能な教材:</strong> {userKnowledge.additionalInfo.availableResources}</div>
+                    )}
+                    {userKnowledge.additionalInfo.challenges && (
+                      <div><strong>課題・悩み:</strong> {userKnowledge.additionalInfo.challenges}</div>
+                    )}
+                    <div className="text-xs text-gray-400 mt-2">
+                      会話履歴: {userKnowledge.additionalInfo.conversationHistory?.length || 0}件
+                    </div>
+                  </div>
+                </details>
               )}
             </div>
           </div>
