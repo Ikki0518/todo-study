@@ -1,0 +1,7 @@
+{
+  "buildCommand": "cd simple-preview && npm run build",
+  "outputDirectory": "simple-preview/dist",
+  "installCommand": "cd simple-preview && npm install",
+  "devCommand": "cd simple-preview && npm run dev",
+  "framework": "vite"
+}
