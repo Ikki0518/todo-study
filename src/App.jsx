@@ -993,12 +993,17 @@ function App() {
               e.preventDefault()
               const formData = new FormData(e.target)
               const goalType = formData.get('goalType')
+              const unitValue = formData.get('unit')
+              const customUnit = formData.get('customUnit')
+              
+              // カスタム単位が選択された場合は、customUnit の値を使用
+              const finalUnit = unitValue === 'custom' ? customUnit : unitValue
               
               const newGoal = {
                 id: editingGoal ? editingGoal.id : Date.now(),
                 title: formData.get('title'),
                 description: formData.get('description'),
-                unit: formData.get('unit'),
+                unit: finalUnit,
                 aggregationMethod: formData.get('aggregationMethod'),
                 targetValue: parseFloat(formData.get('targetValue')),
                 startDate: formData.get('startDate'),
@@ -1172,9 +1177,20 @@ function App() {
                   </label>
                   <select
                     name="unit"
-                    defaultValue={editingGoal?.unit || ''}
+                    defaultValue={editingGoal && !['件', '円', '%', '人', '時間', 'ページ', '問題', '点'].includes(editingGoal.unit) ? 'custom' : (editingGoal?.unit || '')}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
+                    onChange={(e) => {
+                      const customUnitInput = document.getElementById('customUnitInput')
+                      if (e.target.value === 'custom') {
+                        customUnitInput.style.display = 'block'
+                        customUnitInput.querySelector('input').required = true
+                      } else {
+                        customUnitInput.style.display = 'none'
+                        customUnitInput.querySelector('input').required = false
+                        customUnitInput.querySelector('input').value = ''
+                      }
+                    }}
                   >
                     <option value="">単位を選択してください</option>
                     <option value="件">件</option>
@@ -1185,7 +1201,21 @@ function App() {
                     <option value="ページ">ページ</option>
                     <option value="問題">問題</option>
                     <option value="点">点</option>
+                    <option value="custom">カスタム</option>
                   </select>
+                  <div
+                    id="customUnitInput"
+                    style={{ display: editingGoal && !['件', '円', '%', '人', '時間', 'ページ', '問題', '点'].includes(editingGoal.unit) ? 'block' : 'none' }}
+                    className="mt-2"
+                  >
+                    <input
+                      type="text"
+                      name="customUnit"
+                      defaultValue={editingGoal && !['件', '円', '%', '人', '時間', 'ページ', '問題', '点'].includes(editingGoal.unit) ? editingGoal.unit : ''}
+                      placeholder="カスタム単位を入力してください"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
                 </div>
 
                 {/* 集計方針 */}
