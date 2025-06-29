@@ -1,0 +1,10 @@
+# Exclude other React projects that confuse Vercel
+simple-preview/
+frontend/
+backend/
+shared/
+database/
+
+# Exclude development files
+*.log
+.env*
