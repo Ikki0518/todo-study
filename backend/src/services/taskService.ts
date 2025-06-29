@@ -1,4 +1,4 @@
-import { query, transaction } from '../database';
+import { getSupabase, query, transaction } from '../database/supabase';
 import { logger } from '../utils/logger';
 import { io } from '../index';
 import { notifyStudentWatchers, notifyUser } from '../socket';
@@ -51,28 +51,32 @@ export class TaskService {
   // 生徒のタスク一覧を取得
   static async getTasksByStudent(studentId: string, date?: string): Promise<Task[]> {
     try {
-      let queryText = `
-        SELECT 
-          t.*,
-          g.title as goal_title,
-          sm.title as material_title
-        FROM tasks t
-        LEFT JOIN goals g ON t.goal_id = g.id
-        LEFT JOIN study_materials sm ON t.material_id = sm.id
-        WHERE t.student_id = $1
-      `;
+      const supabase = getSupabase();
       
-      const params = [studentId];
+      let queryBuilder = supabase
+        .from('tasks')
+        .select(`
+          *,
+          goals!inner(title),
+          study_materials(title)
+        `)
+        .eq('student_id', studentId);
       
       if (date) {
-        queryText += ' AND t.scheduled_date = $2';
-        params.push(date);
+        queryBuilder = queryBuilder.eq('scheduled_date', date);
       }
       
-      queryText += ' ORDER BY t.scheduled_date, t.scheduled_start_time, t.created_at';
+      queryBuilder = queryBuilder.order('scheduled_date', { ascending: true })
+                                 .order('scheduled_start_time', { ascending: true })
+                                 .order('created_at', { ascending: true });
       
-      const tasks = await query<Task>(queryText, params);
-      return tasks;
+      const { data: tasks, error } = await queryBuilder;
+      
+      if (error) {
+        throw error;
+      }
+      
+      return tasks || [];
     } catch (error) {
       logger.error('Failed to get tasks by student:', error);
       throw error;
@@ -82,38 +86,40 @@ export class TaskService {
   // 講師が担当する生徒のタスクを取得
   static async getTasksByInstructor(instructorId: string, studentId?: string, date?: string): Promise<Task[]> {
     try {
-      let queryText = `
-        SELECT 
-          t.*,
-          g.title as goal_title,
-          sm.title as material_title,
-          u.name as student_name
-        FROM tasks t
-        LEFT JOIN goals g ON t.goal_id = g.id
-        LEFT JOIN study_materials sm ON t.material_id = sm.id
-        LEFT JOIN students s ON t.student_id = s.id
-        LEFT JOIN users u ON s.id = u.id
-        WHERE s.instructor_id = $1
-      `;
+      const supabase = getSupabase();
       
-      const params = [instructorId];
-      let paramIndex = 2;
+      let queryBuilder = supabase
+        .from('tasks')
+        .select(`
+          *,
+          goals!inner(title),
+          study_materials(title),
+          students!inner(
+            instructor_id,
+            users!inner(name)
+          )
+        `)
+        .eq('students.instructor_id', instructorId);
       
       if (studentId) {
-        queryText += ` AND t.student_id = $${paramIndex}`;
-        params.push(studentId);
-        paramIndex++;
+        queryBuilder = queryBuilder.eq('student_id', studentId);
       }
       
       if (date) {
-        queryText += ` AND t.scheduled_date = $${paramIndex}`;
-        params.push(date);
+        queryBuilder = queryBuilder.eq('scheduled_date', date);
       }
       
-      queryText += ' ORDER BY t.scheduled_date, t.scheduled_start_time, t.created_at';
+      queryBuilder = queryBuilder.order('scheduled_date', { ascending: true })
+                                 .order('scheduled_start_time', { ascending: true })
+                                 .order('created_at', { ascending: true });
       
-      const tasks = await query<Task>(queryText, params);
-      return tasks;
+      const { data: tasks, error } = await queryBuilder;
+      
+      if (error) {
+        throw error;
+      }
+      
+      return tasks || [];
     } catch (error) {
       logger.error('Failed to get tasks by instructor:', error);
       throw error;
@@ -123,33 +129,31 @@ export class TaskService {
   // タスクを作成
   static async createTask(taskData: Partial<Task>): Promise<Task> {
     try {
-      const result = await transaction(async (client) => {
-        const insertQuery = `
-          INSERT INTO tasks (
-            student_id, goal_id, material_id, title, description, 
-            type, status, estimated_minutes, scheduled_date,
-            scheduled_start_time, scheduled_end_time
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-          RETURNING *
-        `;
-        
-        const values = [
-          taskData.studentId,
-          taskData.goalId,
-          taskData.materialId || null,
-          taskData.title,
-          taskData.description || null,
-          taskData.type || TaskType.MANUAL,
-          taskData.status || TaskStatus.PENDING,
-          taskData.estimatedMinutes,
-          taskData.scheduledDate,
-          taskData.scheduledStartTime || null,
-          taskData.scheduledEndTime || null
-        ];
-        
-        const result = await client.query(insertQuery, values);
-        return result.rows[0];
-      });
+      const supabase = getSupabase();
+      
+      const taskInsert = {
+        student_id: taskData.studentId,
+        goal_id: taskData.goalId,
+        material_id: taskData.materialId || null,
+        title: taskData.title,
+        description: taskData.description || null,
+        type: taskData.type || TaskType.MANUAL,
+        status: taskData.status || TaskStatus.PENDING,
+        estimated_minutes: taskData.estimatedMinutes,
+        scheduled_date: taskData.scheduledDate,
+        scheduled_start_time: taskData.scheduledStartTime || null,
+        scheduled_end_time: taskData.scheduledEndTime || null
+      };
+      
+      const { data: result, error } = await supabase
+        .from('tasks')
+        .insert(taskInsert)
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
 
       logger.info('Task created:', { taskId: result.id, studentId: taskData.studentId });
 
@@ -169,56 +173,51 @@ export class TaskService {
   // タスクを更新
   static async updateTask(taskId: string, updates: Partial<Task>, updatedBy: string): Promise<Task> {
     try {
-      const result = await transaction(async (client) => {
-        // 現在のタスクを取得
-        const currentTaskQuery = 'SELECT * FROM tasks WHERE id = $1';
-        const currentTask = await client.query(currentTaskQuery, [taskId]);
-        
-        if (currentTask.rows.length === 0) {
-          throw new Error('Task not found');
+      const supabase = getSupabase();
+      
+      // 現在のタスクを取得
+      const { data: currentTask, error: fetchError } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('id', taskId)
+        .single();
+      
+      if (fetchError || !currentTask) {
+        throw new Error('Task not found');
+      }
+
+      // 更新データの構築
+      const updateData: any = {};
+      
+      for (const [key, value] of Object.entries(updates)) {
+        if (value !== undefined) {
+          // camelCaseをsnake_caseに変換
+          const dbColumn = this.convertToCamelCase(key);
+          updateData[dbColumn] = value;
         }
+      }
 
-        const task = currentTask.rows[0];
-        
-        // 更新フィールドの構築
-        const updateFields = [];
-        const values = [];
-        let paramIndex = 1;
+      // 完了時刻の自動設定
+      if (updates.status === TaskStatus.COMPLETED && !currentTask.completed_at) {
+        updateData.completed_at = new Date().toISOString();
+      }
 
-        for (const [key, value] of Object.entries(updates)) {
-          if (value !== undefined) {
-            const dbColumn = this.convertToCamelCase(key);
-            updateFields.push(`${dbColumn} = $${paramIndex}`);
-            values.push(value);
-            paramIndex++;
-          }
-        }
+      if (Object.keys(updateData).length === 0) {
+        return currentTask;
+      }
 
-        // 完了時刻の自動設定
-        if (updates.status === TaskStatus.COMPLETED && !task.completed_at) {
-          updateFields.push(`completed_at = $${paramIndex}`);
-          values.push(new Date());
-          paramIndex++;
-        }
+      updateData.updated_at = new Date().toISOString();
 
-        if (updateFields.length === 0) {
-          return task;
-        }
+      const { data: result, error: updateError } = await supabase
+        .from('tasks')
+        .update(updateData)
+        .eq('id', taskId)
+        .select()
+        .single();
 
-        updateFields.push(`updated_at = $${paramIndex}`);
-        values.push(new Date());
-        values.push(taskId);
-
-        const updateQuery = `
-          UPDATE tasks 
-          SET ${updateFields.join(', ')}
-          WHERE id = $${paramIndex + 1}
-          RETURNING *
-        `;
-
-        const result = await client.query(updateQuery, values);
-        return result.rows[0];
-      });
+      if (updateError) {
+        throw updateError;
+      }
 
       logger.info('Task updated:', { taskId, updatedBy });
 
@@ -239,21 +238,35 @@ export class TaskService {
   // タスクを削除
   static async deleteTask(taskId: string, deletedBy: string): Promise<void> {
     try {
-      const result = await query('DELETE FROM tasks WHERE id = $1 RETURNING student_id', [taskId]);
+      const supabase = getSupabase();
       
-      if (result.length === 0) {
+      // 削除前にstudentIdを取得
+      const { data: task, error: fetchError } = await supabase
+        .from('tasks')
+        .select('student_id')
+        .eq('id', taskId)
+        .single();
+      
+      if (fetchError || !task) {
         throw new Error('Task not found');
       }
 
-      const studentId = result[0].student_id;
+      const { error: deleteError } = await supabase
+        .from('tasks')
+        .delete()
+        .eq('id', taskId);
+
+      if (deleteError) {
+        throw deleteError;
+      }
 
       logger.info('Task deleted:', { taskId, deletedBy });
 
       // リアルタイム通知
       if (io) {
         const notificationData = { taskId, deletedBy };
-        notifyUser(io, studentId, 'task_deleted', notificationData);
-        notifyStudentWatchers(io, studentId, 'task_deleted', notificationData);
+        notifyUser(io, task.student_id, 'task_deleted', notificationData);
+        notifyStudentWatchers(io, task.student_id, 'task_deleted', notificationData);
       }
     } catch (error) {
       logger.error('Failed to delete task:', error);
@@ -264,22 +277,25 @@ export class TaskService {
   // 未達成タスクを取得
   static async getOverdueTasks(studentId: string): Promise<Task[]> {
     try {
-      const queryText = `
-        SELECT 
-          t.*,
-          g.title as goal_title,
-          sm.title as material_title
-        FROM tasks t
-        LEFT JOIN goals g ON t.goal_id = g.id
-        LEFT JOIN study_materials sm ON t.material_id = sm.id
-        WHERE t.student_id = $1 
-          AND (t.status = $2 OR t.is_overdue = true)
-          AND t.scheduled_date < CURRENT_DATE
-        ORDER BY t.scheduled_date DESC
-      `;
+      const supabase = getSupabase();
       
-      const tasks = await query<Task>(queryText, [studentId, TaskStatus.OVERDUE]);
-      return tasks;
+      const { data: tasks, error } = await supabase
+        .from('tasks')
+        .select(`
+          *,
+          goals!inner(title),
+          study_materials(title)
+        `)
+        .eq('student_id', studentId)
+        .or(`status.eq.${TaskStatus.OVERDUE},is_overdue.eq.true`)
+        .lt('scheduled_date', new Date().toISOString().split('T')[0])
+        .order('scheduled_date', { ascending: false });
+      
+      if (error) {
+        throw error;
+      }
+      
+      return tasks || [];
     } catch (error) {
       logger.error('Failed to get overdue tasks:', error);
       throw error;
@@ -289,26 +305,32 @@ export class TaskService {
   // タスクの統計を取得
   static async getTaskStats(studentId: string, date?: string): Promise<any> {
     try {
-      let queryText = `
-        SELECT 
-          COUNT(*) as total_tasks,
-          COUNT(CASE WHEN status = 'COMPLETED' THEN 1 END) as completed_tasks,
-          COUNT(CASE WHEN status = 'IN_PROGRESS' THEN 1 END) as in_progress_tasks,
-          COUNT(CASE WHEN status = 'PENDING' THEN 1 END) as pending_tasks,
-          COUNT(CASE WHEN is_overdue = true THEN 1 END) as overdue_tasks
-        FROM tasks 
-        WHERE student_id = $1
-      `;
+      const supabase = getSupabase();
       
-      const params = [studentId];
+      let queryBuilder = supabase
+        .from('tasks')
+        .select('status, is_overdue')
+        .eq('student_id', studentId);
       
       if (date) {
-        queryText += ' AND scheduled_date = $2';
-        params.push(date);
+        queryBuilder = queryBuilder.eq('scheduled_date', date);
       }
       
-      const result = await query(queryText, params);
-      return result[0];
+      const { data: tasks, error } = await queryBuilder;
+      
+      if (error) {
+        throw error;
+      }
+      
+      const stats = {
+        total_tasks: tasks?.length || 0,
+        completed_tasks: tasks?.filter(t => t.status === TaskStatus.COMPLETED).length || 0,
+        in_progress_tasks: tasks?.filter(t => t.status === TaskStatus.IN_PROGRESS).length || 0,
+        pending_tasks: tasks?.filter(t => t.status === TaskStatus.PENDING).length || 0,
+        overdue_tasks: tasks?.filter(t => t.is_overdue === true).length || 0
+      };
+      
+      return stats;
     } catch (error) {
       logger.error('Failed to get task stats:', error);
       throw error;

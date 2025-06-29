@@ -103,4 +103,11 @@ Thumbs.db
 
 # Database
 *.sqlite
-*.db
+*.dbbackend/.env
+backend/logs/
+node_modules/
+*/node_modules/
+**/node_modules/
+*.log
+package-lock.json
+**/package-lock.json

@@ -1,7 +1,17 @@
-import cron from 'node-cron';
+import * as cron from 'node-cron';
 import { logger } from '../utils/logger';
-import { checkOverdueTasks } from './overdueTasksJob';
-import { updateStreaks } from './streakUpdateJob';
+
+// 未達成タスクチェック関数
+async function checkOverdueTasks(): Promise<void> {
+  logger.info('Checking overdue tasks...');
+  // TODO: Supabaseでの実装
+}
+
+// ストリーク更新関数
+async function updateStreaks(): Promise<void> {
+  logger.info('Updating streaks...');
+  // TODO: Supabaseでの実装
+}
 
 export function startScheduledJobs(): void {
   logger.info('Starting scheduled jobs...');

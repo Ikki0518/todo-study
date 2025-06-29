@@ -12,7 +12,14 @@ export const config = {
   // サーバー設定
   port: parseInt(process.env.PORT || '3002', 10),
   
-  // データベース設定
+  // Supabase設定
+  supabase: {
+    url: process.env.SUPABASE_URL || '',
+    anonKey: process.env.SUPABASE_ANON_KEY || '',
+    serviceKey: process.env.SUPABASE_SERVICE_KEY || '',
+  },
+  
+  // 従来のデータベース設定（後方互換性のため）
   database: {
     host: process.env.DB_HOST || 'localhost',
     port: parseInt(process.env.DB_PORT || '5432', 10),
@@ -53,7 +60,8 @@ export const config = {
 // 設定の検証
 export function validateConfig() {
   const requiredEnvVars = [
-    'DB_PASSWORD',
+    'SUPABASE_URL',
+    'SUPABASE_SERVICE_KEY',
     'JWT_SECRET',
     'OPENAI_API_KEY',
   ];
