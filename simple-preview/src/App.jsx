@@ -7,7 +7,10 @@ import { MonthlyCalendar } from './components/MonthlyCalendar';
 import { StudyBookManager } from './components/StudyBookManager';
 import { DailyTaskPool } from './components/DailyTaskPool';
 import { CalendarWithSchedule } from './components/CalendarWithSchedule';
+import { ProfileSettings } from './components/ProfileSettings';
+import { ImprovedDailyPlanner } from './components/ImprovedDailyPlanner';
 import { generateStudyPlan, convertPlansToTasks, calculateStudyPlanStats } from './utils/studyPlanGenerator';
+import authService from './services/authService';
 
 function App() {
   const [currentView, setCurrentView] = useState('goals')
@@ -288,21 +291,78 @@ function App() {
   const todayString = `${today.getFullYear()}年${today.getMonth() + 1}月${today.getDate()}日（${dayNames[today.getDay()]}）`
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('currentUser');
-    if (savedUser) {
+    // Supabase認証状態を確認
+    const checkAuthStatus = async () => {
       try {
-        const user = JSON.parse(savedUser);
-        setCurrentUser(user);
-        setUserRole(user.userRole);
-        setIsLoggedIn(true);
+        const result = await authService.getCurrentUser();
+        if (result.success && result.user) {
+          setCurrentUser(result.user);
+          setUserRole(result.user.role || 'STUDENT');
+          setIsLoggedIn(true);
+        } else {
+          // セッションが無効な場合はログアウト
+          handleLogout();
+        }
       } catch (error) {
-        console.error('Failed to parse saved user:', error);
-        localStorage.removeItem('currentUser');
+        console.error('認証状態確認エラー:', error);
+        handleLogout();
       }
-    }
-    
+    };
+
+    checkAuthStatus();
+
+    // Supabaseの認証状態変更を監視
+    const { data: { subscription } } = authService.supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === 'SIGNED_OUT' || !session) {
+          handleLogout();
+        } else if (event === 'SIGNED_IN' && session) {
+          // ユーザー情報を再取得
+          const result = await authService.getCurrentUser();
+          if (result.success && result.user) {
+            setCurrentUser(result.user);
+            setUserRole(result.user.role || 'STUDENT');
+            setIsLoggedIn(true);
+          }
+        }
+      }
+    );
+
+    // クリーンアップ関数
+    return () => {
+      subscription?.unsubscribe();
+    };
   }, []);
 
+  // ログアウト処理
+  const handleLogout = async () => {
+    try {
+      await authService.logout();
+    } catch (error) {
+      console.error('ログアウトエラー:', error);
+    }
+    
+    // 状態をリセット
+    setCurrentUser(null);
+    setUserRole('STUDENT');
+    setIsLoggedIn(false);
+    setCurrentView('goals');
+    // 他の状態もリセット
+    setGoals([]);
+    setTodayTasks([]);
+    setScheduledTasks({});
+    setCompletedTasks({});
+    setStudyBooks([]);
+    setStudyPlans({});
+    setDailyTaskPool([]);
+    setUserKnowledge(null);
+    setCurrentAIMode('select');
+  };
+
+  // ユーザー情報更新のハンドラー
+  const handleUserUpdate = (updatedUser) => {
+    setCurrentUser(updatedUser);
+  };
 
 
   if (!isLoggedIn) {
@@ -399,6 +459,28 @@ function App() {
               📊 ダッシュボード
             </button>
           )}
+          
+          {/* プロフィール設定ボタン */}
+          <div className="mt-6 pt-4 border-t border-gray-200">
+            <button
+              onClick={() => setCurrentView('profile')}
+              className={`w-full text-left px-4 py-2 rounded-md mb-2 ${
+                currentView === 'profile' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100'
+              }`}
+            >
+              ⚙️ プロフィール設定
+            </button>
+          </div>
+          
+          {/* ログアウトボタン */}
+          <div className="pt-2">
+            <button
+              onClick={handleLogout}
+              className="w-full text-left px-4 py-2 rounded-md text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors"
+            >
+              🚪 ログアウト
+            </button>
+          </div>
         </nav>
       </div>
 
@@ -420,198 +502,28 @@ function App() {
 
         <div className="p-4 lg:p-6">
         {userRole === 'STUDENT' && currentView === 'planner' && (
-          <div>
-            <div className="mb-6">
-              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-2">週間プランナー</h1>
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:space-x-4">
-                  <span className="text-base sm:text-lg lg:text-xl font-medium text-gray-700">{todayString}</span>
-                  <span className="bg-orange-100 text-orange-800 px-3 py-1 lg:px-4 lg:py-2 rounded-full text-sm lg:text-base font-semibold w-fit">
-                    🔥 {currentStreak}日連続！
-                  </span>
-                </div>
-                <div className="flex items-center space-x-1 sm:space-x-2 lg:space-x-3">
-                  <button
-                    onClick={() => setWeekOffset(weekOffset - 1)}
-                    className="px-2 py-1 sm:px-3 lg:px-4 lg:py-2 border rounded hover:bg-gray-100 text-sm sm:text-base"
-                  >
-                    ← 前週
-                  </button>
-                  <button
-                    onClick={() => setWeekOffset(0)}
-                    className={`px-2 py-1 sm:px-3 lg:px-4 lg:py-2 rounded text-sm sm:text-base ${weekOffset === 0 ? 'bg-blue-500 text-white' : 'border hover:bg-gray-100'}`}
-                  >
-                    今週
-                  </button>
-                  <button
-                    onClick={() => setWeekOffset(weekOffset + 1)}
-                    className="px-2 py-1 sm:px-3 lg:px-4 lg:py-2 border rounded hover:bg-gray-100 text-sm sm:text-base"
-                  >
-                    次週 →
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-col lg:grid lg:grid-cols-12 gap-4">
-              <div className="lg:col-span-3">
-                <DailyTaskPool
-                  dailyTasks={dailyTaskPool.length > 0 ? dailyTaskPool : todayTasks}
-                  onTasksUpdate={dailyTaskPool.length > 0 ? setDailyTaskPool : setTodayTasks}
-                  onTaskDragStart={handleTaskDragStart}
-                  selectedDate={selectedDate}
-                />
-              </div>
-
-              <div className="lg:col-span-9 bg-white rounded-lg shadow overflow-hidden">
-                <div className="overflow-x-auto">
-                  <div className={`grid border-b min-w-[600px]`} style={{gridTemplateColumns: `60px repeat(7, 1fr)`}}>
-                    <div className="p-1 sm:p-2 text-center text-xs sm:text-sm font-medium bg-gray-50"></div>
-                    {weekDates.map((date, index) => {
-                      const isToday = date.toDateString() === new Date().toDateString()
-                      const day = date.getDate()
-                      return (
-                        <div
-                          key={index}
-                          className={`p-1 sm:p-2 text-center border-l ${isToday ? 'bg-blue-50' : ''}`}
-                        >
-                          <div className="text-xs text-gray-500">
-                            {dayNames[date.getDay()]}
-                          </div>
-                          <div className={`text-sm sm:text-lg font-semibold ${isToday ? 'text-blue-600' : ''}`}>
-                            {day}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-                
-                <div className="overflow-x-auto overflow-y-auto" style={{ height: '400px', maxHeight: '60vh' }}>
-                  <div className="min-w-[600px]">
-                  {[...Array(24)].map((_, hourIndex) => {
-                    const hour = hourIndex
-                    return (
-                      <div key={hour} className={`grid border-b`} style={{gridTemplateColumns: `60px repeat(7, 1fr)`}}>
-                        <div className="p-2 text-right text-xs text-gray-500 bg-gray-50">
-                          {hour}:00
-                        </div>
-                        {weekDates.map((date, dateIndex) => {
-                          const dateKey = date.toISOString().split('T')[0]
-                          const taskKey = `${dateKey}-${hour}`
-                          const scheduledTask = scheduledTasks[taskKey]
-                          
-                          // 他のタスクがこの時間スロットを占有しているかチェック
-                          const isOccupiedByOtherTask = () => {
-                            for (let checkHour = 0; checkHour < hour; checkHour++) {
-                              const checkKey = `${dateKey}-${checkHour}`
-                              const checkTask = scheduledTasks[checkKey]
-                              if (checkTask && checkTask.duration && checkHour + checkTask.duration > hour) {
-                                return true
-                              }
-                            }
-                            return false
-                          }
-                          
-                          const isOccupied = isOccupiedByOtherTask()
-                          
-                          return (
-                            <div
-                              key={dateIndex}
-                              className={`relative p-1 border-l min-h-[50px] ${isOccupied ? '' : 'hover:bg-gray-50'}`}
-                              onDragOver={!isOccupied ? handleDragOver : undefined}
-                              onDrop={!isOccupied ? (e) => handleDrop(e, dateKey, hour) : undefined}
-                            >
-                              {scheduledTask && !isOccupied && (
-                                <div
-                                  className={`absolute p-2 rounded text-xs cursor-pointer z-10 ${
-                                    completedTasks[taskKey]
-                                      ? 'bg-gray-300 text-gray-700'
-                                      : `${getPriorityColor(scheduledTask.priority)} text-white hover:opacity-90`
-                                  }`}
-                                  style={{
-                                    height: `${(scheduledTask.duration || 1) * 50 - 2}px`,
-                                    width: 'calc(100% - 8px)',
-                                    left: '4px',
-                                    top: '2px'
-                                  }}
-                                  draggable={!completedTasks[taskKey]}
-                                  onDragStart={(e) => !completedTasks[taskKey] && handleDragStart(e, scheduledTask, `scheduled-${taskKey}`)}
-                                  onClick={(e) => {
-                                    // チェックボックスやリサイズハンドルのクリックでない場合のみタスクプールに戻す
-                                    if (!e.target.closest('input') && !e.target.closest('.resize-handle')) {
-                                      handleTaskClick(scheduledTask, taskKey)
-                                    }
-                                  }}
-                                >
-                                  <div className="flex items-start space-x-1">
-                                    <input
-                                      type="checkbox"
-                                      checked={completedTasks[taskKey] || false}
-                                      onChange={() => toggleTaskComplete(scheduledTask.id, `scheduled-${taskKey}`)}
-                                      className="mt-0.5 cursor-pointer"
-                                      onClick={(e) => e.stopPropagation()}
-                                    />
-                                    <div className="flex-1">
-                                      <div className={`font-medium ${completedTasks[taskKey] ? 'line-through' : ''}`}>
-                                        {scheduledTask.title}
-                                      </div>
-                                      <div className="text-xs opacity-75 mt-1">
-                                        {hour}:00 - {hour + (scheduledTask.duration || 1)}:00
-                                      </div>
-                                    </div>
-                                  </div>
-                                  
-                                  {/* リサイズハンドル */}
-                                  <div
-                                    className="resize-handle absolute bottom-0 right-0 w-3 h-3 bg-white bg-opacity-30 cursor-se-resize"
-                                    onMouseDown={(e) => {
-                                      e.preventDefault()
-                                      e.stopPropagation()
-                                      
-                                      const startY = e.clientY
-                                      const startDuration = scheduledTask.duration || 1
-                                      
-                                      const handleMouseMove = (moveEvent) => {
-                                        const deltaY = moveEvent.clientY - startY
-                                        const hourChange = Math.round(deltaY / 50)
-                                        const newDuration = Math.max(1, Math.min(6, startDuration + hourChange))
-                                        
-                                        setScheduledTasks(prev => ({
-                                          ...prev,
-                                          [taskKey]: {
-                                            ...scheduledTask,
-                                            duration: newDuration
-                                          }
-                                        }))
-                                      }
-                                      
-                                      const handleMouseUp = () => {
-                                        document.removeEventListener('mousemove', handleMouseMove)
-                                        document.removeEventListener('mouseup', handleMouseUp)
-                                      }
-                                      
-                                      document.addEventListener('mousemove', handleMouseMove)
-                                      document.addEventListener('mouseup', handleMouseUp)
-                                    }}
-                                  >
-                                    <div className="w-full h-full flex items-end justify-end">
-                                      <div className="w-2 h-2 border-r-2 border-b-2 border-white opacity-60"></div>
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )
-                  })}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <ImprovedDailyPlanner
+            currentStreak={currentStreak}
+            todayString={todayString}
+            weekOffset={weekOffset}
+            setWeekOffset={setWeekOffset}
+            dailyTaskPool={dailyTaskPool}
+            todayTasks={todayTasks}
+            setDailyTaskPool={setDailyTaskPool}
+            setTodayTasks={setTodayTasks}
+            handleTaskDragStart={handleTaskDragStart}
+            selectedDate={selectedDate}
+            scheduledTasks={scheduledTasks}
+            setScheduledTasks={setScheduledTasks}
+            completedTasks={completedTasks}
+            handleDragOver={handleDragOver}
+            handleDrop={handleDrop}
+            handleTaskClick={handleTaskClick}
+            toggleTaskComplete={toggleTaskComplete}
+            getPriorityColor={getPriorityColor}
+            handleDragStart={handleDragStart}
+            DailyTaskPool={DailyTaskPool}
+          />
         )}
 
         {userRole === 'STUDENT' && currentView === 'monthly-calendar' && (
@@ -798,7 +710,7 @@ function App() {
                           <div>
                             <p className="text-sm text-gray-600 mb-1">目標</p>
                             <p className="font-medium">
-                              {goal.targetValue} {goal.unit} ({goal.aggregationMethod})
+                              {goal.targetValue} {goal.unit}
                             </p>
                           </div>
                         )}
@@ -918,6 +830,13 @@ function App() {
 
         {userRole === 'INSTRUCTOR' && currentView === 'dashboard' && (
           <InstructorDailyPlanner />
+        )}
+
+        {currentView === 'profile' && (
+          <ProfileSettings
+            currentUser={currentUser}
+            onUserUpdate={handleUserUpdate}
+          />
         )}
       </div>
 
@@ -1128,26 +1047,23 @@ function App() {
                 </div>
 
                 {/* 集計方針 */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    集計方針 <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    name="aggregationMethod"
-                    defaultValue={editingGoal?.aggregationMethod || ''}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  >
-                    <option value="">集計方針を選択してください</option>
-                    <option value="合計（上回れば達成）">合計（上回れば達成）</option>
-                    <option value="合計（下回れば達成）">合計（下回れば達成）</option>
-                    <option value="平均（上回れば達成）">平均（上回れば達成）</option>
-                    <option value="平均（下回れば達成）">平均（下回れば達成）</option>
-                    <option value="最大（上回れば達成）">最大（上回れば達成）</option>
-                    <option value="最大（下回れば達成）">最大（下回れば達成）</option>
-                    <option value="最小（上回れば達成）">最小（上回れば達成）</option>
-                    <option value="最小（下回れば達成）">最小（下回れば達成）</option>
-                  </select>
+                {/* 集計方針は「全部到達したら達成」に固定 */}
+                <input
+                  type="hidden"
+                  name="aggregationMethod"
+                  value="全部到達したら達成"
+                />
+                
+                <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                  <div className="flex items-center">
+                    <svg className="w-5 h-5 text-blue-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                    <div>
+                      <p className="text-sm font-medium text-blue-800">達成条件</p>
+                      <p className="text-sm text-blue-700">全ての科目で目標数値に到達したら達成となります</p>
+                    </div>
+                  </div>
                 </div>
 
                 {/* 目標数値 */}

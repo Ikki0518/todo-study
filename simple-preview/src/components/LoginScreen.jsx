@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import authService from '../services/authService';
 
 export const LoginScreen = ({ onLogin, onRoleChange }) => {
   const [isLoginMode, setIsLoginMode] = useState(true);
@@ -11,24 +12,7 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
   });
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
-
-  // デモ用のユーザーデータ（実際の実装では外部APIやデータベースを使用）
-  const [users, setUsers] = useState([
-    {
-      id: 1,
-      email: 'student@example.com',
-      password: 'password123',
-      name: '山田太郎',
-      userRole: 'STUDENT'
-    },
-    {
-      id: 2,
-      email: 'teacher@example.com',
-      password: 'password123',
-      name: '田中先生',
-      userRole: 'INSTRUCTOR'
-    }
-  ]);
+  const [successMessage, setSuccessMessage] = useState('');
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -42,6 +26,10 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
         ...prev,
         [name]: ''
       }));
+    }
+    // 成功メッセージをクリア
+    if (successMessage) {
+      setSuccessMessage('');
     }
   };
 
@@ -86,69 +74,65 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
     }
 
     setIsLoading(true);
+    setErrors({});
+    setSuccessMessage('');
 
     try {
-      // 実際の実装では、ここでAPIを呼び出します
-      await new Promise(resolve => setTimeout(resolve, 1000)); // デモ用の遅延
-
+      let result;
+      
       if (isLoginMode) {
         // ログイン処理
-        const user = users.find(u => 
-          u.email === formData.email && u.password === formData.password
-        );
-        
-        if (user) {
-          // ログイン成功
-          localStorage.setItem('currentUser', JSON.stringify(user));
-          onRoleChange(user.userRole);
-          onLogin(true);
-        } else {
-          setErrors({ general: 'メールアドレスまたはパスワードが正しくありません' });
-        }
+        result = await authService.login(formData.email, formData.password);
       } else {
         // 新規登録処理
-        const existingUser = users.find(u => u.email === formData.email);
-        if (existingUser) {
-          setErrors({ email: 'このメールアドレスは既に登録されています' });
-        } else {
-          // 新規ユーザーを追加
-          const newUser = {
-            id: users.length + 1,
-            email: formData.email,
-            password: formData.password,
-            name: formData.name,
-            userRole: formData.userRole
-          };
-          setUsers(prev => [...prev, newUser]);
-          localStorage.setItem('currentUser', JSON.stringify(newUser));
-          onRoleChange(newUser.userRole);
+        result = await authService.register(formData.email, formData.password, {
+          name: formData.name,
+          userRole: formData.userRole
+        });
+      }
+
+      if (result.success) {
+        if (isLoginMode) {
+          // ログイン成功
+          onRoleChange(result.user.role);
           onLogin(true);
+        } else {
+          // 登録成功
+          setSuccessMessage(result.message);
+          // フォームをリセット
+          setFormData({
+            email: '',
+            password: '',
+            confirmPassword: '',
+            name: '',
+            userRole: 'STUDENT'
+          });
+          // ログインモードに切り替え
+          setIsLoginMode(true);
         }
+      } else {
+        // エラーハンドリング
+        setErrors({ general: result.error });
       }
     } catch (error) {
-      setErrors({ general: 'エラーが発生しました。もう一度お試しください。' });
+      console.error('認証エラー:', error);
+      setErrors({ general: 'システムエラーが発生しました。もう一度お試しください。' });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleDemoLogin = async (userType) => {
-    setIsLoading(true);
-    try {
-      // デモ用の遅延を追加
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      const demoUser = users.find(u => u.userRole === userType);
-      if (demoUser) {
-        localStorage.setItem('currentUser', JSON.stringify(demoUser));
-        onRoleChange(demoUser.userRole);
-        onLogin(true);
-      }
-    } catch (error) {
-      setErrors({ general: 'デモログインに失敗しました。' });
-    } finally {
-      setIsLoading(false);
-    }
+  const handleModeSwitch = (loginMode) => {
+    setIsLoginMode(loginMode);
+    setErrors({});
+    setSuccessMessage('');
+    setFormData({
+      email: '',
+      password: '',
+      confirmPassword: '',
+      name: '',
+      userRole: 'STUDENT'
+    });
   };
 
   return (
@@ -182,7 +166,7 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
           {/* タブ切り替え */}
           <div className="flex mb-6">
             <button
-              onClick={() => setIsLoginMode(true)}
+              onClick={() => handleModeSwitch(true)}
               className={`flex-1 py-2 px-4 text-center rounded-l-md border ${
                 isLoginMode 
                   ? 'bg-blue-600 text-white border-blue-600' 
@@ -192,7 +176,7 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
               ログイン
             </button>
             <button
-              onClick={() => setIsLoginMode(false)}
+              onClick={() => handleModeSwitch(false)}
               className={`flex-1 py-2 px-4 text-center rounded-r-md border ${
                 !isLoginMode 
                   ? 'bg-blue-600 text-white border-blue-600' 
@@ -202,6 +186,13 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
               新規登録
             </button>
           </div>
+
+          {/* 成功メッセージ */}
+          {successMessage && (
+            <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded">
+              {successMessage}
+            </div>
+          )}
 
           {/* エラーメッセージ */}
           {errors.general && (
@@ -216,7 +207,7 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
             {!isLoginMode && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  名前
+                  名前 <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -227,6 +218,7 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
                     errors.name ? 'border-red-500' : 'border-gray-300'
                   }`}
                   placeholder="山田太郎"
+                  disabled={isLoading}
                 />
                 {errors.name && (
                   <p className="mt-1 text-sm text-red-600">{errors.name}</p>
@@ -237,7 +229,7 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
             {/* メールアドレス */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                メールアドレス
+                メールアドレス <span className="text-red-500">*</span>
               </label>
               <input
                 type="email"
@@ -248,6 +240,7 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
                   errors.email ? 'border-red-500' : 'border-gray-300'
                 }`}
                 placeholder="example@email.com"
+                disabled={isLoading}
               />
               {errors.email && (
                 <p className="mt-1 text-sm text-red-600">{errors.email}</p>
@@ -257,7 +250,7 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
             {/* パスワード */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                パスワード
+                パスワード <span className="text-red-500">*</span>
               </label>
               <input
                 type="password"
@@ -268,6 +261,7 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
                   errors.password ? 'border-red-500' : 'border-gray-300'
                 }`}
                 placeholder="6文字以上"
+                disabled={isLoading}
               />
               {errors.password && (
                 <p className="mt-1 text-sm text-red-600">{errors.password}</p>
@@ -279,7 +273,7 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
               <>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    パスワード確認
+                    パスワード確認 <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="password"
@@ -290,6 +284,7 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
                       errors.confirmPassword ? 'border-red-500' : 'border-gray-300'
                     }`}
                     placeholder="パスワードを再入力"
+                    disabled={isLoading}
                   />
                   {errors.confirmPassword && (
                     <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>
@@ -305,6 +300,7 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
                     value={formData.userRole}
                     onChange={handleInputChange}
                     className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    disabled={isLoading}
                   >
                     <option value="STUDENT">生徒</option>
                     <option value="INSTRUCTOR">講師</option>
@@ -323,48 +319,39 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
                   : 'bg-blue-600 hover:bg-blue-700 focus:ring-2 focus:ring-blue-500'
               } transition-colors`}
             >
-              {isLoading ? '処理中...' : (isLoginMode ? 'ログイン' : 'アカウント作成')}
+              {isLoading ? (
+                <div className="flex items-center justify-center">
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  処理中...
+                </div>
+              ) : (
+                isLoginMode ? 'ログイン' : 'アカウント作成'
+              )}
             </button>
           </form>
 
-          {/* デモログインボタン */}
+          {/* Supabase使用の説明 */}
           <div className="mt-6 pt-6 border-t border-gray-200">
-            <p className="text-center text-sm text-gray-600 mb-4">
-              デモアカウントでお試し
-            </p>
-            <div className="space-y-2">
-              <button
-                onClick={() => handleDemoLogin('STUDENT')}
-                disabled={isLoading}
-                className={`w-full py-2 px-4 rounded-md transition-colors ${
-                  isLoading
-                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                    : 'bg-green-100 text-green-700 hover:bg-green-200'
-                }`}
-              >
-                {isLoading ? '処理中...' : '生徒としてログイン (student@example.com)'}
-              </button>
-              <button
-                onClick={() => handleDemoLogin('INSTRUCTOR')}
-                disabled={isLoading}
-                className={`w-full py-2 px-4 rounded-md transition-colors ${
-                  isLoading
-                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                    : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
-                }`}
-              >
-                {isLoading ? '処理中...' : '講師としてログイン (teacher@example.com)'}
-              </button>
+            <div className="text-center">
+              <p className="text-sm text-gray-600 mb-2">
+                <strong>Supabaseで安全に管理</strong>
+              </p>
+              <p className="text-xs text-gray-500">
+                アカウント情報はSupabaseデータベースに安全に保存されます
+              </p>
             </div>
           </div>
 
-          {/* ログイン情報のヒント */}
-          {isLoginMode && (
+          {/* 新規登録時の説明 */}
+          {!isLoginMode && (
             <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
               <p className="text-sm text-blue-700">
-                <strong>テスト用アカウント:</strong><br/>
-                生徒: student@example.com / password123<br/>
-                講師: teacher@example.com / password123
+                <strong>新規登録について:</strong><br/>
+                アカウント作成後、確認メールが送信されます。<br/>
+                メール内のリンクをクリックしてアカウントを有効化してください。
               </p>
             </div>
           )}

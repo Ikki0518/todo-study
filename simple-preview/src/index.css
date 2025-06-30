@@ -2,6 +2,103 @@
 @tailwind components;
 @tailwind utilities;
 
+/* カスタムスタイル */
+@layer utilities {
+  /* 青色の薄いバックグラウンド */
+  .bg-blue-25 {
+    background-color: rgba(59, 130, 246, 0.05);
+  }
+  
+  /* グリッドセルの境界線を統一 */
+  .calendar-grid {
+    border-collapse: collapse;
+  }
+  
+  .calendar-cell {
+    border-right: 1px solid #e5e7eb;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  
+  /* 時間列の固定スタイル */
+  .time-column {
+    position: sticky;
+    left: 0;
+    z-index: 5;
+    background-color: #f9fafb;
+    border-right: 1px solid #e5e7eb;
+  }
+  
+  /* スクロールバーのスタイル改善 */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 3px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+  
+  /* モバイル用のタッチ最適化 */
+  @media (max-width: 1024px) {
+    .touch-optimized {
+      min-height: 44px; /* iOS推奨のタッチターゲットサイズ */
+    }
+    
+    .mobile-grid-cell {
+      min-width: 80px; /* モバイルでの最小セル幅 */
+    }
+  }
+  
+  /* グリッドレイアウトの改善 */
+  .planner-grid {
+    display: grid;
+    grid-template-rows: auto 1fr;
+  }
+  
+  .planner-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: white;
+    border-bottom: 2px solid #e5e7eb;
+  }
+  
+  .planner-body {
+    overflow: auto;
+  }
+}
+
+/* レスポンシブなフォントサイズ */
+@layer base {
+  .text-responsive-xs {
+    font-size: 0.75rem; /* 12px */
+  }
+  
+  .text-responsive-sm {
+    font-size: 0.875rem; /* 14px */
+  }
+  
+  @media (min-width: 640px) {
+    .text-responsive-xs {
+      font-size: 0.875rem; /* 14px */
+    }
+    
+    .text-responsive-sm {
+      font-size: 1rem; /* 16px */
+    }
+  }
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
