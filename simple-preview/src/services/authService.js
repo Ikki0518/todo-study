@@ -8,9 +8,13 @@ class AuthService {
     this.authStateListeners = []
     this.isDemo = !import.meta.env.VITE_SUPABASE_URL ||
                   import.meta.env.VITE_SUPABASE_URL === 'your_supabase_project_url'
+    this.authStateChangeSubscription = null
+    this.isListenerRegistered = false
     
-    // 認証状態の変更を監視
-    auth.onAuthStateChange(async (event, session) => {
+    // 認証状態の変更を監視（一度だけ）
+    if (!this.isListenerRegistered) {
+      this.isListenerRegistered = true
+      this.authStateChangeSubscription = auth.onAuthStateChange(async (event, session) => {
       console.log('認証状態変更:', { event, session: session?.user?.id })
       
       if (event === 'SIGNED_IN' && session?.user) {
@@ -37,7 +41,10 @@ class AuthService {
           console.error('認証状態リスナーエラー:', error)
         }
       })
-    })
+      })
+    }
+    
+    this.initialize()
   }
 
   // 認証状態変更のリスナーを追加

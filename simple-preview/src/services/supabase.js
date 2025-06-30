@@ -22,6 +22,7 @@ if (!isValidConfig) {
 // デモ用のダミークライアント
 let demoUser = null
 let authStateListeners = []
+let hasInitialStateBeenSent = false
 let demoData = {
   users: [],
   goals: [],
@@ -101,7 +102,31 @@ const createDemoClient = () => ({
       return { data: null, error: { message: 'ユーザーがログインしていません' } }
     },
     onAuthStateChange: (callback) => {
+      // 重複登録を防ぐ
+      if (authStateListeners.includes(callback)) {
+        return {
+          data: {
+            subscription: {
+              unsubscribe: () => {
+                const index = authStateListeners.indexOf(callback)
+                if (index > -1) {
+                  authStateListeners.splice(index, 1)
+                }
+              }
+            }
+          }
+        }
+      }
+      
       authStateListeners.push(callback)
+      
+      // 初期状態を即座に通知（非同期にしない）
+      if (demoUser) {
+        callback('SIGNED_IN', { user: demoUser, access_token: 'demo-token' })
+      } else {
+        callback('SIGNED_OUT', null)
+      }
+      
       return {
         data: {
           subscription: {
