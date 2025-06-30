@@ -167,3 +167,89 @@ CREATE TRIGGER update_tasks_updated_at BEFORE UPDATE ON tasks
 
 CREATE TRIGGER update_comments_updated_at BEFORE UPDATE ON comments
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Invitations table (招待システム)
+CREATE TABLE IF NOT EXISTS invitations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) NOT NULL,
+    role VARCHAR(50) NOT NULL CHECK (role IN ('STUDENT', 'INSTRUCTOR')),
+    invited_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    instructor_id UUID REFERENCES users(id) ON DELETE SET NULL, -- 学生の場合の担当講師
+    token VARCHAR(255) UNIQUE NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    used_at TIMESTAMP WITH TIME ZONE,
+    is_used BOOLEAN DEFAULT FALSE,
+    metadata JSONB DEFAULT '{}', -- 追加情報（学年、科目など）
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- User sessions table (セッション管理)
+CREATE TABLE IF NOT EXISTS user_sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token VARCHAR(255) UNIQUE NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    ip_address INET,
+    user_agent TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Password reset tokens table (パスワードリセット)
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token VARCHAR(255) UNIQUE NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    is_used BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Add password field to users table
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP WITH TIME ZONE;
+
+-- Create indexes for new tables
+CREATE INDEX IF NOT EXISTS idx_invitations_email ON invitations(email);
+CREATE INDEX IF NOT EXISTS idx_invitations_token ON invitations(token);
+CREATE INDEX IF NOT EXISTS idx_invitations_expires_at ON invitations(expires_at);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(token);
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token ON password_reset_tokens(token);
+
+-- Enable RLS for new tables
+ALTER TABLE invitations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE password_reset_tokens ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies for invitations
+CREATE POLICY "Admins and instructors can view invitations" ON invitations
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM users
+            WHERE id = auth.uid() AND role IN ('ADMIN', 'INSTRUCTOR')
+        )
+    );
+
+CREATE POLICY "Admins and instructors can create invitations" ON invitations
+    FOR INSERT WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM users
+            WHERE id = auth.uid() AND role IN ('ADMIN', 'INSTRUCTOR')
+        )
+    );
+
+-- RLS Policies for user sessions
+CREATE POLICY "Users can view own sessions" ON user_sessions
+    FOR SELECT USING (auth.uid() = user_id);
+
+-- Add triggers for new tables
+CREATE TRIGGER update_invitations_updated_at BEFORE UPDATE ON invitations
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_user_sessions_updated_at BEFORE UPDATE ON user_sessions
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

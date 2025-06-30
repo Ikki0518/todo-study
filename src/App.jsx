@@ -7,6 +7,7 @@ import { MonthlyCalendar } from './components/MonthlyCalendar';
 import { StudyBookManager } from './components/StudyBookManager';
 import { DailyTaskPool } from './components/DailyTaskPool';
 import { CalendarWithSchedule } from './components/CalendarWithSchedule';
+import { ProfileSettings } from './components/ProfileSettings';
 import { generateStudyPlan, convertPlansToTasks, calculateStudyPlanStats } from './utils/studyPlanGenerator';
 
 function App() {
@@ -380,7 +381,7 @@ function App() {
 
       {/* サイドバー */}
       <div className={`
-        fixed inset-y-0 left-0 w-64 bg-white border-r border-gray-200 z-50 transform transition-transform duration-300 ease-in-out min-h-screen
+        fixed inset-y-0 left-0 w-64 bg-white border-r border-gray-200 z-50 transform transition-transform duration-300 ease-in-out min-h-screen flex flex-col
         ${showMobileMenu ? 'translate-x-0' : '-translate-x-full'}
         lg:translate-x-0 lg:static lg:inset-0 lg:h-screen lg:flex-shrink-0
       `}>
@@ -404,7 +405,7 @@ function App() {
             </div>
           )}
         </div>
-        <nav className="px-4">
+        <nav className="px-4 flex-1">
           {userRole === 'STUDENT' ? (
             <>
               <button
@@ -459,6 +460,48 @@ function App() {
             </button>
           )}
         </nav>
+        
+        {/* 下部のアイコンボタン */}
+        <div className="border-t border-gray-200 p-4">
+          <div className="flex items-center justify-center space-x-4">
+            <button
+              onClick={() => setCurrentView('settings')}
+              className={`p-2 rounded-lg transition-colors ${
+                currentView === 'settings' ? 'bg-gray-200 text-gray-900' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+              }`}
+              title="設定"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </button>
+            <button
+              onClick={() => {
+                localStorage.removeItem('currentUser')
+                setIsLoggedIn(false)
+                setCurrentUser(null)
+                setUserRole('STUDENT')
+                setCurrentView('goals')
+                setGoals([])
+                setTodayTasks([])
+                setScheduledTasks({})
+                setCompletedTasks({})
+                setStudyBooks([])
+                setStudyPlans({})
+                setDailyTaskPool([])
+                setAllTasksHistory({})
+                setUserKnowledge(null)
+              }}
+              className="p-2 rounded-lg text-gray-600 hover:bg-red-50 hover:text-red-600 transition-colors"
+              title="ログアウト"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* メインコンテンツ */}
@@ -979,6 +1022,20 @@ function App() {
 
         {userRole === 'INSTRUCTOR' && currentView === 'dashboard' && (
           <InstructorDailyPlanner />
+        )}
+        
+        {currentView === 'settings' && (
+          <ProfileSettings
+            currentUser={currentUser}
+            onUpdateUser={(updatedUser) => {
+              setCurrentUser(updatedUser);
+              localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+            }}
+            onClose={() => {
+              // 前の画面に戻る
+              setCurrentView(userRole === 'STUDENT' ? 'goals' : 'dashboard');
+            }}
+          />
         )}
       </div>
 
