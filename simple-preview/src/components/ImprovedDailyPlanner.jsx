@@ -26,7 +26,7 @@ export const ImprovedDailyPlanner = ({
 
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobile(window.innerWidth < 1024) // lg breakpoint
+      setIsMobile(window.innerWidth < 768) // md breakpoint - より小さい画面でモバイル判定
     }
     
     checkMobile()
@@ -47,6 +47,24 @@ export const ImprovedDailyPlanner = ({
         dates.push(date)
       }
     } else {
+      // PC: 今日から6日後まで（7日間）
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(today)
+        date.setDate(today.getDate() + i)
+        dates.push(date)
+      }
+      return dates
+    }
+    
+    return dates
+  }
+
+  // 旧コード（削除予定）
+  const getOldDates = () => {
+    const today = new Date()
+    const dates = []
+    
+    if (false) { // 無効化
       // PC: 週間表示（今日を含む週）
       const dayOfWeek = today.getDay()
       const startOfWeek = new Date(today)
