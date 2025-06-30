@@ -9,6 +9,7 @@ import { DailyTaskPool } from './components/DailyTaskPool';
 import { CalendarWithSchedule } from './components/CalendarWithSchedule';
 import { ProfileSettings } from './components/ProfileSettings';
 import { generateStudyPlan, convertPlansToTasks, calculateStudyPlanStats } from './utils/studyPlanGenerator';
+import apiService from './services/apiService';
 
 function App() {
   const [currentView, setCurrentView] = useState('goals')
@@ -326,28 +327,56 @@ function App() {
   const todayString = `${today.getFullYear()}年${today.getMonth() + 1}月${today.getDate()}日（${dayNames[today.getDay()]}）`
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('currentUser');
-    if (savedUser) {
-      try {
-        const user = JSON.parse(savedUser);
-        setCurrentUser(user);
-        setUserRole(user.userRole);
-        setIsLoggedIn(true);
-      } catch (error) {
-        console.error('Failed to parse saved user:', error);
-        localStorage.removeItem('currentUser');
+    const initializeAuth = async () => {
+      const authToken = localStorage.getItem('authToken');
+      const savedUser = localStorage.getItem('currentUser');
+      
+      if (authToken && savedUser) {
+        try {
+          // トークンがある場合は、現在のユーザー情報を取得
+          const response = await apiService.getCurrentUser();
+          
+          if (response.success) {
+            const user = response.data.user;
+            const userData = {
+              id: user.id,
+              email: user.email,
+              name: user.name,
+              userRole: user.role,
+              avatar_url: user.avatar_url
+            };
+            
+            setCurrentUser(userData);
+            setUserRole(user.role);
+            setIsLoggedIn(true);
+            
+            // ローカルストレージのユーザー情報を最新に更新
+            localStorage.setItem('currentUser', JSON.stringify(userData));
+          } else {
+            // トークンが無効な場合はクリア
+            apiService.clearAuthToken();
+            localStorage.removeItem('currentUser');
+          }
+        } catch (error) {
+          console.error('Failed to fetch current user:', error);
+          // エラーの場合もクリア
+          apiService.clearAuthToken();
+          localStorage.removeItem('currentUser');
+        }
       }
-    }
+      
+      // タスク履歴を読み込む
+      const savedTasksHistory = localStorage.getItem('allTasksHistory');
+      if (savedTasksHistory) {
+        try {
+          setAllTasksHistory(JSON.parse(savedTasksHistory));
+        } catch (error) {
+          console.error('Failed to load tasks history:', error);
+        }
+      }
+    };
     
-    // タスク履歴を読み込む
-    const savedTasksHistory = localStorage.getItem('allTasksHistory');
-    if (savedTasksHistory) {
-      try {
-        setAllTasksHistory(JSON.parse(savedTasksHistory));
-      } catch (error) {
-        console.error('Failed to load tasks history:', error);
-      }
-    }
+    initializeAuth();
   }, []);
 
   // タスクが更新されたら履歴を保存
@@ -477,21 +506,33 @@ function App() {
               </svg>
             </button>
             <button
-              onClick={() => {
-                localStorage.removeItem('currentUser')
-                setIsLoggedIn(false)
-                setCurrentUser(null)
-                setUserRole('STUDENT')
-                setCurrentView('goals')
-                setGoals([])
-                setTodayTasks([])
-                setScheduledTasks({})
-                setCompletedTasks({})
-                setStudyBooks([])
-                setStudyPlans({})
-                setDailyTaskPool([])
-                setAllTasksHistory({})
-                setUserKnowledge(null)
+              onClick={async () => {
+                try {
+                  // APIでログアウト
+                  await apiService.logout();
+                  
+                  // ローカルデータをクリア
+                  localStorage.removeItem('currentUser')
+                  localStorage.removeItem('authToken')
+                  localStorage.removeItem('allTasksHistory')
+                  
+                  // 状態をリセット
+                  setIsLoggedIn(false)
+                  setCurrentUser(null)
+                  setUserRole('STUDENT')
+                  setCurrentView('goals')
+                  setGoals([])
+                  setTodayTasks([])
+                  setScheduledTasks({})
+                  setCompletedTasks({})
+                  setStudyBooks([])
+                  setStudyPlans({})
+                  setDailyTaskPool([])
+                  setAllTasksHistory({})
+                  setUserKnowledge(null)
+                } catch (error) {
+                  console.error('Logout error:', error);
+                }
               }}
               className="p-2 rounded-lg text-gray-600 hover:bg-red-50 hover:text-red-600 transition-colors"
               title="ログアウト"
