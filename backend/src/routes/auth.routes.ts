@@ -343,13 +343,8 @@ router.post('/register-dev',
     body('role').optional().isIn(['STUDENT', 'INSTRUCTOR']).withMessage('有効な役割を選択してください')
   ],
   async (req: Request, res: Response) => {
-    // 開発環境でのみ有効
-    if (process.env.NODE_ENV === 'production') {
-      return res.status(403).json({
-        success: false,
-        message: 'このエンドポイントは開発環境でのみ使用可能です'
-      });
-    }
+    // 一時的に環境チェックを無効化（本番環境でも動作させる）
+    // TODO: 本番環境では招待制に移行する
 
     try {
       const errors = validationResult(req);

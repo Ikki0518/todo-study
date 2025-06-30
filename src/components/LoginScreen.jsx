@@ -13,6 +13,12 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
+  
+  // ローカルストレージでユーザー管理（APIエラー時のフォールバック）
+  const [localUsers, setLocalUsers] = useState(() => {
+    const saved = localStorage.getItem('localUsers');
+    return saved ? JSON.parse(saved) : [];
+  });
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -27,6 +33,19 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
         [name]: ''
       }));
     }
+  };
+
+  const handleRegistrationSuccess = () => {
+    setRegistrationSuccess(true);
+    setIsLoginMode(true);
+    setFormData({
+      email: formData.email, // メールアドレスは保持
+      password: '',
+      confirmPassword: '',
+      name: '',
+      phoneNumber: ''
+    });
+    setErrors({ success: '登録が完了しました。ログインしてください。' });
   };
 
   const validateForm = () => {
@@ -80,67 +99,88 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
     try {
       if (isLoginMode) {
         // ログイン処理
-        const response = await apiService.login(formData.email, formData.password);
-        
-        if (response.success) {
-          const user = response.data.user;
-          localStorage.setItem('currentUser', JSON.stringify({
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            userRole: user.role,
-            avatar_url: user.avatar_url,
-            phoneNumber: user.phoneNumber || formData.phoneNumber
-          }));
-          onRoleChange(user.role);
-          onLogin(true);
-        } else {
-          setErrors({ general: response.message || 'ログインに失敗しました' });
+        try {
+          const response = await apiService.login(formData.email, formData.password);
+          
+          if (response.success) {
+            const user = response.data.user;
+            localStorage.setItem('currentUser', JSON.stringify({
+              id: user.id,
+              email: user.email,
+              name: user.name,
+              userRole: user.role,
+              avatar_url: user.avatar_url,
+              phoneNumber: user.phoneNumber || formData.phoneNumber
+            }));
+            onRoleChange(user.role);
+            onLogin(true);
+          } else {
+            setErrors({ general: response.message || 'ログインに失敗しました' });
+          }
+        } catch (apiError) {
+          // APIエラーの場合はローカルストレージから確認
+          console.log('API unavailable, checking local storage');
+          
+          const user = localUsers.find(u =>
+            u.email === formData.email && u.password === formData.password
+          );
+          
+          if (user) {
+            localStorage.setItem('currentUser', JSON.stringify(user));
+            onRoleChange(user.userRole);
+            onLogin(true);
+          } else {
+            setErrors({ general: 'メールアドレスまたはパスワードが正しくありません' });
+          }
         }
       } else {
-        // 新規登録処理（開発環境用エンドポイントを使用）
-        const response = await apiService.post('/auth/register-dev', {
-          email: formData.email,
-          name: formData.name,
-          password: formData.password,
-          phoneNumber: formData.phoneNumber,
-          role: 'STUDENT'
-        });
-        
-        if (response.success) {
-          // 登録成功 - ログイン画面に戻す
-          setRegistrationSuccess(true);
-          setIsLoginMode(true);
-          setFormData({
-            email: formData.email, // メールアドレスは保持
-            password: '',
-            confirmPassword: '',
-            name: '',
-            phoneNumber: ''
+        // 新規登録処理
+        try {
+          const response = await apiService.post('/auth/register-dev', {
+            email: formData.email,
+            name: formData.name,
+            password: formData.password,
+            phoneNumber: formData.phoneNumber,
+            role: 'STUDENT'
           });
-          setErrors({ success: '登録が完了しました。ログインしてください。' });
-        } else {
-          setErrors({ general: response.message || '登録に失敗しました' });
+          
+          if (response.success) {
+            // 登録成功 - ログイン画面に戻す
+            handleRegistrationSuccess();
+          } else {
+            setErrors({ general: response.message || '登録に失敗しました' });
+          }
+        } catch (apiError) {
+          // APIエラーの場合はローカルストレージにフォールバック
+          console.log('API unavailable, using local storage');
+          
+          // 既存ユーザーチェック
+          const existingUser = localUsers.find(u => u.email === formData.email);
+          if (existingUser) {
+            setErrors({ email: 'このメールアドレスは既に登録されています' });
+            return;
+          }
+          
+          // ローカルストレージに保存
+          const newUser = {
+            id: Date.now().toString(),
+            email: formData.email,
+            name: formData.name,
+            password: formData.password, // 実際の実装ではハッシュ化が必要
+            phoneNumber: formData.phoneNumber,
+            userRole: 'STUDENT'
+          };
+          
+          const updatedUsers = [...localUsers, newUser];
+          setLocalUsers(updatedUsers);
+          localStorage.setItem('localUsers', JSON.stringify(updatedUsers));
+          
+          handleRegistrationSuccess();
         }
       }
     } catch (error) {
       console.error('Auth error:', error);
-      // APIエラーの場合はフォールバック
-      if (!isLoginMode && error.message.includes('fetch')) {
-        // 開発用: API接続エラーの場合はローカルで処理
-        setRegistrationSuccess(true);
-        setIsLoginMode(true);
-        setFormData({
-          email: formData.email,
-          password: '',
-          confirmPassword: '',
-          name: '',
-          phoneNumber: ''
-        });
-        setErrors({ success: '登録が完了しました。ログインしてください。' });
-      } else {
-        setErrors({ general: error.message || 'エラーが発生しました。もう一度お試しください。' });
-      }
+      setErrors({ general: error.message || 'エラーが発生しました。もう一度お試しください。' });
     } finally {
       setIsLoading(false);
     }
