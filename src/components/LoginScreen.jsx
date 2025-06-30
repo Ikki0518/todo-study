@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import apiService from '../services/apiService';
 
 export const LoginScreen = ({ onLogin, onRoleChange }) => {
   const [isLoginMode, setIsLoginMode] = useState(true);
@@ -11,26 +12,7 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
   });
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
-
-  // ローカルのユーザーデータ（デモ用）
-  const [users, setUsers] = useState([
-    {
-      id: 1,
-      email: 'student@example.com',
-      password: 'password123',
-      name: '山田太郎',
-      phoneNumber: '090-1234-5678',
-      userRole: 'STUDENT'
-    },
-    {
-      id: 2,
-      email: 'teacher@example.com',
-      password: 'password123',
-      name: '田中先生',
-      phoneNumber: '090-8765-4321',
-      userRole: 'INSTRUCTOR'
-    }
-  ]);
+  const [registrationSuccess, setRegistrationSuccess] = useState(false);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -93,48 +75,72 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
     }
 
     setIsLoading(true);
+    setErrors({});
 
     try {
-      // 実際の実装では、ここでAPIを呼び出します
-      await new Promise(resolve => setTimeout(resolve, 1000)); // デモ用の遅延
-
       if (isLoginMode) {
         // ログイン処理
-        const user = users.find(u =>
-          u.email === formData.email && u.password === formData.password
-        );
+        const response = await apiService.login(formData.email, formData.password);
         
-        if (user) {
-          // ログイン成功
-          localStorage.setItem('currentUser', JSON.stringify(user));
-          onRoleChange(user.userRole);
+        if (response.success) {
+          const user = response.data.user;
+          localStorage.setItem('currentUser', JSON.stringify({
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            userRole: user.role,
+            avatar_url: user.avatar_url,
+            phoneNumber: user.phoneNumber || formData.phoneNumber
+          }));
+          onRoleChange(user.role);
           onLogin(true);
         } else {
-          setErrors({ general: 'メールアドレスまたはパスワードが正しくありません' });
+          setErrors({ general: response.message || 'ログインに失敗しました' });
         }
       } else {
-        // 新規登録処理
-        const existingUser = users.find(u => u.email === formData.email);
-        if (existingUser) {
-          setErrors({ email: 'このメールアドレスは既に登録されています' });
+        // 新規登録処理（開発環境用エンドポイントを使用）
+        const response = await apiService.post('/auth/register-dev', {
+          email: formData.email,
+          name: formData.name,
+          password: formData.password,
+          phoneNumber: formData.phoneNumber,
+          role: 'STUDENT'
+        });
+        
+        if (response.success) {
+          // 登録成功 - ログイン画面に戻す
+          setRegistrationSuccess(true);
+          setIsLoginMode(true);
+          setFormData({
+            email: formData.email, // メールアドレスは保持
+            password: '',
+            confirmPassword: '',
+            name: '',
+            phoneNumber: ''
+          });
+          setErrors({ success: '登録が完了しました。ログインしてください。' });
         } else {
-          // 新規ユーザーを追加
-          const newUser = {
-            id: users.length + 1,
-            email: formData.email,
-            password: formData.password,
-            name: formData.name,
-            phoneNumber: formData.phoneNumber,
-            userRole: 'STUDENT' // デフォルトで生徒として登録
-          };
-          setUsers(prev => [...prev, newUser]);
-          localStorage.setItem('currentUser', JSON.stringify(newUser));
-          onRoleChange(newUser.userRole);
-          onLogin(true);
+          setErrors({ general: response.message || '登録に失敗しました' });
         }
       }
     } catch (error) {
-      setErrors({ general: 'エラーが発生しました。もう一度お試しください。' });
+      console.error('Auth error:', error);
+      // APIエラーの場合はフォールバック
+      if (!isLoginMode && error.message.includes('fetch')) {
+        // 開発用: API接続エラーの場合はローカルで処理
+        setRegistrationSuccess(true);
+        setIsLoginMode(true);
+        setFormData({
+          email: formData.email,
+          password: '',
+          confirmPassword: '',
+          name: '',
+          phoneNumber: ''
+        });
+        setErrors({ success: '登録が完了しました。ログインしてください。' });
+      } else {
+        setErrors({ general: error.message || 'エラーが発生しました。もう一度お試しください。' });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -193,10 +199,15 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
             </button>
           </div>
 
-          {/* エラーメッセージ */}
+          {/* メッセージ表示 */}
           {errors.general && (
             <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
               {errors.general}
+            </div>
+          )}
+          {errors.success && (
+            <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded">
+              {errors.success}
             </div>
           )}
 

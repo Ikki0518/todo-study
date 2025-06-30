@@ -858,7 +858,6 @@ function App() {
                 title: formData.get('title'),
                 description: formData.get('description'),
                 unit: formData.get('unit'),
-                aggregationMethod: formData.get('aggregationMethod'),
                 targetValue: parseFloat(formData.get('targetValue')),
                 startDate: formData.get('startDate'),
                 endDate: formData.get('endDate'),
@@ -1047,14 +1046,6 @@ function App() {
                   </select>
                 </div>
 
-                {/* 集計方針 */}
-                {/* 集計方針は「全部到達したら達成」に固定 */}
-                <input
-                  type="hidden"
-                  name="aggregationMethod"
-                  value="全部到達したら達成"
-                />
-                
                 <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
                   <div className="flex items-center">
                     <svg className="w-5 h-5 text-blue-500 mr-2" fill="currentColor" viewBox="0 0 20 20">

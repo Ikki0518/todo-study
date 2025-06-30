@@ -18,6 +18,7 @@ export interface User {
   avatar_url?: string;
   timezone: string;
   email_verified: boolean;
+  phone_number?: string;
   last_login_at?: string;
   created_at: string;
   updated_at: string;
@@ -353,5 +354,66 @@ export class AuthService {
       .from('password_reset_tokens')
       .update({ is_used: true })
       .eq('id', resetToken.id);
+  }
+
+  // 直接ユーザー作成（開発環境用）
+  static async createUserDirectly(
+    email: string,
+    name: string,
+    password: string,
+    role: 'STUDENT' | 'INSTRUCTOR' | 'ADMIN',
+    additionalData: any = {}
+  ): Promise<{ user: User }> {
+    // 既存ユーザーチェック
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .single();
+
+    if (existingUser) {
+      throw new Error('このメールアドレスは既に登録されています');
+    }
+
+    const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+
+    // ユーザー作成
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .insert({
+        email,
+        name,
+        role,
+        password_hash: passwordHash,
+        email_verified: true,
+        timezone: additionalData.timezone || 'Asia/Tokyo',
+        phone_number: additionalData.phoneNumber
+      })
+      .select()
+      .single();
+
+    if (userError) {
+      throw new Error(`ユーザー作成に失敗しました: ${userError.message}`);
+    }
+
+    // 役割別テーブルに追加
+    if (role === 'STUDENT') {
+      await supabase.from('students').insert({
+        id: user.id,
+        instructor_id: null, // 開発環境では講師なし
+        grade_level: additionalData.gradeLevel,
+        subjects: additionalData.subjects || [],
+        learning_goals: additionalData.learningGoals
+      });
+    } else if (role === 'INSTRUCTOR') {
+      await supabase.from('instructors').insert({
+        id: user.id,
+        specialties: additionalData.specialties || [],
+        experience_years: additionalData.experienceYears || 0,
+        max_students: additionalData.maxStudents || 50
+      });
+    }
+
+    return { user };
   }
 }

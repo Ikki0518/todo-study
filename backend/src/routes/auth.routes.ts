@@ -333,6 +333,67 @@ router.post('/forgot-password',
   }
 );
 
+// 開発環境用の新規登録（招待なし）
+router.post('/register-dev',
+  [
+    body('email').isEmail().withMessage('有効なメールアドレスを入力してください'),
+    body('name').isLength({ min: 1, max: 255 }).withMessage('名前は1文字以上255文字以下で入力してください'),
+    body('password').isLength({ min: 8 }).withMessage('パスワードは8文字以上で入力してください'),
+    body('phoneNumber').optional().matches(/^\d{3}-\d{4}-\d{4}$/).withMessage('電話番号は000-0000-0000の形式で入力してください'),
+    body('role').optional().isIn(['STUDENT', 'INSTRUCTOR']).withMessage('有効な役割を選択してください')
+  ],
+  async (req: Request, res: Response) => {
+    // 開発環境でのみ有効
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({
+        success: false,
+        message: 'このエンドポイントは開発環境でのみ使用可能です'
+      });
+    }
+
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          message: 'バリデーションエラー',
+          errors: errors.array()
+        });
+      }
+
+      const { email, name, password, phoneNumber, role = 'STUDENT' } = req.body;
+      
+      // 直接ユーザーを作成
+      const result = await AuthService.createUserDirectly(
+        email,
+        name,
+        password,
+        role,
+        { phoneNumber }
+      );
+
+      res.json({
+        success: true,
+        data: {
+          user: {
+            id: result.user.id,
+            email: result.user.email,
+            name: result.user.name,
+            role: result.user.role,
+            phoneNumber: result.user.phone_number
+          },
+          message: '登録が完了しました'
+        }
+      });
+    } catch (error: any) {
+      res.status(400).json({
+        success: false,
+        message: error.message || 'ユーザー登録に失敗しました'
+      });
+    }
+  }
+);
+
 // パスワードリセット実行
 router.post('/reset-password',
   [
