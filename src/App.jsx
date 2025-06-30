@@ -8,6 +8,7 @@ import { StudyBookManager } from './components/StudyBookManager';
 import { DailyTaskPool } from './components/DailyTaskPool';
 import { CalendarWithSchedule } from './components/CalendarWithSchedule';
 import { ProfileSettings } from './components/ProfileSettings';
+import { InviteManager } from './components/InviteManager';
 import { generateStudyPlan, convertPlansToTasks, calculateStudyPlanStats } from './utils/studyPlanGenerator';
 import apiService from './services/apiService';
 
@@ -479,14 +480,24 @@ function App() {
               </button>
             </>
           ) : (
-            <button
-              onClick={() => setCurrentView('dashboard')}
-              className={`w-full text-left px-4 py-2 rounded-md mb-2 ${
-                currentView === 'dashboard' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100'
-              }`}
-            >
-              📊 ダッシュボード
-            </button>
+            <>
+              <button
+                onClick={() => setCurrentView('dashboard')}
+                className={`w-full text-left px-4 py-2 rounded-md mb-2 ${
+                  currentView === 'dashboard' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100'
+                }`}
+              >
+                📊 ダッシュボード
+              </button>
+              <button
+                onClick={() => setCurrentView('invites')}
+                className={`w-full text-left px-4 py-2 rounded-md mb-2 ${
+                  currentView === 'invites' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100'
+                }`}
+              >
+                ✉️ 招待管理
+              </button>
+            </>
           )}
         </nav>
         
@@ -1063,6 +1074,10 @@ function App() {
 
         {userRole === 'INSTRUCTOR' && currentView === 'dashboard' && (
           <InstructorDailyPlanner />
+        )}
+        
+        {userRole === 'INSTRUCTOR' && currentView === 'invites' && (
+          <InviteManager currentUser={currentUser} />
         )}
         
         {currentView === 'settings' && (
