@@ -40,8 +40,8 @@ export const ImprovedDailyPlanner = ({
     const dates = []
     
     if (isMobile) {
-      // モバイル: 今日から3日後まで（4日間）
-      for (let i = 0; i < 4; i++) {
+      // モバイル: 今日から2日後まで（3日間）
+      for (let i = 0; i < 3; i++) {
         const date = new Date(today)
         date.setDate(today.getDate() + i)
         dates.push(date)
@@ -116,13 +116,13 @@ export const ImprovedDailyPlanner = ({
         <div className="lg:col-span-9 bg-white rounded-lg shadow overflow-hidden planner-grid">
           {/* 固定ヘッダー（日付） */}
           <div className="planner-header">
-            <div className="overflow-x-auto custom-scrollbar">
+            <div className="custom-scrollbar">
               <div
-                className={`calendar-grid ${isMobile ? 'min-w-[400px]' : 'min-w-[600px]'}`}
+                className={`calendar-grid ${isMobile ? 'w-full' : 'min-w-[600px]'}`}
                 style={{
                   display: 'grid',
                   gridTemplateColumns: isMobile
-                    ? `60px repeat(4, 1fr)`
+                    ? `60px repeat(3, 1fr)`
                     : `60px repeat(7, 1fr)`
                 }}
               >
@@ -151,7 +151,7 @@ export const ImprovedDailyPlanner = ({
           
           {/* スクロール可能な時間グリッド */}
           <div className="planner-body custom-scrollbar" style={{ height: '400px', maxHeight: '60vh' }}>
-            <div className={isMobile ? 'min-w-[400px]' : 'min-w-[600px]'}>
+            <div className={isMobile ? 'w-full' : 'min-w-[600px]'}>
               {[...Array(24)].map((_, hourIndex) => {
                 const hour = hourIndex
                 return (
@@ -161,7 +161,7 @@ export const ImprovedDailyPlanner = ({
                     style={{
                       display: 'grid',
                       gridTemplateColumns: isMobile
-                        ? `60px repeat(4, 1fr)`
+                        ? `60px repeat(3, 1fr)`
                         : `60px repeat(7, 1fr)`
                     }}
                   >
