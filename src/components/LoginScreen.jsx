@@ -11,6 +11,7 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
     password: '',
     confirmPassword: '',
     name: '',
+    phoneNumber: '',
     userRole: 'STUDENT'
   });
   const [errors, setErrors] = useState({});
@@ -49,9 +50,14 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
     }
 
     // 新規登録時の追加検証
-    if (!isLoginMode) {
+    if (!isLoginMode || isInviteMode) {
       if (!formData.name) {
         newErrors.name = '名前を入力してください';
+      }
+      if (!formData.phoneNumber) {
+        newErrors.phoneNumber = '電話番号を入力してください';
+      } else if (!/^\d{3}-\d{4}-\d{4}$/.test(formData.phoneNumber)) {
+        newErrors.phoneNumber = '電話番号は000-0000-0000の形式で入力してください';
       }
       if (!formData.confirmPassword) {
         newErrors.confirmPassword = 'パスワード確認を入力してください';
@@ -98,7 +104,8 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
         const response = await apiService.register({
           token: inviteToken,
           name: formData.name,
-          password: formData.password
+          password: formData.password,
+          phoneNumber: formData.phoneNumber
         });
         
         if (response.success) {
@@ -108,7 +115,8 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
             email: user.email,
             name: user.name,
             userRole: user.role,
-            avatar_url: user.avatar_url
+            avatar_url: user.avatar_url,
+            phoneNumber: user.phoneNumber
           }));
           onRoleChange(user.role);
           onLogin(true);
@@ -116,8 +124,30 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
           setErrors({ general: response.message || '登録に失敗しました' });
         }
       } else {
-        // 通常の新規登録（現在は招待制のため無効）
-        setErrors({ general: '新規登録は招待制となっています。招待リンクからアクセスしてください。' });
+        // 通常の新規登録（開発環境用）
+        const response = await apiService.post('/auth/register-admin', {
+          email: formData.email,
+          name: formData.name,
+          password: formData.password,
+          phoneNumber: formData.phoneNumber,
+          role: formData.userRole
+        });
+        
+        if (response.success) {
+          const user = response.data.user;
+          localStorage.setItem('currentUser', JSON.stringify({
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            userRole: user.role,
+            avatar_url: user.avatar_url,
+            phoneNumber: user.phoneNumber
+          }));
+          onRoleChange(user.role);
+          onLogin(true);
+        } else {
+          setErrors({ general: response.message || '登録に失敗しました' });
+        }
       }
     } catch (error) {
       console.error('Auth error:', error);
@@ -204,8 +234,6 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
                     ? 'bg-blue-600 text-white border-blue-600'
                     : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200'
                 }`}
-                disabled
-                title="新規登録は招待制です"
               >
                 新規登録
               </button>
@@ -232,8 +260,8 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
 
           {/* フォーム */}
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* 招待による新規登録時の名前入力 */}
-            {isInviteMode && (
+            {/* 新規登録時の名前入力 */}
+            {(isInviteMode || !isLoginMode) && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   名前
@@ -250,6 +278,28 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
                 />
                 {errors.name && (
                   <p className="mt-1 text-sm text-red-600">{errors.name}</p>
+                )}
+              </div>
+            )}
+
+            {/* 新規登録時の電話番号入力 */}
+            {(isInviteMode || !isLoginMode) && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  電話番号
+                </label>
+                <input
+                  type="tel"
+                  name="phoneNumber"
+                  value={formData.phoneNumber}
+                  onChange={handleInputChange}
+                  className={`w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    errors.phoneNumber ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                  placeholder="000-0000-0000"
+                />
+                {errors.phoneNumber && (
+                  <p className="mt-1 text-sm text-red-600">{errors.phoneNumber}</p>
                 )}
               </div>
             )}
@@ -297,8 +347,8 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
               )}
             </div>
 
-            {/* 招待による新規登録時のパスワード確認 */}
-            {isInviteMode && (
+            {/* 新規登録時のパスワード確認 */}
+            {(isInviteMode || !isLoginMode) && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   パスワード確認
@@ -316,6 +366,24 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
                 {errors.confirmPassword && (
                   <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>
                 )}
+              </div>
+            )}
+
+            {/* 新規登録時のユーザー種別選択 */}
+            {!isLoginMode && !isInviteMode && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  ユーザー種別
+                </label>
+                <select
+                  name="userRole"
+                  value={formData.userRole}
+                  onChange={handleInputChange}
+                  className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="STUDENT">生徒</option>
+                  <option value="INSTRUCTOR">講師</option>
+                </select>
               </div>
             )}
 
