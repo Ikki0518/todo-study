@@ -20,71 +20,180 @@ if (!isValidConfig) {
 }
 
 // デモ用のダミークライアント
+let demoUser = null
+let authStateListeners = []
+let demoData = {
+  users: [],
+  goals: [],
+  tasks: [],
+  study_sessions: []
+}
+
 const createDemoClient = () => ({
   auth: {
-    signUp: async () => ({
-      data: null,
-      error: { message: 'デモモード: Supabase環境変数を設定してください' }
+    signUp: async (credentials) => {
+      // デモモードでは簡単な登録を許可
+      const user = {
+        id: 'demo-user-' + Date.now(),
+        email: credentials.email,
+        created_at: new Date().toISOString(),
+        user_metadata: credentials.options?.data || {}
+      }
+      
+      demoUser = user
+      
+      // 認証状態変更を通知
+      setTimeout(() => {
+        authStateListeners.forEach(listener => {
+          listener('SIGNED_IN', { user, access_token: 'demo-token' })
+        })
+      }, 100)
+      
+      return {
+        data: { user, session: { user, access_token: 'demo-token' } },
+        error: null
+      }
+    },
+    signInWithPassword: async (credentials) => {
+      // デモモードでは任意の認証情報でログイン可能
+      const user = {
+        id: 'demo-user-' + credentials.email.replace(/[^a-zA-Z0-9]/g, ''),
+        email: credentials.email,
+        created_at: new Date().toISOString(),
+        user_metadata: { name: 'デモユーザー' }
+      }
+      
+      demoUser = user
+      
+      // 認証状態変更を通知
+      setTimeout(() => {
+        authStateListeners.forEach(listener => {
+          listener('SIGNED_IN', { user, access_token: 'demo-token' })
+        })
+      }, 100)
+      
+      return {
+        data: { user, session: { user, access_token: 'demo-token' } },
+        error: null
+      }
+    },
+    signOut: async () => {
+      demoUser = null
+      
+      // 認証状態変更を通知
+      setTimeout(() => {
+        authStateListeners.forEach(listener => {
+          listener('SIGNED_OUT', null)
+        })
+      }, 100)
+      
+      return { error: null }
+    },
+    getUser: async () => ({ 
+      data: { user: demoUser }, 
+      error: null 
     }),
-    signInWithPassword: async () => ({
-      data: null,
-      error: { message: 'デモモード: Supabase環境変数を設定してください' }
-    }),
-    signOut: async () => ({ error: null }),
-    getUser: async () => ({ data: { user: null }, error: null }),
-    updateUser: async () => ({
-      data: null,
-      error: { message: 'デモモード: Supabase環境変数を設定してください' }
-    }),
-    onAuthStateChange: () => ({
-      data: {
-        subscription: {
-          unsubscribe: () => {}
+    updateUser: async (updates) => {
+      if (demoUser) {
+        demoUser = { ...demoUser, ...updates }
+        return { data: { user: demoUser }, error: null }
+      }
+      return { data: null, error: { message: 'ユーザーがログインしていません' } }
+    },
+    onAuthStateChange: (callback) => {
+      authStateListeners.push(callback)
+      return {
+        data: {
+          subscription: {
+            unsubscribe: () => {
+              const index = authStateListeners.indexOf(callback)
+              if (index > -1) {
+                authStateListeners.splice(index, 1)
+              }
+            }
+          }
         }
       }
-    }),
+    },
     resetPasswordForEmail: async () => ({
-      data: null,
-      error: { message: 'デモモード: Supabase環境変数を設定してください' }
+      data: { message: 'デモモード: パスワードリセットメールを送信しました（実際には送信されません）' },
+      error: null
     })
   },
-  from: () => ({
-    select: () => ({
-      eq: () => ({
-        single: async () => ({ data: null, error: null }),
-        order: () => ({ data: [], error: null })
-      }),
-      order: () => ({ data: [], error: null })
-    }),
-    insert: () => ({
-      select: () => ({
-        single: async () => ({
-          data: null,
-          error: { message: 'デモモード: Supabase環境変数を設定してください' }
+  from: (table) => ({
+    select: (columns = '*') => ({
+      eq: (column, value) => ({
+        single: async () => {
+          const data = demoData[table]?.find(item => item[column] === value) || null
+          return { data, error: null }
+        },
+        order: (orderColumn, options = {}) => ({
+          data: demoData[table]?.filter(item => item[column] === value) || [],
+          error: null
         })
+      }),
+      order: (column, options = {}) => ({
+        data: demoData[table] || [],
+        error: null
       })
     }),
-    update: () => ({
-      eq: () => ({
+    insert: (values) => ({
+      select: () => ({
+        single: async () => {
+          const newItem = {
+            id: Date.now(),
+            ...values,
+            created_at: new Date().toISOString()
+          }
+          if (!demoData[table]) demoData[table] = []
+          demoData[table].push(newItem)
+          return { data: newItem, error: null }
+        }
+      })
+    }),
+    update: (values) => ({
+      eq: (column, value) => ({
         select: () => ({
-          single: async () => ({
-            data: null,
-            error: { message: 'デモモード: Supabase環境変数を設定してください' }
-          })
+          single: async () => {
+            const index = demoData[table]?.findIndex(item => item[column] === value)
+            if (index !== undefined && index >= 0) {
+              demoData[table][index] = { ...demoData[table][index], ...values }
+              return { data: demoData[table][index], error: null }
+            }
+            return { data: null, error: { message: 'レコードが見つかりません' } }
+          }
         })
       })
     }),
     delete: () => ({
-      eq: async () => ({
-        error: { message: 'デモモード: Supabase環境変数を設定してください' }
-      })
+      eq: async (column, value) => {
+        const index = demoData[table]?.findIndex(item => item[column] === value)
+        if (index !== undefined && index >= 0) {
+          demoData[table].splice(index, 1)
+          return { error: null }
+        }
+        return { error: { message: 'レコードが見つかりません' } }
+      }
     }),
-    upsert: () => ({
+    upsert: (values) => ({
       select: () => ({
-        single: async () => ({
-          data: null,
-          error: { message: 'デモモード: Supabase環境変数を設定してください' }
-        })
+        single: async () => {
+          const newItem = {
+            id: values.id || Date.now(),
+            ...values,
+            updated_at: new Date().toISOString()
+          }
+          if (!demoData[table]) demoData[table] = []
+          
+          const existingIndex = demoData[table].findIndex(item => item.id === newItem.id)
+          if (existingIndex >= 0) {
+            demoData[table][existingIndex] = newItem
+          } else {
+            demoData[table].push(newItem)
+          }
+          
+          return { data: newItem, error: null }
+        }
       })
     })
   })
@@ -149,18 +258,16 @@ export const auth = {
     return { data, error }
   },
 
-  // パスワード更新
-  async updatePassword(password) {
-    const { data, error } = await supabase.auth.updateUser({
-      password
-    })
+  // ユーザー情報更新
+  async updateUser(updates) {
+    const { data, error } = await supabase.auth.updateUser(updates)
     return { data, error }
   }
 }
 
-// データベース操作のヘルパー関数
+// データベース関連のヘルパー関数
 export const database = {
-  // ユーザープロフィール取得
+  // ユーザープロフィール関連
   async getUserProfile(userId) {
     const { data, error } = await supabase
       .from('users')
@@ -170,31 +277,25 @@ export const database = {
     return { data, error }
   },
 
-  // ユーザープロフィール作成/更新
   async upsertUserProfile(userId, profileData) {
     const { data, error } = await supabase
       .from('users')
-      .upsert({
-        id: userId,
-        ...profileData,
-        updated_at: new Date().toISOString()
-      })
+      .upsert({ id: userId, ...profileData })
       .select()
       .single()
     return { data, error }
   },
 
-  // 学習目標の取得
-  async getGoals(studentId) {
+  // 目標関連
+  async getUserGoals(userId) {
     const { data, error } = await supabase
       .from('goals')
       .select('*')
-      .eq('student_id', studentId)
+      .eq('user_id', userId)
       .order('created_at', { ascending: false })
     return { data, error }
   },
 
-  // 学習目標の作成
   async createGoal(goalData) {
     const { data, error } = await supabase
       .from('goals')
@@ -204,21 +305,16 @@ export const database = {
     return { data, error }
   },
 
-  // 学習目標の更新
   async updateGoal(goalId, updates) {
     const { data, error } = await supabase
       .from('goals')
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString()
-      })
+      .update(updates)
       .eq('id', goalId)
       .select()
       .single()
     return { data, error }
   },
 
-  // 学習目標の削除
   async deleteGoal(goalId) {
     const { error } = await supabase
       .from('goals')
@@ -227,23 +323,16 @@ export const database = {
     return { error }
   },
 
-  // タスクの取得
-  async getTasks(studentId, date = null) {
-    let query = supabase
+  // タスク関連
+  async getUserTasks(userId) {
+    const { data, error } = await supabase
       .from('tasks')
       .select('*')
-      .eq('student_id', studentId)
-      .order('scheduled_date', { ascending: true })
-
-    if (date) {
-      query = query.eq('scheduled_date', date)
-    }
-
-    const { data, error } = await query
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
     return { data, error }
   },
 
-  // タスクの作成
   async createTask(taskData) {
     const { data, error } = await supabase
       .from('tasks')
@@ -253,27 +342,51 @@ export const database = {
     return { data, error }
   },
 
-  // タスクの更新
   async updateTask(taskId, updates) {
     const { data, error } = await supabase
       .from('tasks')
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString()
-      })
+      .update(updates)
       .eq('id', taskId)
       .select()
       .single()
     return { data, error }
   },
 
-  // タスクの削除
   async deleteTask(taskId) {
     const { error } = await supabase
       .from('tasks')
       .delete()
       .eq('id', taskId)
     return { error }
+  },
+
+  // 学習セッション関連
+  async getUserStudySessions(userId) {
+    const { data, error } = await supabase
+      .from('study_sessions')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+    return { data, error }
+  },
+
+  async createStudySession(sessionData) {
+    const { data, error } = await supabase
+      .from('study_sessions')
+      .insert(sessionData)
+      .select()
+      .single()
+    return { data, error }
+  },
+
+  async updateStudySession(sessionId, updates) {
+    const { data, error } = await supabase
+      .from('study_sessions')
+      .update(updates)
+      .eq('id', sessionId)
+      .select()
+      .single()
+    return { data, error }
   }
 }
 

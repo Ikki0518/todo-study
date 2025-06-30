@@ -11,15 +11,31 @@ class AuthService {
     
     // 認証状態の変更を監視
     auth.onAuthStateChange(async (event, session) => {
+      console.log('認証状態変更:', { event, session: session?.user?.id })
+      
       if (event === 'SIGNED_IN' && session?.user) {
-        await this.loadUserProfile(session.user.id)
+        // ログイン処理で既にプロフィールを読み込んでいる場合はスキップ
+        if (!this.currentUser || this.currentUser.id !== session.user.id) {
+          console.log('認証状態変更によるプロフィール読み込み')
+          const result = await this.loadUserProfile(session.user.id)
+          if (!result || !result.success) {
+            console.error('認証状態変更時のプロフィール読み込み失敗:', result)
+          }
+        } else {
+          console.log('プロフィール既に読み込み済み、スキップ')
+        }
       } else if (event === 'SIGNED_OUT') {
         this.currentUser = null
+        console.log('ログアウト: currentUserをクリア')
       }
       
       // リスナーに通知
       this.authStateListeners.forEach(listener => {
-        listener(event, session, this.currentUser)
+        try {
+          listener(event, session, this.currentUser)
+        } catch (error) {
+          console.error('認証状態リスナーエラー:', error)
+        }
       })
     })
   }
@@ -40,14 +56,18 @@ class AuthService {
   // ユーザープロフィールを読み込み
   async loadUserProfile(userId) {
     try {
+      console.log('プロフィール読み込み開始:', userId)
       const { data: profile, error } = await database.getUserProfile(userId)
+      console.log('プロフィール取得結果:', { profile, error })
+      
       if (error && error.code !== 'PGRST116') { // レコードが見つからない場合以外のエラー
         console.error('プロフィール取得エラー:', error)
-        return
+        return { success: false, error: 'プロフィール取得に失敗しました' }
       }
 
       // プロフィールが存在しない場合は作成
       if (!profile) {
+        console.log('プロフィールが存在しないため作成中...')
         const { data: user } = await auth.getCurrentUser()
         if (user?.user) {
           const newProfile = {
@@ -64,13 +84,23 @@ class AuthService {
           
           if (!createError) {
             this.currentUser = createdProfile
+            console.log('新しいプロフィール作成成功:', createdProfile)
+            return { success: true, user: createdProfile }
+          } else {
+            console.error('プロフィール作成エラー:', createError)
+            return { success: false, error: 'プロフィール作成に失敗しました' }
           }
         }
       } else {
         this.currentUser = profile
+        console.log('既存プロフィール読み込み成功:', profile)
+        return { success: true, user: profile }
       }
+      
+      return { success: false, error: 'プロフィール処理に失敗しました' }
     } catch (error) {
       console.error('ユーザープロフィール読み込みエラー:', error)
+      return { success: false, error: 'プロフィール読み込み中にエラーが発生しました' }
     }
   }
 
@@ -134,25 +164,38 @@ class AuthService {
   // ログイン
   async login(email, password) {
     try {
+      console.log('ログイン開始:', { email, isDemo: this.isDemo })
       const { data, error } = await auth.signIn(email, password)
+      console.log('auth.signIn結果:', { data, error })
 
       if (error) {
+        console.log('ログインエラー:', error)
         return {
           success: false,
           error: this.getErrorMessage(error)
         }
       }
 
-      if (data.user) {
-        await this.loadUserProfile(data.user.id)
+      if (data && data.user) {
+        console.log('ログイン成功、プロフィール読み込み中:', data.user)
+        const profileResult = await this.loadUserProfile(data.user.id)
         
-        return {
-          success: true,
-          user: this.currentUser,
-          session: data.session
+        if (profileResult && profileResult.success) {
+          return {
+            success: true,
+            user: this.currentUser,
+            session: data.session
+          }
+        } else {
+          console.log('プロフィール読み込み失敗:', profileResult)
+          return {
+            success: false,
+            error: 'プロフィールの読み込みに失敗しました'
+          }
         }
       }
 
+      console.log('ログイン失敗: ユーザーデータなし')
       return {
         success: false,
         error: 'ログインに失敗しました'

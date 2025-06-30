@@ -91,10 +91,10 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
         });
       }
 
-      if (result.success) {
+      if (result && result.success) {
         if (isLoginMode) {
           // ログイン成功
-          onRoleChange(result.user.role);
+          onRoleChange(result.user?.role || 'STUDENT');
           onLogin(true);
         } else {
           // 登録成功
@@ -112,7 +112,8 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
         }
       } else {
         // エラーハンドリング
-        setErrors({ general: result.error });
+        const errorMessage = result?.error || 'ログインに失敗しました。もう一度お試しください。';
+        setErrors({ general: errorMessage });
       }
     } catch (error) {
       console.error('認証エラー:', error);
