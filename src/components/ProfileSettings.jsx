@@ -4,6 +4,7 @@ export function ProfileSettings({ currentUser, onUpdateUser, onClose }) {
   const [formData, setFormData] = useState({
     name: currentUser?.name || '',
     email: currentUser?.email || '',
+    phoneNumber: currentUser?.phoneNumber || '',
     password: '',
     confirmPassword: ''
   });
@@ -36,7 +37,8 @@ export function ProfileSettings({ currentUser, onUpdateUser, onClose }) {
     const updatedUser = {
       ...currentUser,
       name: formData.name,
-      email: formData.email
+      email: formData.email,
+      phoneNumber: formData.phoneNumber
     };
 
     // ローカルストレージに保存
@@ -103,6 +105,22 @@ export function ProfileSettings({ currentUser, onUpdateUser, onClose }) {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              電話番号
+            </label>
+            <input
+              type="tel"
+              name="phoneNumber"
+              value={formData.phoneNumber}
+              onChange={handleChange}
+              pattern="\d{3}-\d{4}-\d{4}"
+              placeholder="000-0000-0000"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="mt-1 text-sm text-gray-500">000-0000-0000の形式で入力してください</p>
           </div>
 
           <div className="border-t pt-6">
