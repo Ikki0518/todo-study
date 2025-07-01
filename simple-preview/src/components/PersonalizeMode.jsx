@@ -106,17 +106,17 @@ ${currentData.studyHours ? `- 学習時間: ${currentData.studyHours}` : '- 学�
       
       // より精密なデータ収集ロジック
       const messageText = message.toLowerCase();
-      const conversationContext = messages.length;
+      const userMessageCount = updatedMessages.filter(msg => msg.role === 'user').length;
       
       // 会話履歴を保存
       newData.additionalInfo.conversationHistory.push({
         timestamp: new Date().toISOString(),
         userMessage: message,
-        context: conversationContext
+        context: userMessageCount
       });
       
-      // 基本情報の収集（目標は1回目の会話でのみ抽出）
-      if (!newData.goal && conversationContext === 1 && (messageText.includes('toeic') || messageText.includes('大学') || messageText.includes('試験') || messageText.includes('資格') || messageText.includes('検定') || messageText.includes('英検'))) {
+      // 基本情報の収集（目標は未設定の場合に抽出）
+      if (!newData.goal && (messageText.includes('toeic') || messageText.includes('大学') || messageText.includes('試験') || messageText.includes('資格') || messageText.includes('検定') || messageText.includes('英検'))) {
         const goalMatch = message.match(/toeic\s*(\d+)/i) || message.match(/(\d+)\s*点/) || message.match(/英検\s*(\d+)\s*級/i);
         if (goalMatch) {
           if (messageText.includes('toeic')) {
@@ -131,40 +131,94 @@ ${currentData.studyHours ? `- 学習時間: ${currentData.studyHours}` : '- 学�
         }
       }
       
-      // 期限は2回目以降の会話で抽出（既に設定されていない場合）
-      if (!newData.deadline && conversationContext >= 2 && (messageText.includes('年') || messageText.includes('月') || messageText.includes('まで') || messageText.includes('日'))) {
+      // 期限は未設定の場合に抽出
+      if (!newData.deadline && (messageText.includes('年') || messageText.includes('月') || messageText.includes('まで') || messageText.includes('日'))) {
         // 明確な日付形式を抽出（YYYY年MM月DD日、MM月DD日など）
-        const fullDateMatch = message.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
-        const monthDayMatch = message.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
-        const yearMonthMatch = message.match(/(\d{4})\s*年\s*(\d{1,2})\s*月/);
-        const monthOnlyMatch = message.match(/(\d{1,2})\s*月/);
+        // 日付のパターンを幅広くマッチング
+        const datePatterns = [
+          /(\d{4})[年\/\-](\d{1,2})[月\/\-](\d{1,2})[日]?/,
+          /(\d{1,2})[月\/](\d{1,2})[日]/,
+          /(\d{4})[年](\d{1,2})[月]/,
+          /(\d{1,2})[月]/
+        ];
         
-        if (fullDateMatch) {
-          newData.deadline = `${fullDateMatch[1]}年${fullDateMatch[2]}月${fullDateMatch[3]}日`;
-        } else if (monthDayMatch) {
-          const currentYear = new Date().getFullYear();
-          newData.deadline = `${currentYear}年${monthDayMatch[1]}月${monthDayMatch[2]}日`;
-        } else if (yearMonthMatch) {
-          newData.deadline = `${yearMonthMatch[1]}年${yearMonthMatch[2]}月末`;
-        } else if (monthOnlyMatch) {
-          const currentYear = new Date().getFullYear();
-          newData.deadline = `${currentYear}年${monthOnlyMatch[1]}月末`;
+        let matched = false;
+        for (const pattern of datePatterns) {
+          const match = message.match(pattern);
+          if (match) {
+            if (match.length === 4) { // YYYY年MM月DD日
+              newData.deadline = `${match[1]}年${match[2]}月${match[3]}日`;
+            } else if (match.length === 3 && match[0].includes('月') && match[0].includes('日')) { // MM月DD日
+              const currentYear = new Date().getFullYear();
+              newData.deadline = `${currentYear}年${match[1]}月${match[2]}日`;
+            } else if (match.length === 3) { // YYYY年MM月
+              newData.deadline = `${match[1]}年${match[2]}月末`;
+            } else if (match.length === 2) { // MM月
+              const currentYear = new Date().getFullYear();
+              newData.deadline = `${currentYear}年${match[1]}月末`;
+            }
+            matched = true;
+            break;
+          }
+        }
+        
+        // 数字の形式もチェック（例：20260120）
+        if (!matched) {
+          const numericDate = message.match(/(\d{8})/);
+          if (numericDate) {
+            const dateStr = numericDate[1];
+            const year = dateStr.substring(0, 4);
+            const month = dateStr.substring(4, 6);
+            const day = dateStr.substring(6, 8);
+            newData.deadline = `${year}年${month}月${day}日`;
+          }
         }
       }
 
-      // 現在のレベルは3回目以降の会話で抽出（既に設定されていない場合）
-      if (!newData.currentStatus && conversationContext >= 3 && (messageText.includes('点') || messageText.includes('偏差値') || messageText.includes('レベル') || messageText.includes('初心者') || messageText.includes('中級') || messageText.includes('現在') || messageText.includes('今'))) {
-        const currentMatch = message.match(/(\d+)\s*点/) || message.match(/偏差値\s*(\d+)/);
-        if (currentMatch) {
-          newData.currentStatus = `現在 ${currentMatch[1]}点`;
+      // 現在のレベルは未設定の場合に抽出
+      if (!newData.currentStatus && (messageText.includes('点') || messageText.includes('偏差値') || messageText.includes('レベル') || messageText.includes('初心者') || messageText.includes('中級') || messageText.includes('現在') || messageText.includes('今') || messageText.includes('toeic'))) {
+        // TOEICの点数を抽出
+        const toeicMatch = message.match(/toeic\s*(\d+)\s*点/i) || message.match(/toeic(\d+)/i);
+        const scoreMatch = message.match(/(\d+)\s*点/);
+        const deviationMatch = message.match(/偏差値\s*(\d+)/);
+        
+        if (toeicMatch) {
+          newData.currentStatus = `TOEIC ${toeicMatch[1]}点`;
+        } else if (scoreMatch) {
+          newData.currentStatus = `現在 ${scoreMatch[1]}点`;
+        } else if (deviationMatch) {
+          newData.currentStatus = `偏差値 ${deviationMatch[1]}`;
+        } else if (messageText.includes('初心者')) {
+          newData.currentStatus = '初心者レベル';
+        } else if (messageText.includes('中級')) {
+          newData.currentStatus = '中級レベル';
         } else {
-          newData.currentStatus = message;
+          // その他の場合はメッセージ全体を保存
+          newData.currentStatus = message.trim();
         }
       }
       
-      // 学習時間は4回目以降の会話で抽出（既に設定されていない場合）
-      if (!newData.studyHours && conversationContext >= 4 && (messageText.includes('時間') || messageText.includes('分'))) {
-        newData.studyHours = message;
+      // 学習時間は未設定の場合に抽出
+      if (!newData.studyHours && (messageText.includes('時間') || messageText.includes('分') || messageText.includes('平日') || messageText.includes('休日'))) {
+        // 時間のパターンを抽出
+        const hoursMatch = message.match(/(\d+)\s*時間/);
+        const minutesMatch = message.match(/(\d+)\s*分/);
+        const dailyMatch = message.match(/1日\s*(\d+)\s*時間/);
+        const weekdayMatch = message.match(/平日\s*(\d+)\s*時間/);
+        const weekendMatch = message.match(/休日\s*(\d+)\s*時間/);
+        
+        if (dailyMatch) {
+          newData.studyHours = `1日${dailyMatch[1]}時間`;
+        } else if (weekdayMatch && weekendMatch) {
+          newData.studyHours = `平日${weekdayMatch[1]}時間、休日${weekendMatch[1]}時間`;
+        } else if (hoursMatch) {
+          newData.studyHours = `${hoursMatch[1]}時間`;
+        } else if (minutesMatch) {
+          newData.studyHours = `${minutesMatch[1]}分`;
+        } else {
+          // その他の場合はメッセージ全体を保存
+          newData.studyHours = message.trim();
+        }
       }
 
       // 追加情報の収集（備考として保存）
@@ -190,6 +244,17 @@ ${currentData.studyHours ? `- 学習時間: ${currentData.studyHours}` : '- 学�
         newData.additionalInfo.challenges += message + '; ';
       }
 
+      // デバッグ用ログ
+      console.log('収集データ更新:', {
+        userMessage: message,
+        extractedData: {
+          goal: newData.goal,
+          deadline: newData.deadline,
+          currentStatus: newData.currentStatus,
+          studyHours: newData.studyHours
+        }
+      });
+      
       setCollectedData(newData);
       
       // 基本4項目が揃った場合のみ完了
