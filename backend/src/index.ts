@@ -62,6 +62,17 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 // サーバーの起動
 async function startServer() {
   try {
+    // 環境変数の検証（本番環境のみ）
+    if (config.isProduction) {
+      try {
+        const { validateConfig } = await import('./config');
+        validateConfig();
+        logger.info('Environment variables validated successfully');
+      } catch (error) {
+        logger.warn('Environment validation failed, continuing with defaults:', error);
+      }
+    }
+
     // データベースの接続
     await setupDatabase();
     logger.info('Database connected successfully');

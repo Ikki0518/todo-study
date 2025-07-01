@@ -54,14 +54,8 @@ export function StudyBookManager({
       // デフォルトは平日（月〜金）
       return [1, 2, 3, 4, 5]
     })
-    
-    const [unitType, setUnitType] = useState(book?.unitType || 'page')
 
     const dayNames = ['日', '月', '火', '水', '木', '金', '土']
-    
-    const getUnitLabel = (type) => {
-      return unitType === 'page' ? type : type.replace('ページ', '問')
-    }
     
     const handleDayToggle = (dayIndex) => {
       setSelectedDays(prev => {
@@ -83,7 +77,6 @@ export function StudyBookManager({
       
       const bookData = {
         title: formData.get('title'),
-        unitType: unitType,
         totalPages: parseInt(formData.get('totalPages')),
         currentPage: parseInt(formData.get('currentPage') || 0),
         dailyPages: parseInt(formData.get('dailyPages')),
@@ -115,34 +108,7 @@ export function StudyBookManager({
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">単位</label>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setUnitType('page')}
-                    className={`flex-1 p-2 text-sm rounded-md border transition-colors ${
-                      unitType === 'page'
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    ページ
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setUnitType('question')}
-                    className={`flex-1 p-2 text-sm rounded-md border transition-colors ${
-                      unitType === 'question'
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    問
-                  </button>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">{getUnitLabel('総ページ数')}</label>
+                <label className="block text-sm font-medium mb-1">総ページ数</label>
                 <input
                   name="totalPages"
                   type="number"
@@ -154,7 +120,7 @@ export function StudyBookManager({
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">{getUnitLabel('現在のページ')}</label>
+                <label className="block text-sm font-medium mb-1">現在のページ</label>
                 <input
                   name="currentPage"
                   type="number"
@@ -165,7 +131,7 @@ export function StudyBookManager({
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">{getUnitLabel('1日の目標ページ数')}</label>
+                <label className="block text-sm font-medium mb-1">1日の目標ページ数</label>
                 <input
                   name="dailyPages"
                   type="number"
@@ -359,7 +325,7 @@ export function StudyBookManager({
               <div className="space-y-2 lg:space-y-3">
                 <div className="flex justify-between text-xs sm:text-sm lg:text-base">
                   <span>進捗</span>
-                  <span className="text-right">{book.currentPage || 0} / {book.totalPages} {book.unitType === 'question' ? '問' : 'ページ'} ({progress}%)</span>
+                  <span className="text-right">{book.currentPage || 0} / {book.totalPages} ページ ({progress}%)</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2 lg:h-3">
                   <div
@@ -369,7 +335,7 @@ export function StudyBookManager({
                 </div>
                 
                 <div className="text-xs sm:text-sm lg:text-base text-gray-600 space-y-1">
-                  <div>1日の目標: {book.dailyPages}{book.unitType === 'question' ? '問' : 'ページ'}</div>
+                  <div>1日の目標: {book.dailyPages}ページ</div>
                   <div>学習曜日: {getStudyDaysText(book.excludeDays)}</div>
                   <div>完了予定: {completionDate}</div>
                 </div>
