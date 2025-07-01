@@ -95,14 +95,24 @@ ${currentData.studyHours ? `- 学習時間: ${currentData.studyHours}` : '- 学�
     setMessages(updatedMessages);
 
     try {
+      // データ収集の前に現在のcollectedDataを取得
+      const currentCollectedData = await new Promise(resolve => {
+        setCollectedData(prevData => {
+          resolve(prevData);
+          return prevData;
+        });
+      });
+      
       // ChatGPT-4o latestから応答を取得
-      const aiResponse = await getAIResponse(message, updatedMessages.slice(0, -1), collectedData);
+      const aiResponse = await getAIResponse(message, updatedMessages.slice(0, -1), currentCollectedData);
       
       // AIメッセージを追加
       setMessages(prev => [...prev, { role: 'assistant', content: aiResponse }]);
       
       // データを収集（簡単なキーワード検出）
-      const newData = { ...collectedData };
+      // setCollectedDataを使って最新の状態を取得
+      setCollectedData(prevData => {
+        const newData = { ...prevData };
       
       // より精密なデータ収集ロジック
       const messageText = message.toLowerCase();
@@ -133,31 +143,38 @@ ${currentData.studyHours ? `- 学習時間: ${currentData.studyHours}` : '- 学�
       
       // 期限は未設定の場合に抽出
       if (!newData.deadline && (messageText.includes('年') || messageText.includes('月') || messageText.includes('まで') || messageText.includes('日'))) {
+        console.log('期限抽出開始:', message);
+        
         // 明確な日付形式を抽出（YYYY年MM月DD日、MM月DD日など）
         // 日付のパターンを幅広くマッチング
         const datePatterns = [
-          /(\d{4})[年\/\-](\d{1,2})[月\/\-](\d{1,2})[日]?/,
-          /(\d{1,2})[月\/](\d{1,2})[日]/,
-          /(\d{4})[年](\d{1,2})[月]/,
-          /(\d{1,2})[月]/
+          /(\d{4})年(\d{1,2})月(\d{1,2})日/,
+          /(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/,
+          /(\d{1,2})月(\d{1,2})日/,
+          /(\d{4})年(\d{1,2})月/,
+          /(\d{1,2})月/
         ];
         
         let matched = false;
-        for (const pattern of datePatterns) {
+        for (let i = 0; i < datePatterns.length; i++) {
+          const pattern = datePatterns[i];
           const match = message.match(pattern);
+          console.log(`パターン${i}:`, pattern, 'マッチ結果:', match);
+          
           if (match) {
-            if (match.length === 4) { // YYYY年MM月DD日
+            if (i === 0 || i === 1) { // YYYY年MM月DD日 or YYYY/MM/DD
               newData.deadline = `${match[1]}年${match[2]}月${match[3]}日`;
-            } else if (match.length === 3 && match[0].includes('月') && match[0].includes('日')) { // MM月DD日
+            } else if (i === 2) { // MM月DD日
               const currentYear = new Date().getFullYear();
               newData.deadline = `${currentYear}年${match[1]}月${match[2]}日`;
-            } else if (match.length === 3) { // YYYY年MM月
+            } else if (i === 3) { // YYYY年MM月
               newData.deadline = `${match[1]}年${match[2]}月末`;
-            } else if (match.length === 2) { // MM月
+            } else if (i === 4) { // MM月
               const currentYear = new Date().getFullYear();
               newData.deadline = `${currentYear}年${match[1]}月末`;
             }
             matched = true;
+            console.log('期限設定:', newData.deadline);
             break;
           }
         }
@@ -244,39 +261,40 @@ ${currentData.studyHours ? `- 学習時間: ${currentData.studyHours}` : '- 学�
         newData.additionalInfo.challenges += message + '; ';
       }
 
-      // デバッグ用ログ
-      console.log('収集データ更新:', {
-        userMessage: message,
-        extractedData: {
-          goal: newData.goal,
-          deadline: newData.deadline,
-          currentStatus: newData.currentStatus,
-          studyHours: newData.studyHours
-        }
+        // デバッグ用ログ
+        console.log('収集データ更新:', {
+          userMessage: message,
+          extractedData: {
+            goal: newData.goal,
+            deadline: newData.deadline,
+            currentStatus: newData.currentStatus,
+            studyHours: newData.studyHours
+          }
+        });
+        
+        return newData;
       });
       
-      setCollectedData(newData);
-      
-      // 基本4項目が揃った場合のみ完了
-      const hasBasicInfo = newData.goal && newData.deadline && newData.currentStatus && newData.studyHours;
-      
-      if (hasBasicInfo) {
-        setTimeout(() => {
-          setIsCompleted(true);
-          if (onComplete) {
-            // 4項目が全て揃っている場合のみコンパニオンモードに移行
-            // 目標管理ページで使用できる形式に変換
-            const goalData = {
-              goal: newData.goal,
-              deadline: newData.deadline,
-              currentStatus: newData.currentStatus,
-              studyHours: newData.studyHours,
-              additionalInfo: newData.additionalInfo
-            };
-            onComplete(goalData);
-          }
-        }, 2000);
-      }
+        // 基本4項目が揃った場合のみ完了
+        const hasBasicInfo = newData.goal && newData.deadline && newData.currentStatus && newData.studyHours;
+        
+        if (hasBasicInfo) {
+          setTimeout(() => {
+            setIsCompleted(true);
+            if (onComplete) {
+              // 4項目が全て揃っている場合のみコンパニオンモードに移行
+              // 目標管理ページで使用できる形式に変換
+              const goalData = {
+                goal: newData.goal,
+                deadline: newData.deadline,
+                currentStatus: newData.currentStatus,
+                studyHours: newData.studyHours,
+                additionalInfo: newData.additionalInfo
+              };
+              onComplete(goalData);
+            }
+          }, 2000);
+        }
       
     } catch (error) {
       console.error('メッセージ送信エラー:', error);
