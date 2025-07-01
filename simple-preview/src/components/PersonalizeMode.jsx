@@ -9,12 +9,28 @@ export const PersonalizeMode = ({ studentId, onComplete }) => {
   const [isCompleted, setIsCompleted] = useState(false);
 
   // ChatGPT-4o latestを使用したAI応答
-  const getAIResponse = async (userMessage, conversationHistory) => {
+  const getAIResponse = async (userMessage, conversationHistory, currentData) => {
     try {
       const systemPrompt = openaiService.getPersonalizeSystemPrompt();
       
+      // 収集済みの情報をシステムプロンプトに追加
+      const contextPrompt = `
+${systemPrompt}
+
+### 現在収集済みの情報:
+${currentData.goal ? `- 目標: ${currentData.goal}` : '- 目標: 未設定'}
+${currentData.deadline ? `- 期限: ${currentData.deadline}` : '- 期限: 未設定'}
+${currentData.currentStatus ? `- 現在のレベル: ${currentData.currentStatus}` : '- 現在のレベル: 未設定'}
+${currentData.studyHours ? `- 学習時間: ${currentData.studyHours}` : '- 学習時間: 未設定'}
+
+### 注意事項:
+- すでに収集済みの情報について再度質問しないでください
+- 未設定の項目から順番に質問してください
+- 期限を聞く際は、必ず具体的な日付（YYYY年MM月DD日）で答えてもらうよう促してください
+`;
+      
       const messages = [
-        { role: 'system', content: systemPrompt },
+        { role: 'system', content: contextPrompt },
         ...conversationHistory,
         { role: 'user', content: userMessage }
       ];
@@ -55,7 +71,7 @@ export const PersonalizeMode = ({ studentId, onComplete }) => {
     // 初回メッセージを表示
     const initializeChat = async () => {
       try {
-        const initialResponse = await getAIResponse('初回挨拶をお願いします。学習目標について聞いてください。', []);
+        const initialResponse = await getAIResponse('初回挨拶をお願いします。学習目標について聞いてください。', [], collectedData);
         setMessages([{ role: 'assistant', content: initialResponse }]);
       } catch (error) {
         // フォールバック
@@ -80,7 +96,7 @@ export const PersonalizeMode = ({ studentId, onComplete }) => {
 
     try {
       // ChatGPT-4o latestから応答を取得
-      const aiResponse = await getAIResponse(message, updatedMessages.slice(0, -1));
+      const aiResponse = await getAIResponse(message, updatedMessages.slice(0, -1), collectedData);
       
       // AIメッセージを追加
       setMessages(prev => [...prev, { role: 'assistant', content: aiResponse }]);
@@ -115,8 +131,8 @@ export const PersonalizeMode = ({ studentId, onComplete }) => {
         }
       }
       
-      // 期限は2回目の会話でのみ抽出
-      if (!newData.deadline && conversationContext === 2 && (messageText.includes('年') || messageText.includes('月') || messageText.includes('まで') || messageText.includes('日'))) {
+      // 期限は2回目以降の会話で抽出（既に設定されていない場合）
+      if (!newData.deadline && conversationContext >= 2 && (messageText.includes('年') || messageText.includes('月') || messageText.includes('まで') || messageText.includes('日'))) {
         // 明確な日付形式を抽出（YYYY年MM月DD日、MM月DD日など）
         const fullDateMatch = message.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
         const monthDayMatch = message.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
@@ -136,8 +152,8 @@ export const PersonalizeMode = ({ studentId, onComplete }) => {
         }
       }
 
-      // 現在のレベルは3回目の会話でのみ抽出
-      if (!newData.currentStatus && conversationContext === 3 && (messageText.includes('点') || messageText.includes('偏差値') || messageText.includes('レベル') || messageText.includes('初心者') || messageText.includes('中級') || messageText.includes('現在') || messageText.includes('今'))) {
+      // 現在のレベルは3回目以降の会話で抽出（既に設定されていない場合）
+      if (!newData.currentStatus && conversationContext >= 3 && (messageText.includes('点') || messageText.includes('偏差値') || messageText.includes('レベル') || messageText.includes('初心者') || messageText.includes('中級') || messageText.includes('現在') || messageText.includes('今'))) {
         const currentMatch = message.match(/(\d+)\s*点/) || message.match(/偏差値\s*(\d+)/);
         if (currentMatch) {
           newData.currentStatus = `現在 ${currentMatch[1]}点`;
@@ -146,8 +162,8 @@ export const PersonalizeMode = ({ studentId, onComplete }) => {
         }
       }
       
-      // 学習時間は4回目の会話でのみ抽出
-      if (!newData.studyHours && conversationContext === 4 && (messageText.includes('時間') || messageText.includes('分'))) {
+      // 学習時間は4回目以降の会話で抽出（既に設定されていない場合）
+      if (!newData.studyHours && conversationContext >= 4 && (messageText.includes('時間') || messageText.includes('分'))) {
         newData.studyHours = message;
       }
 
