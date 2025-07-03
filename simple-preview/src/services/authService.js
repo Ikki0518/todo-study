@@ -206,35 +206,35 @@ class AuthService {
     }
   }
 
-  // 即座にデモログイン
+  // 即座にデモログイン（完全にSupabaseを回避）
   async login(email, password) {
-    this.isLoginInProgress = true
+    console.log('🚀 ULTRA EMERGENCY: 完全デモモードでログイン開始:', { email })
     
-    try {
-      console.log('🚀 緊急対応: 即座にデモログイン開始:', { email })
-      
-      // 即座にデモユーザーを作成（Supabaseを使わない）
-      this.currentUser = {
-        id: 'demo-user-' + Date.now(),
-        email: email,
-        name: email.split('@')[0],
-        role: 'STUDENT'
-      }
-      
-      console.log('✅ デモログイン即座に完了:', this.currentUser)
-      return {
-        success: true,
-        user: this.currentUser,
-        session: { user: this.currentUser, access_token: 'demo-token' }
-      }
-    } catch (error) {
-      console.error('デモログインエラー:', error)
-      return {
-        success: false,
-        error: 'ログイン中にエラーが発生しました'
-      }
-    } finally {
-      this.isLoginInProgress = false
+    // 即座にデモユーザーを作成（非同期処理なし、Supabase完全回避）
+    this.currentUser = {
+      id: 'demo-user-' + Date.now(),
+      email: email,
+      name: email.split('@')[0],
+      role: 'STUDENT'
+    }
+    
+    console.log('✅ ULTRA EMERGENCY: デモログイン即座に完了:', this.currentUser)
+    
+    // 認証状態リスナーに通知（デモモード）
+    setTimeout(() => {
+      this.authStateListeners.forEach(listener => {
+        try {
+          listener('SIGNED_IN', { user: this.currentUser, access_token: 'demo-token' }, this.currentUser)
+        } catch (error) {
+          console.error('認証状態リスナーエラー:', error)
+        }
+      })
+    }, 10)
+    
+    return {
+      success: true,
+      user: this.currentUser,
+      session: { user: this.currentUser, access_token: 'demo-token' }
     }
   }
 
