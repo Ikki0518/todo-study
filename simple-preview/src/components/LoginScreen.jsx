@@ -82,8 +82,15 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
       
       if (isLoginMode) {
         // ログイン処理
-        console.log('LoginScreen: ログイン試行中...', formData.email);
+        console.log('LoginScreen: 高速ログイン試行中...', formData.email);
+        
+        // タイムアウト警告を表示
+        const timeoutWarning = setTimeout(() => {
+          setErrors({ general: 'ログイン処理中です。3秒でタイムアウトした場合、デモモードで続行します...' });
+        }, 1000);
+        
         result = await authService.login(formData.email, formData.password);
+        clearTimeout(timeoutWarning);
         console.log('LoginScreen: ログイン結果:', result);
       } else {
         // 新規登録処理
