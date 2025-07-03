@@ -341,32 +341,23 @@ function App() {
   const todayString = `${today.getFullYear()}年${today.getMonth() + 1}月${today.getDate()}日（${dayNames[today.getDay()]}）`
 
   useEffect(() => {
-    // 初期認証状態を確認
-    const checkAuthStatus = async () => {
-      try {
-        const result = await authService.getCurrentUser();
-        if (result.success && result.user) {
-          setCurrentUser(result.user);
-          setUserRole(result.user.role || 'STUDENT');
-          setIsLoggedIn(true);
-        } else {
-          // セッションが無効な場合はログアウト状態に設定
-          setCurrentUser(null);
-          setUserRole('STUDENT');
-          setIsLoggedIn(false);
-        }
-      } catch (error) {
-        console.error('認証状態確認エラー:', error);
-        setCurrentUser(null);
-        setUserRole('STUDENT');
-        setIsLoggedIn(false);
-      }
+    console.log('🚀 ULTRA EMERGENCY: App.jsx 初期化開始（デモモード）');
+    
+    // 🚀 緊急対応: 初期認証状態確認を完全にスキップ
+    const checkAuthStatus = () => {
+      console.log('🚀 ULTRA EMERGENCY: 認証状態確認をスキップ（デモモード）');
+      // デモモードでは初期状態はログアウト
+      setCurrentUser(null);
+      setUserRole('STUDENT');
+      setIsLoggedIn(false);
     };
 
     checkAuthStatus();
 
-    // authServiceの認証状態変更リスナーを使用
-    const unsubscribe = authService.onAuthStateChange(async (event, session, user) => {
+    // 🚀 緊急対応: 認証状態変更リスナーを設定（デモモード対応）
+    const unsubscribe = authService.onAuthStateChange((event, session, user) => {
+      console.log('🚀 ULTRA EMERGENCY: 認証状態変更:', { event, user });
+      
       if (event === 'SIGNED_OUT' || !session) {
         setCurrentUser(null);
         setUserRole('STUDENT');
