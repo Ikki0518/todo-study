@@ -316,7 +316,7 @@ export const database = {
     const { data, error } = await supabase
       .from('goals')
       .select('*')
-      .eq('user_id', userId)
+      .eq('student_id', userId)
       .order('created_at', { ascending: false })
     return { data, error }
   },
@@ -353,7 +353,7 @@ export const database = {
     const { data, error } = await supabase
       .from('tasks')
       .select('*')
-      .eq('user_id', userId)
+      .eq('student_id', userId)
       .order('created_at', { ascending: false })
     return { data, error }
   },
@@ -390,7 +390,7 @@ export const database = {
     const { data, error } = await supabase
       .from('study_sessions')
       .select('*')
-      .eq('user_id', userId)
+      .eq('student_id', userId)
       .order('created_at', { ascending: false })
     return { data, error }
   },

@@ -11,6 +11,7 @@ import { ProfileSettings } from './components/ProfileSettings';
 import { ImprovedDailyPlanner } from './components/ImprovedDailyPlanner';
 import { generateStudyPlan, convertPlansToTasks, calculateStudyPlanStats } from './utils/studyPlanGenerator';
 import authService from './services/authService';
+import './styles/touch-fixes.css';
 
 function App() {
   const [currentView, setCurrentView] = useState('goals')
@@ -173,6 +174,11 @@ function App() {
     alert(`学習計画を生成しました！\n総学習日数: ${stats.totalDays}日\n総学習時間: ${stats.totalHours}時間${todayPlans.length > 0 ? '\n今日のタスクプールに追加されました！' : ''}`)
   }
 
+  // タッチデバイス用の状態
+  const [draggedTask, setDraggedTask] = useState(null)
+  const [dragFromLocation, setDragFromLocation] = useState(null)
+  const [isDragging, setIsDragging] = useState(false)
+
   const handleTaskDragStart = (e, task) => {
     e.dataTransfer.setData('task', JSON.stringify(task))
     e.dataTransfer.setData('fromLocation', 'pool')
@@ -188,10 +194,47 @@ function App() {
     e.preventDefault()
   }
 
-  const handleDrop = (e, dateKey, hour) => {
+  // タッチイベント用のハンドラー
+  const handleTouchStart = (e, task, fromLocation = null) => {
     e.preventDefault()
-    const task = JSON.parse(e.dataTransfer.getData('task'))
-    const fromLocation = e.dataTransfer.getData('fromLocation')
+    setDraggedTask(task)
+    setDragFromLocation(fromLocation || 'pool')
+    setIsDragging(true)
+  }
+
+  const handleTouchMove = (e) => {
+    if (!isDragging) return
+    e.preventDefault()
+  }
+
+  const handleTouchEnd = (e, dateKey = null, hour = null) => {
+    if (!isDragging || !draggedTask) return
+    
+    e.preventDefault()
+    
+    // タッチ位置から要素を取得
+    const touch = e.changedTouches[0]
+    const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY)
+    
+    // ドロップ可能な要素を探す
+    let dropTarget = elementBelow
+    while (dropTarget && !dropTarget.dataset.dropzone) {
+      dropTarget = dropTarget.parentElement
+    }
+    
+    if (dropTarget && dropTarget.dataset.dropzone) {
+      const [targetDate, targetHour] = dropTarget.dataset.dropzone.split('-')
+      handleTaskDrop(draggedTask, dragFromLocation, targetDate, parseInt(targetHour))
+    }
+    
+    // リセット
+    setDraggedTask(null)
+    setDragFromLocation(null)
+    setIsDragging(false)
+  }
+
+  // 統一されたドロップ処理
+  const handleTaskDrop = (task, fromLocation, dateKey, hour) => {
     const newScheduledTasks = { ...scheduledTasks }
     const key = `${dateKey}-${hour}`
     
@@ -206,16 +249,23 @@ function App() {
       }
     }
     // スケジュール間での移動
-    else if (fromLocation.startsWith('scheduled-')) {
+    else if (fromLocation && fromLocation.startsWith('scheduled-')) {
       const oldKey = fromLocation.replace('scheduled-', '')
       delete newScheduledTasks[oldKey]
     }
     
     newScheduledTasks[key] = {
       ...task,
-      duration: task.duration || 1 // 既存のdurationを保持、なければ1時間
+      duration: task.duration || 1
     }
     setScheduledTasks(newScheduledTasks)
+  }
+
+  const handleDrop = (e, dateKey, hour) => {
+    e.preventDefault()
+    const task = JSON.parse(e.dataTransfer.getData('task'))
+    const fromLocation = e.dataTransfer.getData('fromLocation')
+    handleTaskDrop(task, fromLocation, dateKey, hour)
   }
 
   const handleTaskClick = (task, taskKey) => {
@@ -371,7 +421,7 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 lg:flex">
+    <div className="min-h-screen bg-gray-50 lg:flex" style={{ overscrollBehavior: 'none', touchAction: 'pan-x pan-y' }}>
       {/* モバイル用オーバーレイ */}
       {showMobileMenu && (
         <div
@@ -524,6 +574,12 @@ function App() {
             getPriorityColor={getPriorityColor}
             handleDragStart={handleDragStart}
             DailyTaskPool={DailyTaskPool}
+            // タッチイベント用
+            handleTouchStart={handleTouchStart}
+            handleTouchMove={handleTouchMove}
+            handleTouchEnd={handleTouchEnd}
+            isDragging={isDragging}
+            draggedTask={draggedTask}
           />
         )}
 

@@ -301,17 +301,14 @@ WHERE t.scheduled_date = CURRENT_DATE
 ORDER BY t.priority DESC, t.scheduled_time ASC;
 
 -- ==================================================
--- 8. 実行完了メッセージ
+-- 8. スキーマ作成完了
 -- ==================================================
 
--- 実行完了の確認
-DO $$
-BEGIN
-    RAISE NOTICE '=== Supabase学習管理アプリケーション スキーマ作成完了 ===';
-    RAISE NOTICE 'テーブル作成: users, goals, tasks, study_books, study_sessions, daily_stats';
-    RAISE NOTICE 'インデックス作成: パフォーマンス最適化済み';
-    RAISE NOTICE 'RLS設定: セキュリティポリシー適用済み';
-    RAISE NOTICE 'トリガー設定: 自動更新機能有効';
-    RAISE NOTICE 'ビュー作成: 学習進捗、今日のタスク';
-    RAISE NOTICE '=== 準備完了！アプリケーションを開始できます ===';
-END $$;
+-- スキーマ作成が完了しました
+-- 以下のテーブルが作成されました:
+-- - users (ユーザープロフィール)
+-- - goals (学習目標)
+-- - tasks (学習タスク)
+-- - study_books (参考書)
+-- - study_sessions (学習記録)
+-- - daily_stats (日次統計)

@@ -1,156 +1,120 @@
-# Supabase セットアップガイド
+# Supabase データベースセットアップ手順
 
-このガイドでは、学習管理アプリケーション「suna」でSupabaseを使用するためのセットアップ手順を説明します。
+## 概要
+AI学習プランナーアプリケーションのSupabaseデータベースを設定するための手順です。
 
-## 📋 前提条件
+## 前提条件
+- Supabaseプロジェクトが作成済み
+- Supabase Dashboard にアクセス可能
+- 環境変数（VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY）が設定済み
 
-- Supabaseアカウント（[supabase.com](https://supabase.com)で無料作成可能）
-- Node.js 16以上
-- Git
+## 推奨セットアップ手順
 
-## 🚀 セットアップ手順
+### オプション1: 最小限スキーマ（推奨）
 
-### 1. Supabaseプロジェクトの作成
-
-1. [Supabase Dashboard](https://app.supabase.com)にログイン
-2. 「New Project」をクリック
-3. プロジェクト名を入力（例: `suna-learning-app`）
-4. データベースパスワードを設定
-5. リージョンを選択（日本の場合は `Northeast Asia (Tokyo)`）
-6. 「Create new project」をクリック
-
-### 2. データベーススキーマの作成
-
-1. Supabase Dashboardで作成したプロジェクトを開く
-2. 左サイドバーの「SQL Editor」をクリック
+1. Supabase Dashboard にログイン
+2. 左サイドバーから「SQL Editor」を選択
 3. 「New query」をクリック
-4. [`supabase-schema.sql`](./supabase-schema.sql)の内容をコピー&ペースト
-5. 「Run」ボタンをクリックしてスキーマを実行
+4. `supabase-minimal-schema.sql` の内容をコピー＆ペースト
+5. 「Run」ボタンをクリックして実行
 
-### 3. 認証設定
+このファイルには以下が含まれています：
+- 必要最小限のテーブル（users, goals, tasks, study_sessions, daily_stats）
+- 基本インデックス
+- Row Level Security (RLS) ポリシー
+- トリガー関数
+- エラー回避のためのDROP IF EXISTS文
 
-1. 左サイドバーの「Authentication」をクリック
-2. 「Settings」タブを選択
-3. 以下の設定を確認/変更：
-   - **Enable email confirmations**: ON（メール確認を有効化）
-   - **Enable phone confirmations**: OFF（電話確認は無効）
-   - **Site URL**: `http://localhost:3009`（開発時）
-   - **Redirect URLs**: `http://localhost:3009`を追加
+### オプション2: 段階的セットアップ
 
-### 4. Row Level Security (RLS) の確認
+エラーが発生した場合の代替手順：
 
-1. 左サイドバーの「Table Editor」をクリック
-2. 各テーブル（users, goals, tasks等）でRLSが有効になっていることを確認
-3. 「Policies」タブでセキュリティポリシーが適用されていることを確認
+1. **テーブル確認**：
+   - `check-tables.sql` を実行して現在のテーブル状況を確認
 
-### 5. 環境変数の設定
+2. **基本テーブル作成**：
+   - `supabase-schema-tables.sql` を実行
 
-1. Supabase Dashboardの「Settings」→「API」を開く
-2. 以下の値をコピー：
-   - **Project URL**: `https://your-project-id.supabase.co`
-   - **anon public key**: `eyJ...`（長いトークン）
+3. **ビュー作成**（オプション）：
+   - `supabase-schema-views.sql` を実行
 
-3. プロジェクトルートの`.env`ファイルを編集：
+## 確認方法
 
-```env
-# Supabase Configuration
-VITE_SUPABASE_URL=https://your-project-id.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-
-# 本番環境の場合は以下も設定
-# VITE_SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+### 1. テーブル作成の確認
+```sql
+-- check-tables.sql を使用するか、以下を実行
+SELECT table_name
+FROM information_schema.tables
+WHERE table_schema = 'public'
+AND table_type = 'BASE TABLE'
+ORDER BY table_name;
 ```
 
-### 6. アプリケーションの起動
+期待される結果：
+- users
+- goals
+- tasks
+- study_sessions
+- daily_stats
 
-```bash
-# 依存関係のインストール
-npm install
-
-# 開発サーバーの起動
-npm run dev
+### 2. RLSポリシーの確認
+```sql
+SELECT schemaname, tablename, policyname
+FROM pg_policies
+WHERE schemaname = 'public'
+ORDER BY tablename, policyname;
 ```
 
-## 📊 作成されるテーブル
+## トラブルシューティング
 
-| テーブル名 | 説明 |
-|-----------|------|
-| `users` | ユーザープロフィール情報 |
-| `goals` | 学習目標 |
-| `tasks` | 学習タスク |
-| `study_books` | 参考書情報 |
-| `study_sessions` | 学習記録 |
-| `daily_stats` | 日次学習統計 |
+### よくあるエラーと解決方法
 
-## 🔒 セキュリティ機能
+1. **"relation does not exist" エラー**
+   - 原因: テーブルが作成されていない
+   - 解決: `supabase-minimal-schema.sql` を実行
 
-- **Row Level Security (RLS)**: ユーザーは自分のデータのみアクセス可能
-- **認証**: Supabase Authによる安全な認証
-- **データ暗号化**: 保存時および転送時の暗号化
-- **アクセス制御**: 適切な権限管理
+2. **"column does not exist" エラー**
+   - 原因: テーブル構造の不一致
+   - 解決: 既存テーブルを削除してから再作成
 
-## 📈 便利なビュー
+3. **既存テーブルとの競合**
+   - 原因: 以前の不完全なスキーマが残っている
+   - 解決: 以下のクリーンアップクエリを実行
+   ```sql
+   DROP TABLE IF EXISTS daily_stats CASCADE;
+   DROP TABLE IF EXISTS study_sessions CASCADE;
+   DROP TABLE IF EXISTS tasks CASCADE;
+   DROP TABLE IF EXISTS goals CASCADE;
+   DROP TABLE IF EXISTS users CASCADE;
+   ```
+   その後、`supabase-minimal-schema.sql` を実行
 
-- `user_study_progress`: ユーザーの学習進捗サマリー
-- `todays_tasks`: 今日のタスク一覧
+### デバッグ用クエリ
 
-## 🛠️ トラブルシューティング
+```sql
+-- 特定のテーブルの構造を確認
+\d+ table_name
 
-### よくある問題と解決方法
+-- 特定のユーザーのデータを確認
+SELECT * FROM users WHERE id = 'user_uuid';
 
-#### 1. 「Invalid URL」エラー
-- `.env`ファイルの`VITE_SUPABASE_URL`が正しく設定されているか確認
-- URLに`https://`が含まれているか確認
+-- RLSが有効になっているか確認
+SELECT schemaname, tablename, rowsecurity 
+FROM pg_tables 
+WHERE schemaname = 'public';
+```
 
-#### 2. 認証エラー
-- `VITE_SUPABASE_ANON_KEY`が正しく設定されているか確認
-- Supabase Dashboardで認証設定を確認
+## 次のステップ
 
-#### 3. データベース接続エラー
-- Supabaseプロジェクトが正常に作成されているか確認
-- SQLスキーマが正しく実行されているか確認
+データベースセットアップが完了したら：
 
-#### 4. RLSエラー
-- テーブルのRLSポリシーが正しく設定されているか確認
-- ユーザーが認証されているか確認
+1. アプリケーションを起動
+2. 新規ユーザー登録をテスト
+3. ログイン機能をテスト
+4. データの保存・取得をテスト
 
-### デバッグ方法
+## 注意事項
 
-1. **ブラウザの開発者ツール**でコンソールエラーを確認
-2. **Supabase Dashboard**の「Logs」でデータベースログを確認
-3. **Network**タブでAPI呼び出しを確認
-
-## 📚 参考資料
-
-- [Supabase公式ドキュメント](https://supabase.com/docs)
-- [Supabase JavaScript Client](https://supabase.com/docs/reference/javascript)
-- [Row Level Security](https://supabase.com/docs/guides/auth/row-level-security)
-
-## 🔄 データベース更新
-
-スキーマを更新する場合：
-
-1. [`supabase-schema.sql`](./supabase-schema.sql)を編集
-2. Supabase DashboardのSQL Editorで実行
-3. 必要に応じてデータ移行を実行
-
-## 🚀 本番環境デプロイ
-
-本番環境では以下を設定：
-
-1. **Site URL**を本番URLに変更
-2. **Redirect URLs**に本番URLを追加
-3. 環境変数を本番環境に設定
-4. HTTPS証明書の設定
-5. ドメインの設定
-
-## 💡 ヒント
-
-- 開発時は`console.log`でSupabaseレスポンスを確認
-- RLSポリシーのテストは慎重に行う
-- 定期的にデータベースのバックアップを取る
-- パフォーマンス監視を行う
-
----
-
-**注意**: このアプリケーションは学習目的で作成されています。本番環境で使用する場合は、追加のセキュリティ対策を検討してください。
+- 本番環境では、サンプルデータの挿入は行わないでください
+- RLSポリシーにより、ユーザーは自分のデータのみアクセス可能です
+- 定期的にデータベースのバックアップを取ることを推奨します

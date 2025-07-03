@@ -1,10 +1,13 @@
 import { useState } from 'react'
 
-export function DailyTaskPool({ 
-  dailyTasks = [], 
+export function DailyTaskPool({
+  dailyTasks = [],
   onTasksUpdate,
   onTaskDragStart,
-  selectedDate 
+  selectedDate,
+  // タッチイベント用
+  onTouchStart,
+  onTouchMove
 }) {
   const [showAddForm, setShowAddForm] = useState(false)
 
@@ -220,6 +223,8 @@ export function DailyTaskPool({
             }`}
             draggable={!task.completed}
             onDragStart={(e) => !task.completed && onTaskDragStart && onTaskDragStart(e, task)}
+            onTouchStart={(e) => !task.completed && onTouchStart && onTouchStart(e, task, 'pool')}
+            onTouchMove={onTouchMove}
           >
             <div className="flex items-start space-x-2 sm:space-x-3 lg:space-x-4">
               <input

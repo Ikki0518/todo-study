@@ -82,22 +82,28 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
       
       if (isLoginMode) {
         // ログイン処理
+        console.log('LoginScreen: ログイン試行中...', formData.email);
         result = await authService.login(formData.email, formData.password);
+        console.log('LoginScreen: ログイン結果:', result);
       } else {
         // 新規登録処理
+        console.log('LoginScreen: 新規登録試行中...', formData.email);
         result = await authService.register(formData.email, formData.password, {
           name: formData.name,
           userRole: formData.userRole
         });
+        console.log('LoginScreen: 新規登録結果:', result);
       }
 
       if (result && result.success) {
         if (isLoginMode) {
           // ログイン成功
+          console.log('LoginScreen: ログイン成功、ユーザー:', result.user);
           onRoleChange(result.user?.role || 'STUDENT');
           onLogin(true);
         } else {
           // 登録成功
+          console.log('LoginScreen: 新規登録成功');
           setSuccessMessage(result.message);
           // フォームをリセット
           setFormData({
@@ -112,6 +118,7 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
         }
       } else {
         // エラーハンドリング
+        console.error('LoginScreen: 認証失敗:', result);
         const errorMessage = result?.error || 'ログインに失敗しました。もう一度お試しください。';
         setErrors({ general: errorMessage });
       }

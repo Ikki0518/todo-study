@@ -20,7 +20,13 @@ export const ImprovedDailyPlanner = ({
   toggleTaskComplete,
   getPriorityColor,
   handleDragStart,
-  DailyTaskPool
+  DailyTaskPool,
+  // タッチイベント用
+  handleTouchStart,
+  handleTouchMove,
+  handleTouchEnd,
+  isDragging,
+  draggedTask
 }) => {
   const [isMobile, setIsMobile] = useState(false)
 
@@ -128,6 +134,8 @@ export const ImprovedDailyPlanner = ({
             onTasksUpdate={dailyTaskPool.length > 0 ? setDailyTaskPool : setTodayTasks}
             onTaskDragStart={handleTaskDragStart}
             selectedDate={selectedDate}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
           />
         </div>
 
@@ -214,6 +222,8 @@ export const ImprovedDailyPlanner = ({
                           } ${isToday ? 'bg-blue-25' : ''}`}
                           onDragOver={!isOccupied ? handleDragOver : undefined}
                           onDrop={!isOccupied ? (e) => handleDrop(e, dateKey, hour) : undefined}
+                          onTouchEnd={!isOccupied ? (e) => handleTouchEnd(e, dateKey, hour) : undefined}
+                          data-dropzone={!isOccupied ? `${dateKey}-${hour}` : undefined}
                         >
                           {scheduledTask && !isOccupied && (
                             <div
@@ -230,6 +240,8 @@ export const ImprovedDailyPlanner = ({
                               }}
                               draggable={!completedTasks[taskKey]}
                               onDragStart={(e) => !completedTasks[taskKey] && handleDragStart(e, scheduledTask, `scheduled-${taskKey}`)}
+                              onTouchStart={(e) => !completedTasks[taskKey] && handleTouchStart(e, scheduledTask, `scheduled-${taskKey}`)}
+                              onTouchMove={handleTouchMove}
                               onClick={(e) => {
                                 // チェックボックスやリサイズハンドルのクリックでない場合のみタスクプールに戻す
                                 if (!e.target.closest('input') && !e.target.closest('.resize-handle')) {

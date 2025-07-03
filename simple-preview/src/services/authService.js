@@ -10,6 +10,7 @@ class AuthService {
                   import.meta.env.VITE_SUPABASE_URL === 'your_supabase_project_url'
     this.authStateChangeSubscription = null
     this.isListenerRegistered = false
+    this.isLoginInProgress = false
     
     // 認証状態の変更を監視（一度だけ）
     if (!this.isListenerRegistered) {
@@ -18,15 +19,17 @@ class AuthService {
       console.log('認証状態変更:', { event, session: session?.user?.id })
       
       if (event === 'SIGNED_IN' && session?.user) {
-        // ログイン処理で既にプロフィールを読み込んでいる場合はスキップ
-        if (!this.currentUser || this.currentUser.id !== session.user.id) {
-          console.log('認証状態変更によるプロフィール読み込み')
-          const result = await this.loadUserProfile(session.user.id)
-          if (!result || !result.success) {
-            console.error('認証状態変更時のプロフィール読み込み失敗:', result)
+        // ログイン処理中はスキップ（重複実行を防ぐ）
+        if (!this.isLoginInProgress && !this.currentUser) {
+          console.log('認証状態変更による簡易プロフィール設定')
+          this.currentUser = {
+            id: session.user.id,
+            email: session.user.email,
+            name: session.user.user_metadata?.name || session.user.email.split('@')[0],
+            role: session.user.user_metadata?.role || 'STUDENT'
           }
         } else {
-          console.log('プロフィール既に読み込み済み、スキップ')
+          console.log('ログイン処理中またはプロフィール設定済みのためスキップ')
         }
       } else if (event === 'SIGNED_OUT') {
         this.currentUser = null
@@ -111,6 +114,52 @@ class AuthService {
     }
   }
 
+  // ユーザープロフィールを読み込み（ユーザーデータ付き - ログイン時用）
+  async loadUserProfileWithUserData(userId, userData) {
+    try {
+      console.log('プロフィール読み込み開始（最適化版）:', userId)
+      const { data: profile, error } = await database.getUserProfile(userId)
+      console.log('プロフィール取得結果:', { profile, error })
+      
+      if (error && error.code !== 'PGRST116') { // レコードが見つからない場合以外のエラー
+        console.error('プロフィール取得エラー:', error)
+        return { success: false, error: 'プロフィール取得に失敗しました' }
+      }
+
+      // プロフィールが存在しない場合は作成（ユーザーデータを直接使用）
+      if (!profile) {
+        console.log('プロフィールが存在しないため作成中（最適化版）...')
+        const newProfile = {
+          email: userData.email,
+          name: userData.user_metadata?.name || userData.email.split('@')[0],
+          role: userData.user_metadata?.role || 'STUDENT',
+          created_at: new Date().toISOString()
+        }
+        
+        const { data: createdProfile, error: createError } = await database.upsertUserProfile(
+          userData.id,
+          newProfile
+        )
+        
+        if (!createError) {
+          this.currentUser = createdProfile
+          console.log('新しいプロフィール作成成功（最適化版）:', createdProfile)
+          return { success: true, user: createdProfile }
+        } else {
+          console.error('プロフィール作成エラー:', createError)
+          return { success: false, error: 'プロフィール作成に失敗しました' }
+        }
+      } else {
+        this.currentUser = profile
+        console.log('既存プロフィール読み込み成功:', profile)
+        return { success: true, user: profile }
+      }
+    } catch (error) {
+      console.error('ユーザープロフィール読み込みエラー（最適化版）:', error)
+      return { success: false, error: 'プロフィール読み込み中にエラーが発生しました' }
+    }
+  }
+
   // 初期化（アプリ起動時に呼び出し）
   async initialize() {
     if (this.isInitialized) return
@@ -142,7 +191,7 @@ class AuthService {
         }
       }
 
-      // 登録成功時にプロフィールを作成
+      // 登録成功時にプロフィールを作成（最適化版）
       if (data.user) {
         const profileData = {
           email: data.user.email,
@@ -151,13 +200,17 @@ class AuthService {
           created_at: new Date().toISOString()
         }
 
-        await database.upsertUserProfile(data.user.id, profileData)
+        const { data: createdProfile } = await database.upsertUserProfile(data.user.id, profileData)
+        if (createdProfile) {
+          this.currentUser = createdProfile
+          console.log('登録時プロフィール作成成功:', createdProfile)
+        }
       }
 
       return {
         success: true,
         user: data.user,
-        message: 'アカウントが作成されました。確認メールをご確認ください。'
+        message: 'アカウントが作成されました。ログインしてください。'
       }
     } catch (error) {
       console.error('登録エラー:', error)
@@ -170,13 +223,32 @@ class AuthService {
 
   // ログイン
   async login(email, password) {
+    this.isLoginInProgress = true
+    
     try {
-      console.log('ログイン開始:', { email, isDemo: this.isDemo })
-      const { data, error } = await auth.signIn(email, password)
-      console.log('auth.signIn結果:', { data, error })
+      console.log('ログイン開始:', {
+        email,
+        isDemo: this.isDemo,
+        supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
+        hasAnonKey: !!import.meta.env.VITE_SUPABASE_ANON_KEY
+      })
+      
+      const authResult = await auth.signIn(email, password)
+      console.log('auth.signIn結果:', authResult)
+
+      // null チェックを強化
+      if (!authResult) {
+        console.error('auth.signIn が null を返しました')
+        return {
+          success: false,
+          error: '認証サービスからの応答がありません'
+        }
+      }
+
+      const { data, error } = authResult
 
       if (error) {
-        console.log('ログインエラー:', error)
+        console.error('ログインエラー詳細:', error)
         return {
           success: false,
           error: this.getErrorMessage(error)
@@ -184,35 +256,37 @@ class AuthService {
       }
 
       if (data && data.user) {
-        console.log('ログイン成功、プロフィール読み込み中:', data.user)
-        const profileResult = await this.loadUserProfile(data.user.id)
+        console.log('ログイン成功、簡易プロフィール設定:', data.user)
         
-        if (profileResult && profileResult.success) {
-          return {
-            success: true,
-            user: this.currentUser,
-            session: data.session
-          }
-        } else {
-          console.log('プロフィール読み込み失敗:', profileResult)
-          return {
-            success: false,
-            error: 'プロフィールの読み込みに失敗しました'
-          }
+        // 簡易プロフィール設定（データベース処理をスキップ）
+        this.currentUser = {
+          id: data.user.id,
+          email: data.user.email,
+          name: data.user.user_metadata?.name || data.user.email.split('@')[0],
+          role: data.user.user_metadata?.role || 'STUDENT'
+        }
+        
+        console.log('ログイン完了（簡易版）:', this.currentUser)
+        return {
+          success: true,
+          user: this.currentUser,
+          session: data.session
         }
       }
 
-      console.log('ログイン失敗: ユーザーデータなし')
+      console.error('ログイン失敗: ユーザーデータなし', { data })
       return {
         success: false,
         error: 'ログインに失敗しました'
       }
     } catch (error) {
-      console.error('ログインエラー:', error)
+      console.error('ログイン処理エラー:', error)
       return {
         success: false,
-        error: 'ログイン中にエラーが発生しました'
+        error: 'ログイン中にエラーが発生しました: ' + (error?.message || 'Unknown error')
       }
+    } finally {
+      this.isLoginInProgress = false
     }
   }
 
@@ -308,7 +382,7 @@ class AuthService {
         return { success: false, error: 'ログインが必要です' }
       }
 
-      const { data, error } = await database.getGoals(this.currentUser.id)
+      const { data, error } = await database.getUserGoals(this.currentUser.id)
 
       if (error) {
         return { success: false, error: this.getErrorMessage(error) }
@@ -380,7 +454,7 @@ class AuthService {
   getErrorMessage(error) {
     const errorMessages = {
       'Invalid login credentials': 'メールアドレスまたはパスワードが正しくありません',
-      'Email not confirmed': 'メールアドレスが確認されていません',
+      'Email not confirmed': 'Supabase設定でメール確認を無効化してください。AUTHENTICATION_FIX.mdを参照してください。',
       'User already registered': 'このメールアドレスは既に登録されています',
       'Password should be at least 6 characters': 'パスワードは6文字以上で入力してください',
       'Invalid email': '有効なメールアドレスを入力してください',

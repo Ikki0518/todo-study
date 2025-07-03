@@ -1,0 +1,79 @@
+/* タッチデバイス用の修正 */
+
+/* プルトゥリフレッシュを無効化 */
+body {
+  overscroll-behavior: none;
+  overscroll-behavior-y: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+html, body {
+  touch-action: pan-x pan-y;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* ドラッグ可能な要素のタッチ最適化 */
+.cursor-move {
+  touch-action: none;
+  -webkit-user-drag: element;
+}
+
+/* タスクアイテムのタッチ最適化 */
+[draggable="true"] {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ドロップゾーンの視覚的フィードバック */
+[data-dropzone] {
+  transition: background-color 0.2s ease;
+}
+
+[data-dropzone]:hover {
+  background-color: rgba(59, 130, 246, 0.1);
+}
+
+/* ドラッグ中の視覚的フィードバック */
+.dragging {
+  opacity: 0.5;
+  transform: scale(0.95);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+/* モバイル用のタッチターゲット最適化 */
+@media (max-width: 768px) {
+  .touch-optimized {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  button, input[type="checkbox"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* スクロール領域のプルトゥリフレッシュ無効化 */
+.custom-scrollbar {
+  overscroll-behavior: contain;
+  overscroll-behavior-y: contain;
+}
+
+/* iOS Safari用の追加修正 */
+@supports (-webkit-touch-callout: none) {
+  body {
+    -webkit-overflow-scrolling: touch;
+    -webkit-touch-callout: none;
+  }
+  
+  .calendar-cell {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+  }
+}
