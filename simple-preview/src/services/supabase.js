@@ -11,6 +11,13 @@ const isValidConfig = supabaseUrl && supabaseAnonKey &&
   supabaseUrl.startsWith('https://') &&
   supabaseUrl.includes('.supabase.co')
 
+console.log('Supabase設定確認:', {
+  hasUrl: !!supabaseUrl,
+  hasKey: !!supabaseAnonKey,
+  urlValid: supabaseUrl?.startsWith('https://'),
+  isValidConfig
+})
+
 if (!isValidConfig) {
   console.warn('⚠️ Supabase環境変数が正しく設定されていません。')
   console.warn('実際のSupabaseプロジェクトを使用するには、.envファイルで以下の変数を設定してください:')
@@ -227,13 +234,37 @@ const createDemoClient = () => ({
 // Supabaseクライアントの作成
 export const supabase = (() => {
   if (!isValidConfig) {
+    console.log('デモクライアントを使用します')
     return createDemoClient()
   }
   
   try {
-    return createClient(supabaseUrl, supabaseAnonKey)
+    console.log('Supabaseクライアントを作成中...')
+    const client = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: false
+      },
+      global: {
+        headers: {
+          'X-Client-Info': 'simple-preview-app'
+        }
+      },
+      db: {
+        schema: 'public'
+      },
+      realtime: {
+        params: {
+          eventsPerSecond: 2
+        }
+      }
+    })
+    console.log('Supabaseクライアント作成成功')
+    return client
   } catch (error) {
     console.error('Supabaseクライアントの作成に失敗しました:', error)
+    console.log('デモクライアントにフォールバック')
     return createDemoClient()
   }
 })()

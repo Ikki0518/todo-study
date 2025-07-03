@@ -221,6 +221,26 @@ class AuthService {
     }
   }
 
+  // Supabase接続テスト
+  async testSupabaseConnection() {
+    try {
+      const { data, error } = await supabase.from('users').select('count').limit(1)
+      return { success: !error, error }
+    } catch (error) {
+      return { success: false, error }
+    }
+  }
+
+  // タイムアウト付きログイン
+  async loginWithTimeout(email, password, timeoutMs = 10000) {
+    return Promise.race([
+      auth.signIn(email, password),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('ログインタイムアウト')), timeoutMs)
+      )
+    ])
+  }
+
   // ログイン
   async login(email, password) {
     this.isLoginInProgress = true
@@ -232,8 +252,20 @@ class AuthService {
         supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
         hasAnonKey: !!import.meta.env.VITE_SUPABASE_ANON_KEY
       })
+
+      // Supabase接続テスト（実際のSupabaseを使用する場合のみ）
+      if (!this.isDemo) {
+        console.log('Supabase接続テスト中...')
+        const connectionTest = await this.testSupabaseConnection()
+        if (!connectionTest.success) {
+          console.warn('Supabase接続テスト失敗、デモモードにフォールバック:', connectionTest.error)
+          // デモモードにフォールバック
+          this.isDemo = true
+        }
+      }
       
-      const authResult = await auth.signIn(email, password)
+      // タイムアウト付きログイン試行
+      const authResult = await this.loginWithTimeout(email, password, 8000)
       console.log('auth.signIn結果:', authResult)
 
       // null チェックを強化
@@ -281,6 +313,15 @@ class AuthService {
       }
     } catch (error) {
       console.error('ログイン処理エラー:', error)
+      
+      // タイムアウトエラーの場合は特別な処理
+      if (error.message === 'ログインタイムアウト') {
+        return {
+          success: false,
+          error: 'ログインがタイムアウトしました。ネットワーク接続を確認してください。'
+        }
+      }
+      
       return {
         success: false,
         error: 'ログイン中にエラーが発生しました: ' + (error?.message || 'Unknown error')
