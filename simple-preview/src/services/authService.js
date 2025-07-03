@@ -256,6 +256,15 @@ class AuthService {
 
   // 現在のユーザー取得
   getCurrentUser() {
+    // 🚀 緊急対応: デモモードでは即座にレスポンス
+    if (this.isDemo) {
+      console.log('🚀 緊急対応: デモモードでユーザー取得:', this.currentUser)
+      return {
+        success: !!this.currentUser,
+        user: this.currentUser
+      }
+    }
+    
     return this.currentUser
   }
 
