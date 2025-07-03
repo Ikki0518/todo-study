@@ -6,14 +6,16 @@ class AuthService {
     this.currentUser = null
     this.isInitialized = false
     this.authStateListeners = []
-    this.isDemo = !import.meta.env.VITE_SUPABASE_URL ||
-                  import.meta.env.VITE_SUPABASE_URL === 'your_supabase_project_url'
+    // 🚀 緊急対応: 強制的にデモモードで動作
+    this.isDemo = true
     this.authStateChangeSubscription = null
     this.isListenerRegistered = false
     this.isLoginInProgress = false
     
-    // 認証状態の変更を監視（一度だけ）
-    if (!this.isListenerRegistered) {
+    console.log('🚀 緊急対応: AuthService デモモードで初期化')
+    
+    // デモモードでは認証状態監視を無効化（Supabase接続を完全に回避）
+    if (!this.isDemo && !this.isListenerRegistered) {
       this.isListenerRegistered = true
       this.authStateChangeSubscription = auth.onAuthStateChange(async (event, session) => {
       console.log('認証状態変更:', { event, hasUser: !!session?.user })
@@ -158,6 +160,13 @@ class AuthService {
     if (this.isInitialized) return
 
     try {
+      // 🚀 緊急対応: デモモードでは初期化をスキップ
+      if (this.isDemo) {
+        console.log('🚀 緊急対応: デモモードのため初期化をスキップ')
+        this.isInitialized = true
+        return
+      }
+      
       const { data: { user }, error } = await auth.getCurrentUser()
       if (user && !error) {
         await this.loadUserProfile(user.id)
