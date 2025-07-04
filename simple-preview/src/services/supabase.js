@@ -7,9 +7,7 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 // Supabase設定を有効化（接続テストで正常動作を確認済み）
 const isValidConfig = supabaseUrl && supabaseAnonKey
 
-console.warn('🚀 緊急対応: 高速デモモードで動作中')
-console.warn('ログイン問題解決のため、一時的にデモモードを使用しています。')
-console.warn('任意のメールアドレスとパスワードでログインできます。')
+console.log('Supabase認証を使用します:', { hasUrl: !!supabaseUrl, hasKey: !!supabaseAnonKey })
 
 // デモ用のダミークライアント
 let demoUser = null
@@ -216,15 +214,21 @@ const createDemoClient = () => ({
   })
 })
 
-// Supabaseクライアントの作成
+// Supabaseクライアントの作成（強制的に実際のSupabaseを使用）
 export const supabase = (() => {
+  console.log('Supabase設定確認:', {
+    url: supabaseUrl,
+    hasKey: !!supabaseAnonKey,
+    isValid: isValidConfig
+  })
+  
   if (!isValidConfig) {
-    console.log('デモクライアントを使用します')
-    return createDemoClient()
+    console.error('❌ Supabase環境変数が設定されていません')
+    throw new Error('Supabase環境変数が必要です')
   }
   
   try {
-    console.log('Supabaseクライアントを作成中...')
+    console.log('✅ 実際のSupabaseクライアントを作成中...')
     const client = createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
         autoRefreshToken: true,
@@ -245,12 +249,11 @@ export const supabase = (() => {
         }
       }
     })
-    console.log('Supabaseクライアント作成成功')
+    console.log('✅ Supabaseクライアント作成成功')
     return client
   } catch (error) {
-    console.error('Supabaseクライアントの作成に失敗しました:', error)
-    console.log('デモクライアントにフォールバック')
-    return createDemoClient()
+    console.error('❌ Supabaseクライアントの作成に失敗:', error)
+    throw error
   }
 })()
 

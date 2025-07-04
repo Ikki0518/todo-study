@@ -6,13 +6,14 @@ class AuthService {
     this.currentUser = null
     this.isInitialized = false
     this.authStateListeners = []
-    // Supabase認証を使用（接続テストで正常動作を確認済み）
+    // 強制的にSupabase認証を使用
     this.isDemo = false
     this.authStateChangeSubscription = null
     this.isListenerRegistered = false
     this.isLoginInProgress = false
     
-    console.log('AuthService 初期化開始（Supabase認証使用）')
+    console.log('✅ AuthService 初期化開始（実際のSupabase認証使用）')
+    console.log('Supabaseクライアント確認:', !!this.supabase)
     
     // 認証状態監視を完全に無効化（パフォーマンス改善）
     console.log('認証状態監視をスキップ（軽量化のため）')
