@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import openaiService from '../services/openaiService';
 
-export const CompanionMode = ({ userKnowledge = {}, onKnowledgeUpdate, onTasksGenerated }) => {
+export const CompanionMode = ({ userKnowledge, onKnowledgeUpdate, onTasksGenerated }) => {
   const [messages, setMessages] = useState([]);
   const [currentMessage, setCurrentMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -37,7 +37,7 @@ export const CompanionMode = ({ userKnowledge = {}, onKnowledgeUpdate, onTasksGe
         generateTodayTasks();
       } catch (error) {
         // フォールバック
-        const goalText = userKnowledge?.goal || '目標達成';
+        const goalText = userKnowledge.goal || '目標達成';
         setMessages([{
           role: 'assistant',
           content: `こんにちは！😊 ${goalText}に向けて、今日も一緒に頑張りましょう！✨
@@ -215,15 +215,15 @@ export const CompanionMode = ({ userKnowledge = {}, onKnowledgeUpdate, onTasksGe
               🎯 あなたの学習計画
             </h3>
             <div className="space-y-2 text-sm">
-              <div><strong>目標:</strong> {userKnowledge?.goal || '未設定'}</div>
-              <div><strong>期限:</strong> {userKnowledge?.deadline || '未設定'}</div>
-              <div><strong>現在のレベル:</strong> {userKnowledge?.currentStatus || '未設定'}</div>
-              {userKnowledge?.studyHours && (
+              <div><strong>目標:</strong> {userKnowledge.goal}</div>
+              <div><strong>期限:</strong> {userKnowledge.deadline}</div>
+              <div><strong>現在のレベル:</strong> {userKnowledge.currentStatus}</div>
+              {userKnowledge.studyHours && (
                 <div><strong>学習時間:</strong> {userKnowledge.studyHours}</div>
               )}
               
               {/* 追加情報の表示（備考として） */}
-              {userKnowledge?.additionalInfo && (
+              {userKnowledge.additionalInfo && (
                 <details className="mt-3">
                   <summary className="cursor-pointer text-blue-600 hover:text-blue-800">
                     📝 詳細情報を表示

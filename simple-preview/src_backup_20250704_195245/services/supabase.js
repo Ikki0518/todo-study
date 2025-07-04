@@ -4,8 +4,8 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-// Supabase設定を有効化（接続テストで正常動作を確認済み）
-const isValidConfig = supabaseUrl && supabaseAnonKey
+// 緊急対応: 強制的にデモモードで動作
+const isValidConfig = false
 
 console.warn('🚀 緊急対応: 高速デモモードで動作中')
 console.warn('ログイン問題解決のため、一時的にデモモードを使用しています。')

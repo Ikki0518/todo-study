@@ -275,29 +275,26 @@ ${currentData.studyHours ? `- 学習時間: ${currentData.studyHours}` : '- 学�
         return newData;
       });
       
-      // 基本4項目が揃った場合のみ完了チェック
-      setCollectedData(currentData => {
-        const hasBasicInfo = currentData.goal && currentData.deadline && currentData.currentStatus && currentData.studyHours;
+        // 基本4項目が揃った場合のみ完了
+        const hasBasicInfo = newData.goal && newData.deadline && newData.currentStatus && newData.studyHours;
         
-        if (hasBasicInfo && !isCompleted) {
+        if (hasBasicInfo) {
           setTimeout(() => {
             setIsCompleted(true);
             if (onComplete) {
               // 4項目が全て揃っている場合のみコンパニオンモードに移行
+              // 目標管理ページで使用できる形式に変換
               const goalData = {
-                goal: currentData.goal,
-                deadline: currentData.deadline,
-                currentStatus: currentData.currentStatus,
-                studyHours: currentData.studyHours,
-                additionalInfo: currentData.additionalInfo
+                goal: newData.goal,
+                deadline: newData.deadline,
+                currentStatus: newData.currentStatus,
+                studyHours: newData.studyHours,
+                additionalInfo: newData.additionalInfo
               };
               onComplete(goalData);
             }
           }, 2000);
         }
-        
-        return currentData;
-      });
       
     } catch (error) {
       console.error('メッセージ送信エラー:', error);
