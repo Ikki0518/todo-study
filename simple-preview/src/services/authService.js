@@ -14,33 +14,8 @@ class AuthService {
     
     console.log('AuthService 初期化開始（Supabase認証使用）')
     
-    // 認証状態監視を設定
-    if (!this.isDemo && !this.isListenerRegistered) {
-      this.isListenerRegistered = true
-      this.authStateChangeSubscription = auth.onAuthStateChange(async (event, session) => {
-      console.log('認証状態変更:', { event, hasUser: !!session?.user })
-      
-      // ログイン処理中は何もしない（重複を完全に防ぐ）
-      if (this.isLoginInProgress) {
-        console.log('ログイン処理中のため認証状態変更をスキップ')
-        return
-      }
-      
-      if (event === 'SIGNED_OUT') {
-        this.currentUser = null
-        console.log('ログアウト: currentUserをクリア')
-      }
-      
-      // リスナーに通知
-      this.authStateListeners.forEach(listener => {
-        try {
-          listener(event, session, this.currentUser)
-        } catch (error) {
-          console.error('認証状態リスナーエラー:', error)
-        }
-      })
-      })
-    }
+    // 認証状態監視を完全に無効化（パフォーマンス改善）
+    console.log('認証状態監視をスキップ（軽量化のため）')
     
     this.initialize()
   }
@@ -169,7 +144,7 @@ class AuthService {
     }
   }
 
-  // ユーザー登録
+  // ユーザー登録（軽量化版）
   async register(email, password, userData = {}) {
     try {
       console.log('ユーザー登録開始:', { email, name: userData.name })
@@ -182,17 +157,21 @@ class AuthService {
       }
 
       if (data.user) {
-        // プロフィール作成
-        const profileResult = await this.loadUserProfileWithUserData(data.user.id, data.user)
-        if (profileResult.success) {
-          console.log('登録成功:', profileResult.user)
-          return {
-            success: true,
-            user: profileResult.user,
-            message: 'アカウントが作成されました。'
-          }
-        } else {
-          return { success: false, error: profileResult.error }
+        // 軽量なユーザー情報設定（データベースアクセスなし）
+        const simpleUser = {
+          id: data.user.id,
+          email: data.user.email,
+          name: userData.name || data.user.email.split('@')[0],
+          role: userData.userRole || 'STUDENT'
+        }
+        
+        this.currentUser = simpleUser
+        console.log('登録成功（軽量版）:', simpleUser)
+        
+        return {
+          success: true,
+          user: simpleUser,
+          message: 'アカウントが作成されました。'
         }
       }
 
@@ -206,7 +185,7 @@ class AuthService {
     }
   }
 
-  // ログイン
+  // ログイン（軽量化版）
   async login(email, password) {
     try {
       console.log('ログイン開始:', { email })
@@ -220,17 +199,21 @@ class AuthService {
       }
 
       if (data.user) {
-        // プロフィール読み込み
-        const profileResult = await this.loadUserProfileWithUserData(data.user.id, data.user)
-        if (profileResult.success) {
-          console.log('ログイン成功:', profileResult.user)
-          return {
-            success: true,
-            user: profileResult.user,
-            session: data.session
-          }
-        } else {
-          return { success: false, error: profileResult.error }
+        // 軽量なユーザー情報設定（データベースアクセスなし）
+        const simpleUser = {
+          id: data.user.id,
+          email: data.user.email,
+          name: data.user.user_metadata?.name || data.user.email.split('@')[0],
+          role: data.user.user_metadata?.role || 'STUDENT'
+        }
+        
+        this.currentUser = simpleUser
+        console.log('ログイン成功（軽量版）:', simpleUser)
+        
+        return {
+          success: true,
+          user: simpleUser,
+          session: data.session
         }
       }
 
