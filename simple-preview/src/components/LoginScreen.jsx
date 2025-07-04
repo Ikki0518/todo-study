@@ -85,7 +85,8 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
         console.log('auth.signIn結果:', result);
         
         if (result.success) {
-          console.log('ログイン成功:', result.user);
+          console.log('ログイン成功（手動状態更新）:', result.user);
+          // 手動で状態を更新（認証状態監視を使わない）
           onRoleChange(result.user.role || 'STUDENT');
           onLogin(true);
         } else {
@@ -101,18 +102,10 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
         });
         
         if (result.success) {
-          console.log('新規登録成功:', result.user);
-          setSuccessMessage(result.message);
-          // フォームをリセット
-          setFormData({
-            email: '',
-            password: '',
-            confirmPassword: '',
-            name: '',
-            userRole: 'STUDENT'
-          });
-          // ログインモードに切り替え
-          setIsLoginMode(true);
+          console.log('新規登録成功（自動ログイン）:', result.user);
+          // 新規登録後は自動的にログイン状態にする
+          onRoleChange(result.user.role || 'STUDENT');
+          onLogin(true);
         } else {
           setErrors({ general: result.error });
         }

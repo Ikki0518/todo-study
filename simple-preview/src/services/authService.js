@@ -21,16 +21,13 @@ class AuthService {
     this.initialize()
   }
 
-  // 認証状態変更のリスナーを追加
+  // 認証状態変更のリスナーを追加（無効化）
   onAuthStateChange(callback) {
-    this.authStateListeners.push(callback)
+    console.log('認証状態監視は無効化されています（パフォーマンス改善）')
     
-    // クリーンアップ関数を返す
+    // 何もしないクリーンアップ関数を返す
     return () => {
-      const index = this.authStateListeners.indexOf(callback)
-      if (index > -1) {
-        this.authStateListeners.splice(index, 1)
-      }
+      console.log('認証状態監視クリーンアップ（無効化済み）')
     }
   }
 
