@@ -341,34 +341,12 @@ function App() {
   const todayString = `${today.getFullYear()}年${today.getMonth() + 1}月${today.getDate()}日（${dayNames[today.getDay()]}）`
 
   useEffect(() => {
-    console.log('App.jsx 初期化開始（Supabase認証使用）');
+    console.log('App.jsx 初期化開始（簡素化版）');
     
-    // 初期認証状態確認
-    const checkAuthStatus = async () => {
-      console.log('認証状態確認開始');
-      try {
-        const { data: { user }, error } = await auth.getCurrentUser();
-        if (user && !error) {
-          const profileResult = await authService.loadUserProfile(user.id);
-          if (profileResult.success) {
-            setCurrentUser(profileResult.user);
-            setUserRole(profileResult.user.role || 'STUDENT');
-            setIsLoggedIn(true);
-          }
-        } else {
-          setCurrentUser(null);
-          setUserRole('STUDENT');
-          setIsLoggedIn(false);
-        }
-      } catch (error) {
-        console.error('認証状態確認エラー:', error);
-        setCurrentUser(null);
-        setUserRole('STUDENT');
-        setIsLoggedIn(false);
-      }
-    };
-
-    checkAuthStatus();
+    // 初期状態を設定（認証チェックをスキップ）
+    setCurrentUser(null);
+    setUserRole('STUDENT');
+    setIsLoggedIn(false);
 
     // 認証状態変更リスナーを設定
     const unsubscribe = authService.onAuthStateChange((event, session, user) => {
