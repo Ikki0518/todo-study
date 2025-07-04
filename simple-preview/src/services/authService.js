@@ -160,13 +160,8 @@ class AuthService {
     if (this.isInitialized) return
 
     try {
-      // 正常なSupabase認証初期化
-      console.log('Supabase認証初期化開始')
-      
-      const { data: { user }, error } = await auth.getCurrentUser()
-      if (user && !error) {
-        await this.loadUserProfile(user.id)
-      }
+      // 軽量な初期化（データベースアクセスなし）
+      console.log('AuthService 軽量初期化完了')
       this.isInitialized = true
     } catch (error) {
       console.error('認証初期化エラー:', error)

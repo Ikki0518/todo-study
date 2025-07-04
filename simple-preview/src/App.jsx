@@ -341,33 +341,14 @@ function App() {
   const todayString = `${today.getFullYear()}年${today.getMonth() + 1}月${today.getDate()}日（${dayNames[today.getDay()]}）`
 
   useEffect(() => {
-    console.log('App.jsx 初期化開始（簡素化版）');
+    console.log('App.jsx 初期化開始（超軽量版）');
     
-    // 初期状態を設定（認証チェックをスキップ）
+    // 最小限の初期状態設定のみ
     setCurrentUser(null);
     setUserRole('STUDENT');
     setIsLoggedIn(false);
-
-    // 認証状態変更リスナーを設定
-    const unsubscribe = authService.onAuthStateChange((event, session, user) => {
-      console.log('認証状態変更:', { event, user });
-      
-      if (event === 'SIGNED_OUT' || !session) {
-        setCurrentUser(null);
-        setUserRole('STUDENT');
-        setIsLoggedIn(false);
-        setCurrentView('goals');
-      } else if (event === 'SIGNED_IN' && user) {
-        setCurrentUser(user);
-        setUserRole(user.role || 'STUDENT');
-        setIsLoggedIn(true);
-      }
-    });
-
-    // クリーンアップ関数
-    return () => {
-      unsubscribe();
-    };
+    
+    console.log('App.jsx 初期化完了（認証監視なし）');
   }, []);
 
   // ログアウト処理

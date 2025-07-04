@@ -82,12 +82,14 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
         // ログイン処理
         console.log('ログイン開始:', formData.email);
         const result = await authService.login(formData.email, formData.password);
+        console.log('auth.signIn結果:', result);
         
         if (result.success) {
           console.log('ログイン成功:', result.user);
           onRoleChange(result.user.role || 'STUDENT');
           onLogin(true);
         } else {
+          console.log('ログインエラー:', result.error);
           setErrors({ general: result.error });
         }
       } else {
