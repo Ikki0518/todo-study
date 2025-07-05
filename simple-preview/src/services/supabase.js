@@ -291,9 +291,16 @@ export const auth = {
     return supabase.auth.getUser()
   },
 
-  // 認証状態の変更を監視
+  // 認証状態の変更を監視（無効化）
   onAuthStateChange(callback) {
-    return supabase.auth.onAuthStateChange(callback)
+    console.log('認証状態監視は無効化されています（パフォーマンス改善）')
+    return {
+      data: {
+        subscription: {
+          unsubscribe: () => console.log('認証状態監視クリーンアップ（無効化済み）')
+        }
+      }
+    }
   },
 
   // パスワードリセット
