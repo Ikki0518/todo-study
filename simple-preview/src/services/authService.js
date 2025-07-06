@@ -142,7 +142,7 @@ class AuthService {
     }
   }
 
-  // ユーザー登録（軽量化版）
+  // ユーザー登録（データベース保存付き）
   async register(email, password, userData = {}) {
     try {
       console.log('ユーザー登録開始:', { email, name: userData.name })
@@ -155,21 +155,48 @@ class AuthService {
       }
 
       if (data.user) {
-        // 軽量なユーザー情報設定（データベースアクセスなし）
-        const simpleUser = {
-          id: data.user.id,
+        // ユーザープロフィールをデータベースに保存
+        const profileData = {
           email: data.user.email,
           name: userData.name || data.user.email.split('@')[0],
-          role: userData.userRole || 'STUDENT'
+          role: userData.userRole || 'STUDENT',
+          created_at: new Date().toISOString()
         }
         
-        this.currentUser = simpleUser
-        console.log('登録成功（軽量版）:', simpleUser)
-        
-        return {
-          success: true,
-          user: simpleUser,
-          message: 'アカウントが作成されました。'
+        try {
+          const { data: profile, error: profileError } = await database.upsertUserProfile(
+            data.user.id,
+            profileData
+          )
+          
+          if (!profileError) {
+            this.currentUser = profile
+            console.log('登録成功（データベース保存済み）:', profile)
+            return {
+              success: true,
+              user: profile,
+              message: 'アカウントが作成されました。'
+            }
+          } else {
+            console.warn('プロフィール保存失敗、軽量版で継続:', profileError)
+            // プロフィール保存に失敗しても軽量版で継続
+            const simpleUser = { id: data.user.id, ...profileData }
+            this.currentUser = simpleUser
+            return {
+              success: true,
+              user: simpleUser,
+              message: 'アカウントが作成されました。'
+            }
+          }
+        } catch (dbError) {
+          console.warn('データベースエラー、軽量版で継続:', dbError)
+          const simpleUser = { id: data.user.id, ...profileData }
+          this.currentUser = simpleUser
+          return {
+            success: true,
+            user: simpleUser,
+            message: 'アカウントが作成されました。'
+          }
         }
       }
 
@@ -183,7 +210,7 @@ class AuthService {
     }
   }
 
-  // ログイン（軽量化版）
+  // ログイン（高速 + データベース連携）
   async login(email, password) {
     try {
       console.log('ログイン開始:', { email })
@@ -197,7 +224,7 @@ class AuthService {
       }
 
       if (data.user) {
-        // 軽量なユーザー情報設定（データベースアクセスなし）
+        // 即座に軽量なユーザー情報を設定（高速ログイン）
         const simpleUser = {
           id: data.user.id,
           email: data.user.email,
@@ -206,7 +233,10 @@ class AuthService {
         }
         
         this.currentUser = simpleUser
-        console.log('ログイン成功（軽量版）:', simpleUser)
+        console.log('ログイン成功（高速版）:', simpleUser)
+        
+        // バックグラウンドでプロフィール読み込み（ログイン速度に影響しない）
+        this.loadUserProfileInBackground(data.user.id)
         
         return {
           success: true,
@@ -224,6 +254,23 @@ class AuthService {
       }
     } finally {
       this.isLoginInProgress = false
+    }
+  }
+
+  // バックグラウンドでプロフィール読み込み
+  async loadUserProfileInBackground(userId) {
+    try {
+      console.log('バックグラウンドプロフィール読み込み開始:', userId)
+      const { data: profile, error } = await database.getUserProfile(userId)
+      
+      if (profile && !error) {
+        this.currentUser = { ...this.currentUser, ...profile }
+        console.log('プロフィール読み込み完了:', profile)
+      } else {
+        console.log('プロフィール読み込みスキップ（軽量版で継続）')
+      }
+    } catch (error) {
+      console.warn('バックグラウンドプロフィール読み込みエラー:', error)
     }
   }
 

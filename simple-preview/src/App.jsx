@@ -351,6 +351,28 @@ function App() {
     console.log('App.jsx 初期化完了（認証監視なし）');
   }, []);
 
+  // ログイン状態変更時にユーザーデータを読み込み
+  useEffect(() => {
+    if (isLoggedIn && currentUser) {
+      console.log('ログイン後のデータ読み込み開始');
+      loadUserData();
+    }
+  }, [isLoggedIn, currentUser]);
+
+  // ユーザーデータ読み込み関数
+  const loadUserData = async () => {
+    try {
+      // 目標データを読み込み
+      const goalsResult = await authService.getGoals();
+      if (goalsResult.success) {
+        setGoals(goalsResult.goals);
+        console.log('目標データ読み込み完了:', goalsResult.goals.length, '件');
+      }
+    } catch (error) {
+      console.warn('ユーザーデータ読み込みエラー:', error);
+    }
+  };
+
   // ログアウト処理
   const handleLogout = async () => {
     try {
