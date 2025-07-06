@@ -231,9 +231,10 @@ export const supabase = (() => {
     console.log('✅ 実際のSupabaseクライアントを作成中...')
     const client = createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
-        autoRefreshToken: true,
-        persistSession: true,
-        detectSessionInUrl: false
+        autoRefreshToken: false,
+        persistSession: false,
+        detectSessionInUrl: false,
+        flowType: 'implicit'
       },
       global: {
         headers: {
@@ -249,6 +250,19 @@ export const supabase = (() => {
         }
       }
     })
+    
+    // 認証状態監視を完全に無効化
+    const originalOnAuthStateChange = client.auth.onAuthStateChange
+    client.auth.onAuthStateChange = (callback) => {
+      console.log('認証状態監視は無効化されています（クライアントレベル）')
+      return {
+        data: {
+          subscription: {
+            unsubscribe: () => console.log('認証状態監視クリーンアップ（クライアントレベル）')
+          }
+        }
+      }
+    }
     console.log('✅ Supabaseクライアント作成成功')
     return client
   } catch (error) {

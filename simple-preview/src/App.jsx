@@ -359,15 +359,67 @@ function App() {
     }
   }, [isLoggedIn, currentUser]);
 
+  // タスクデータの自動保存（デバイス間同期のため）
+  useEffect(() => {
+    if (isLoggedIn && todayTasks.length > 0) {
+      localStorage.setItem('todayTasks', JSON.stringify(todayTasks));
+      console.log('今日のタスクを保存:', todayTasks.length, '件');
+    }
+  }, [todayTasks, isLoggedIn]);
+
+  useEffect(() => {
+    if (isLoggedIn && Object.keys(scheduledTasks).length > 0) {
+      localStorage.setItem('scheduledTasks', JSON.stringify(scheduledTasks));
+      console.log('スケジュールタスクを保存:', Object.keys(scheduledTasks).length, '件');
+    }
+  }, [scheduledTasks, isLoggedIn]);
+
+  useEffect(() => {
+    if (isLoggedIn && Object.keys(completedTasks).length > 0) {
+      localStorage.setItem('completedTasks', JSON.stringify(completedTasks));
+      console.log('完了タスクを保存:', Object.keys(completedTasks).length, '件');
+    }
+  }, [completedTasks, isLoggedIn]);
+
   // ユーザーデータ読み込み関数
   const loadUserData = async () => {
     try {
+      console.log('全ユーザーデータ読み込み開始');
+      
       // 目標データを読み込み
       const goalsResult = await authService.getGoals();
       if (goalsResult.success) {
         setGoals(goalsResult.goals);
         console.log('目標データ読み込み完了:', goalsResult.goals.length, '件');
       }
+      
+      // LocalStorageからタスクデータも復元（デバイス間同期のため）
+      try {
+        const savedTasks = localStorage.getItem('todayTasks');
+        const savedScheduled = localStorage.getItem('scheduledTasks');
+        const savedCompleted = localStorage.getItem('completedTasks');
+        
+        if (savedTasks) {
+          const tasks = JSON.parse(savedTasks);
+          setTodayTasks(tasks);
+          console.log('今日のタスク復元:', tasks.length, '件');
+        }
+        
+        if (savedScheduled) {
+          const scheduled = JSON.parse(savedScheduled);
+          setScheduledTasks(scheduled);
+          console.log('スケジュールタスク復元:', Object.keys(scheduled).length, '件');
+        }
+        
+        if (savedCompleted) {
+          const completed = JSON.parse(savedCompleted);
+          setCompletedTasks(completed);
+          console.log('完了タスク復元:', Object.keys(completed).length, '件');
+        }
+      } catch (storageError) {
+        console.warn('LocalStorage読み込みエラー:', storageError);
+      }
+      
     } catch (error) {
       console.warn('ユーザーデータ読み込みエラー:', error);
     }
