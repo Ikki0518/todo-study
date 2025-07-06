@@ -12,13 +12,11 @@ class AuthService {
     this.isListenerRegistered = false
     this.isLoginInProgress = false
     
-    console.log('✅ AuthService 初期化開始（実際のSupabase認証使用）')
-    console.log('Supabaseクライアント確認:', !!this.supabase)
+    console.log('✅ AuthService 初期化開始（超軽量版）')
+    console.log('認証状態監視は完全に無効化されています')
     
-    // 認証状態監視を完全に無効化（パフォーマンス改善）
-    console.log('認証状態監視をスキップ（軽量化のため）')
-    
-    this.initialize()
+    // 初期化処理もスキップ（最高速度のため）
+    this.isInitialized = true
   }
 
   // 認証状態変更のリスナーを追加（無効化）
@@ -210,10 +208,10 @@ class AuthService {
     }
   }
 
-  // ログイン（高速 + データベース連携）
+  // ログイン（超軽量版）
   async login(email, password) {
     try {
-      console.log('ログイン開始:', { email })
+      console.log('ログイン開始（超軽量版）:', { email })
       this.isLoginInProgress = true
       
       const { data, error } = await auth.signIn(email, password)
@@ -224,7 +222,7 @@ class AuthService {
       }
 
       if (data.user) {
-        // 即座に軽量なユーザー情報を設定（高速ログイン）
+        // 最軽量なユーザー情報設定（データベースアクセス一切なし）
         const simpleUser = {
           id: data.user.id,
           email: data.user.email,
@@ -233,10 +231,7 @@ class AuthService {
         }
         
         this.currentUser = simpleUser
-        console.log('ログイン成功（高速版）:', simpleUser)
-        
-        // バックグラウンドでプロフィール読み込み（ログイン速度に影響しない）
-        this.loadUserProfileInBackground(data.user.id)
+        console.log('ログイン成功（超軽量版）:', simpleUser)
         
         return {
           success: true,
@@ -254,23 +249,6 @@ class AuthService {
       }
     } finally {
       this.isLoginInProgress = false
-    }
-  }
-
-  // バックグラウンドでプロフィール読み込み
-  async loadUserProfileInBackground(userId) {
-    try {
-      console.log('バックグラウンドプロフィール読み込み開始:', userId)
-      const { data: profile, error } = await database.getUserProfile(userId)
-      
-      if (profile && !error) {
-        this.currentUser = { ...this.currentUser, ...profile }
-        console.log('プロフィール読み込み完了:', profile)
-      } else {
-        console.log('プロフィール読み込みスキップ（軽量版で継続）')
-      }
-    } catch (error) {
-      console.warn('バックグラウンドプロフィール読み込みエラー:', error)
     }
   }
 
