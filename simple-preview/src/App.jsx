@@ -66,16 +66,14 @@ function App() {
     
     if (isToday) {
       // 今日の場合は、今日のタスクプールに追加
-      setTodayTasks(prevTasks => {
-        const existingTaskIds = prevTasks.map(task => task.id)
-        const newTasks = tasksFromCalendar.filter(task => !existingTaskIds.includes(task.id))
-        return [...prevTasks, ...newTasks]
-      })
+      const existingTaskIds = todayTasks.map(task => task.id)
+      const newTasks = tasksFromCalendar.filter(task => !existingTaskIds.includes(task.id))
+      updateTodayTasks([...todayTasks, ...newTasks])
       // デイリータスクプールはクリア
-      setDailyTaskPool([])
+      updateDailyTaskPool([])
     } else {
       // 今日以外の場合は、デイリータスクプールのみ設定
-      setDailyTaskPool(tasksFromCalendar)
+      updateDailyTaskPool(tasksFromCalendar)
     }
     
     setCurrentView('planner')
@@ -161,13 +159,11 @@ function App() {
     const todayPlans = newStudyPlans[todayKey] || []
     
     if (todayPlans.length > 0) {
-      const todayTasks = convertPlansToTasks(todayPlans)
+      const todayTasksToAdd = convertPlansToTasks(todayPlans)
       
-      setTodayTasks(prevTasks => {
-        const existingTaskIds = prevTasks.map(task => task.id)
-        const newTasks = todayTasks.filter(task => !existingTaskIds.includes(task.id))
-        return [...prevTasks, ...newTasks]
-      })
+      const existingTaskIds = todayTasks.map(task => task.id)
+      const newTasks = todayTasksToAdd.filter(task => !existingTaskIds.includes(task.id))
+      updateTodayTasks([...todayTasks, ...newTasks])
     }
     
     const stats = calculateStudyPlanStats(newStudyPlans, studyBooks)
@@ -243,9 +239,9 @@ function App() {
     // タスクプールからの移動
     if (fromLocation === 'pool') {
       if (dailyTaskPool.length > 0) {
-        setDailyTaskPool(dailyTaskPool.filter(t => t.id !== task.id))
+        updateDailyTaskPool(dailyTaskPool.filter(t => t.id !== task.id))
       } else {
-        setTodayTasks(todayTasks.filter(t => t.id !== task.id))
+        updateTodayTasks(todayTasks.filter(t => t.id !== task.id))
       }
     }
     // スケジュール間での移動
@@ -282,10 +278,10 @@ function App() {
     
     if (isToday) {
       // 今日のタスクプールに戻す
-      setTodayTasks(prevTasks => [...prevTasks, task])
+      updateTodayTasks([...todayTasks, task])
     } else {
       // デイリータスクプールに戻す
-      setDailyTaskPool(prevTasks => [...prevTasks, task])
+      updateDailyTaskPool([...dailyTaskPool, task])
     }
   }
 
@@ -302,20 +298,39 @@ function App() {
   const toggleTaskComplete = (taskId, location) => {
     if (location === 'pool') {
       if (dailyTaskPool.length > 0) {
-        setDailyTaskPool(dailyTaskPool.map(task =>
+        const updatedTasks = dailyTaskPool.map(task =>
           task.id === taskId ? { ...task, completed: !task.completed } : task
-        ))
+        )
+        updateDailyTaskPool(updatedTasks)
       } else {
-        setTodayTasks(todayTasks.map(task =>
+        const updatedTasks = todayTasks.map(task =>
           task.id === taskId ? { ...task, completed: !task.completed } : task
-        ))
+        )
+        updateTodayTasks(updatedTasks)
       }
     } else if (location.startsWith('scheduled-')) {
       const key = location.replace('scheduled-', '')
-      setCompletedTasks({
+      const newCompletedTasks = {
         ...completedTasks,
         [key]: !completedTasks[key]
-      })
+      }
+      setCompletedTasks(newCompletedTasks)
+      
+      // スケジュールされたタスクの完了状態もSupabaseと同期
+      if (isLoggedIn && currentUser && scheduledTasks[key]) {
+        setTimeout(async () => {
+          try {
+            const task = scheduledTasks[key]
+            await authService.updateTask(task.id, {
+              ...task,
+              completed: newCompletedTasks[key]
+            })
+            console.log('スケジュールタスク完了状態をSupabaseと同期完了')
+          } catch (error) {
+            console.warn('スケジュールタスク完了状態同期エラー:', error)
+          }
+        }, 500)
+      }
     }
   }
 
@@ -362,13 +377,13 @@ function App() {
     }
   }, [isLoggedIn, currentUser]);
 
-  // タスクデータの自動保存（デバイス間同期のため）- 超遅延デバウンス付き
+  // タスクデータの軽量キャッシュ（パフォーマンス向上のため）
   useEffect(() => {
     if (isLoggedIn && todayTasks.length > 0) {
       const timeoutId = setTimeout(() => {
-        localStorage.setItem('todayTasks', JSON.stringify(todayTasks));
-        console.log('今日のタスクを保存:', todayTasks.length, '件');
-      }, 2000); // 2秒遅延（ログイン速度優先）
+        localStorage.setItem('todayTasks_cache', JSON.stringify(todayTasks));
+        console.log('今日のタスクをキャッシュ:', todayTasks.length, '件');
+      }, 1000); // 1秒遅延でキャッシュ
       return () => clearTimeout(timeoutId);
     }
   }, [todayTasks, isLoggedIn]);
@@ -376,9 +391,9 @@ function App() {
   useEffect(() => {
     if (isLoggedIn && Object.keys(scheduledTasks).length > 0) {
       const timeoutId = setTimeout(() => {
-        localStorage.setItem('scheduledTasks', JSON.stringify(scheduledTasks));
-        console.log('スケジュールタスクを保存:', Object.keys(scheduledTasks).length, '件');
-      }, 2000); // 2秒遅延（ログイン速度優先）
+        localStorage.setItem('scheduledTasks_cache', JSON.stringify(scheduledTasks));
+        console.log('スケジュールタスクをキャッシュ:', Object.keys(scheduledTasks).length, '件');
+      }, 1000); // 1秒遅延でキャッシュ
       return () => clearTimeout(timeoutId);
     }
   }, [scheduledTasks, isLoggedIn]);
@@ -386,9 +401,9 @@ function App() {
   useEffect(() => {
     if (isLoggedIn && Object.keys(completedTasks).length > 0) {
       const timeoutId = setTimeout(() => {
-        localStorage.setItem('completedTasks', JSON.stringify(completedTasks));
-        console.log('完了タスクを保存:', Object.keys(completedTasks).length, '件');
-      }, 2000); // 2秒遅延（ログイン速度優先）
+        localStorage.setItem('completedTasks_cache', JSON.stringify(completedTasks));
+        console.log('完了タスクをキャッシュ:', Object.keys(completedTasks).length, '件');
+      }, 1000); // 1秒遅延でキャッシュ
       return () => clearTimeout(timeoutId);
     }
   }, [completedTasks, isLoggedIn]);
@@ -405,31 +420,91 @@ function App() {
         console.log('目標データ読み込み完了:', goalsResult.goals.length, '件');
       }
       
-      // LocalStorageからタスクデータも復元（デバイス間同期のため）
+      // Supabaseからタスクデータを取得（主要データソース）
       try {
-        const savedTasks = localStorage.getItem('todayTasks');
-        const savedScheduled = localStorage.getItem('scheduledTasks');
-        const savedCompleted = localStorage.getItem('completedTasks');
+        console.log('Supabaseからタスクデータ取得開始');
         
-        if (savedTasks) {
-          const tasks = JSON.parse(savedTasks);
-          setTodayTasks(tasks);
-          console.log('今日のタスク復元:', tasks.length, '件');
+        // 今日のタスク取得
+        const todayResult = await authService.getTodayTasks();
+        if (todayResult.success && todayResult.tasks) {
+          setTodayTasks(todayResult.tasks);
+          console.log('今日のタスク取得成功:', todayResult.tasks.length, '件');
         }
         
-        if (savedScheduled) {
-          const scheduled = JSON.parse(savedScheduled);
-          setScheduledTasks(scheduled);
-          console.log('スケジュールタスク復元:', Object.keys(scheduled).length, '件');
+        // 週間スケジュールタスク取得
+        const today = new Date();
+        const weekStart = new Date(today);
+        weekStart.setDate(today.getDate() - today.getDay());
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 13); // 2週間分
+        
+        const scheduledResult = await authService.getScheduledTasks(
+          weekStart.toISOString().split('T')[0],
+          weekEnd.toISOString().split('T')[0]
+        );
+        
+        if (scheduledResult.success && scheduledResult.tasks) {
+          // タスクをスケジュール形式に変換
+          const scheduledMap = {};
+          const completedMap = {};
+          
+          scheduledResult.tasks.forEach(task => {
+            if (task.scheduledDate && task.scheduledTime) {
+              const key = `${task.scheduledDate}-${task.scheduledTime.split(':')[0]}`;
+              scheduledMap[key] = task;
+              if (task.completed) {
+                completedMap[key] = true;
+              }
+            }
+          });
+          
+          setScheduledTasks(scheduledMap);
+          setCompletedTasks(completedMap);
+          console.log('スケジュールタスク取得成功:', Object.keys(scheduledMap).length, '件');
         }
         
-        if (savedCompleted) {
-          const completed = JSON.parse(savedCompleted);
-          setCompletedTasks(completed);
-          console.log('完了タスク復元:', Object.keys(completed).length, '件');
+        // 軽量キャッシュも更新（オフライン対応）
+        try {
+          if (todayResult.success && todayResult.tasks) {
+            localStorage.setItem('todayTasks_cache', JSON.stringify(todayResult.tasks));
+          }
+          if (scheduledResult.success) {
+            localStorage.setItem('scheduledTasks_cache', JSON.stringify(scheduledMap || {}));
+            localStorage.setItem('completedTasks_cache', JSON.stringify(completedMap || {}));
+          }
+        } catch (cacheError) {
+          console.warn('キャッシュ更新エラー:', cacheError);
         }
-      } catch (storageError) {
-        console.warn('LocalStorage読み込みエラー:', storageError);
+        
+      } catch (supabaseError) {
+        console.warn('Supabaseタスク取得エラー、キャッシュから復元を試行:', supabaseError);
+        
+        // Supabase取得に失敗した場合のみキャッシュから復元
+        try {
+          const cachedTasks = localStorage.getItem('todayTasks_cache');
+          const cachedScheduled = localStorage.getItem('scheduledTasks_cache');
+          const cachedCompleted = localStorage.getItem('completedTasks_cache');
+          
+          if (cachedTasks) {
+            const tasks = JSON.parse(cachedTasks);
+            setTodayTasks(tasks);
+            console.log('今日のタスクをキャッシュから復元:', tasks.length, '件');
+          }
+          
+          if (cachedScheduled) {
+            const scheduled = JSON.parse(cachedScheduled);
+            setScheduledTasks(scheduled);
+            console.log('スケジュールタスクをキャッシュから復元:', Object.keys(scheduled).length, '件');
+          }
+          
+          if (cachedCompleted) {
+            const completed = JSON.parse(cachedCompleted);
+            setCompletedTasks(completed);
+            console.log('完了タスクをキャッシュから復元:', Object.keys(completed).length, '件');
+          }
+        } catch (cacheError) {
+          console.warn('キャッシュからの復元もエラー:', cacheError);
+        }
       }
       
     } catch (error) {
@@ -460,6 +535,149 @@ function App() {
     setDailyTaskPool([]);
     setUserKnowledge(null);
     setCurrentAIMode('select');
+  };
+
+  // ==================================================
+  // Supabase同期タスク管理関数
+  // ==================================================
+
+  // 今日のタスク更新（Supabaseと同期）
+  const updateTodayTasks = async (newTasks) => {
+    try {
+      console.log('今日のタスクを更新中:', newTasks.length, '件');
+      
+      // ローカル状態を即座に更新（UX向上）
+      setTodayTasks(newTasks);
+      
+      // バックグラウンドでSupabaseと同期
+      if (isLoggedIn && currentUser) {
+        // 現在のタスクとの差分を計算して効率的に同期
+        const currentTasks = todayTasks;
+        
+        // 新しく追加されたタスク
+        const addedTasks = newTasks.filter(newTask =>
+          !currentTasks.find(current => current.id === newTask.id)
+        );
+        
+        // 削除されたタスク
+        const deletedTasks = currentTasks.filter(current =>
+          !newTasks.find(newTask => newTask.id === current.id)
+        );
+        
+        // 更新されたタスク
+        const updatedTasks = newTasks.filter(newTask => {
+          const current = currentTasks.find(c => c.id === newTask.id);
+          return current && JSON.stringify(current) !== JSON.stringify(newTask);
+        });
+        
+        // Supabaseと同期（バックグラウンド）
+        setTimeout(async () => {
+          try {
+            // 新しいタスクを作成
+            for (const task of addedTasks) {
+              await authService.createTask(task);
+            }
+            
+            // タスクを更新
+            for (const task of updatedTasks) {
+              await authService.updateTask(task.id, task);
+            }
+            
+            // タスクを削除
+            for (const task of deletedTasks) {
+              await authService.deleteTask(task.id);
+            }
+            
+            console.log('今日のタスクSupabase同期完了');
+          } catch (syncError) {
+            console.warn('今日のタスクSupabase同期エラー:', syncError);
+          }
+        }, 500); // 500ms後に同期
+      }
+    } catch (error) {
+      console.error('今日のタスク更新エラー:', error);
+    }
+  };
+
+  // デイリータスクプール更新（Supabaseと同期）
+  const updateDailyTaskPool = async (newTasks) => {
+    try {
+      console.log('デイリータスクプールを更新中:', newTasks.length, '件');
+      
+      // ローカル状態を即座に更新
+      setDailyTaskPool(newTasks);
+      
+      // 選択された日付が今日以外の場合のみSupabaseと同期
+      const today = new Date().toISOString().split('T')[0];
+      const selectedDateKey = selectedDate.toISOString().split('T')[0];
+      
+      if (isLoggedIn && currentUser && selectedDateKey !== today) {
+        // バックグラウンドでSupabaseと同期
+        setTimeout(async () => {
+          try {
+            // 日付固有のタスクとしてSupabaseに保存
+            for (const task of newTasks) {
+              const taskWithDate = {
+                ...task,
+                scheduledDate: selectedDateKey
+              };
+              
+              if (!task.id || task.id.toString().startsWith('temp-')) {
+                // 新しいタスクを作成
+                await authService.createTask(taskWithDate);
+              } else {
+                // 既存タスクを更新
+                await authService.updateTask(task.id, taskWithDate);
+              }
+            }
+            
+            console.log('デイリータスクプールSupabase同期完了');
+          } catch (syncError) {
+            console.warn('デイリータスクプールSupabase同期エラー:', syncError);
+          }
+        }, 500);
+      }
+    } catch (error) {
+      console.error('デイリータスクプール更新エラー:', error);
+    }
+  };
+
+  // スケジュールタスク更新（Supabaseと同期）
+  const updateScheduledTasks = async (newScheduledTasks) => {
+    try {
+      console.log('スケジュールタスクを更新中');
+      
+      // ローカル状態を即座に更新
+      setScheduledTasks(newScheduledTasks);
+      
+      // バックグラウンドでSupabaseと同期
+      if (isLoggedIn && currentUser) {
+        setTimeout(async () => {
+          try {
+            for (const [key, task] of Object.entries(newScheduledTasks)) {
+              const [date, hour] = key.split('-');
+              const taskWithSchedule = {
+                ...task,
+                scheduledDate: date,
+                scheduledTime: `${hour}:00`
+              };
+              
+              if (!task.id || task.id.toString().startsWith('temp-')) {
+                await authService.createTask(taskWithSchedule);
+              } else {
+                await authService.updateTask(task.id, taskWithSchedule);
+              }
+            }
+            
+            console.log('スケジュールタスクSupabase同期完了');
+          } catch (syncError) {
+            console.warn('スケジュールタスクSupabase同期エラー:', syncError);
+          }
+        }, 500);
+      }
+    } catch (error) {
+      console.error('スケジュールタスク更新エラー:', error);
+    }
   };
 
   // ユーザー情報更新のハンドラー
@@ -619,8 +837,8 @@ function App() {
             setWeekOffset={setWeekOffset}
             dailyTaskPool={dailyTaskPool}
             todayTasks={todayTasks}
-            setDailyTaskPool={setDailyTaskPool}
-            setTodayTasks={setTodayTasks}
+            setDailyTaskPool={updateDailyTaskPool}
+            setTodayTasks={updateTodayTasks}
             handleTaskDragStart={handleTaskDragStart}
             selectedDate={selectedDate}
             scheduledTasks={scheduledTasks}
@@ -652,7 +870,7 @@ function App() {
             onDateClick={handleDateClick}
             selectedDate={selectedDate}
             dailyTaskPool={dailyTaskPool}
-            onTasksUpdate={setDailyTaskPool}
+            onTasksUpdate={updateDailyTaskPool}
             onTaskDragStart={handleTaskDragStart}
             scheduledTasks={scheduledTasks}
             completedTasks={completedTasks}
@@ -948,7 +1166,7 @@ function App() {
                   userKnowledge={userKnowledge}
                   onKnowledgeUpdate={setUserKnowledge}
                   onTasksGenerated={(tasks) => {
-                    setTodayTasks(prevTasks => [...prevTasks, ...tasks]);
+                    updateTodayTasks([...todayTasks, ...tasks]);
                   }}
                 />
               </div>
@@ -1035,11 +1253,9 @@ function App() {
                     type: 'book-goal'
                   })))
                   
-                  setTodayTasks(prevTasks => {
-                    const existingTaskIds = prevTasks.map(task => task.id)
-                    const newTasks = todayTasks.filter(task => !existingTaskIds.includes(task.id))
-                    return [...prevTasks, ...newTasks]
-                  })
+                  const existingTaskIds = todayTasks.map(task => task.id)
+                  const newTasks = todayTasks.filter(task => !existingTaskIds.includes(task.id))
+                  updateTodayTasks([...todayTasks, ...newTasks])
                 }
               }
               

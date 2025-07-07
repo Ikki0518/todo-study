@@ -448,6 +448,215 @@ class AuthService {
     }
   }
 
+  // ==================================================
+  // タスク管理機能（Supabase連携）
+  // ==================================================
+
+  // ユーザーのタスク一覧取得
+  async getTasks(date = null) {
+    try {
+      if (!this.currentUser) {
+        return { success: false, error: 'ログインが必要です' }
+      }
+
+      let query = database.getUserTasks(this.currentUser.id)
+      if (date) {
+        const { data, error } = await supabase
+          .from('tasks')
+          .select('*')
+          .eq('student_id', this.currentUser.id)
+          .eq('scheduled_date', date)
+          .order('created_at', { ascending: false })
+        return { success: !error, tasks: data || [], error: error?.message }
+      }
+
+      const { data, error } = await query
+      if (error) {
+        return { success: false, error: this.getErrorMessage(error) }
+      }
+
+      // アプリの形式に変換
+      const convertedTasks = (data || []).map(task => this.convertSupabaseTaskToApp(task))
+      return { success: true, tasks: convertedTasks }
+    } catch (error) {
+      console.error('タスク取得エラー:', error)
+      return { success: false, error: 'タスクの取得中にエラーが発生しました' }
+    }
+  }
+
+  // タスク作成
+  async createTask(taskData) {
+    try {
+      if (!this.currentUser) {
+        return { success: false, error: 'ログインが必要です' }
+      }
+
+      // アプリの形式からSupabase形式に変換
+      const supabaseTask = this.convertAppTaskToSupabase(taskData)
+      const { data, error } = await database.createTask({
+        ...supabaseTask,
+        student_id: this.currentUser.id
+      })
+
+      if (error) {
+        return { success: false, error: this.getErrorMessage(error) }
+      }
+
+      // アプリの形式に戻して返す
+      const convertedTask = this.convertSupabaseTaskToApp(data)
+      return { success: true, task: convertedTask }
+    } catch (error) {
+      console.error('タスク作成エラー:', error)
+      return { success: false, error: 'タスクの作成中にエラーが発生しました' }
+    }
+  }
+
+  // タスク更新
+  async updateTask(taskId, updates) {
+    try {
+      if (!this.currentUser) {
+        return { success: false, error: 'ログインが必要です' }
+      }
+
+      // アプリの形式からSupabase形式に変換
+      const supabaseUpdates = this.convertAppTaskToSupabase(updates)
+      const { data, error } = await database.updateTask(taskId, supabaseUpdates)
+
+      if (error) {
+        return { success: false, error: this.getErrorMessage(error) }
+      }
+
+      // アプリの形式に戻して返す
+      const convertedTask = this.convertSupabaseTaskToApp(data)
+      return { success: true, task: convertedTask }
+    } catch (error) {
+      console.error('タスク更新エラー:', error)
+      return { success: false, error: 'タスクの更新中にエラーが発生しました' }
+    }
+  }
+
+  // タスク削除
+  async deleteTask(taskId) {
+    try {
+      if (!this.currentUser) {
+        return { success: false, error: 'ログインが必要です' }
+      }
+
+      const { error } = await database.deleteTask(taskId)
+
+      if (error) {
+        return { success: false, error: this.getErrorMessage(error) }
+      }
+
+      return { success: true }
+    } catch (error) {
+      console.error('タスク削除エラー:', error)
+      return { success: false, error: 'タスクの削除中にエラーが発生しました' }
+    }
+  }
+
+  // 今日のタスク取得
+  async getTodayTasks() {
+    const today = new Date().toISOString().split('T')[0]
+    return this.getTasks(today)
+  }
+
+  // スケジュールされたタスク取得
+  async getScheduledTasks(startDate, endDate) {
+    try {
+      if (!this.currentUser) {
+        return { success: false, error: 'ログインが必要です' }
+      }
+
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('student_id', this.currentUser.id)
+        .gte('scheduled_date', startDate)
+        .lte('scheduled_date', endDate)
+        .order('scheduled_date', { ascending: true })
+        .order('scheduled_time', { ascending: true })
+
+      if (error) {
+        return { success: false, error: this.getErrorMessage(error) }
+      }
+
+      // アプリの形式に変換
+      const convertedTasks = (data || []).map(task => this.convertSupabaseTaskToApp(task))
+      return { success: true, tasks: convertedTasks }
+    } catch (error) {
+      console.error('スケジュール取得エラー:', error)
+      return { success: false, error: 'スケジュールの取得中にエラーが発生しました' }
+    }
+  }
+
+  // ==================================================
+  // データ変換ヘルパー関数
+  // ==================================================
+
+  // Supabaseタスクをアプリ形式に変換
+  convertSupabaseTaskToApp(supabaseTask) {
+    if (!supabaseTask) return null
+
+    // JSONで保存されたメタデータを解析
+    const metadata = supabaseTask.description ?
+      (() => {
+        try {
+          return JSON.parse(supabaseTask.description)
+        } catch {
+          return { originalDescription: supabaseTask.description }
+        }
+      })() : {}
+
+    return {
+      id: supabaseTask.id,
+      title: supabaseTask.title,
+      description: metadata.originalDescription || '',
+      priority: supabaseTask.priority || 'medium',
+      category: metadata.category || 'study',
+      completed: supabaseTask.status === 'completed',
+      source: metadata.source || 'manual',
+      createdAt: supabaseTask.created_at,
+      type: metadata.type,
+      bookTitle: metadata.bookTitle,
+      startPage: metadata.startPage,
+      endPage: metadata.endPage,
+      duration: metadata.duration || 1,
+      scheduledDate: supabaseTask.scheduled_date,
+      scheduledTime: supabaseTask.scheduled_time,
+      estimatedMinutes: supabaseTask.estimated_minutes,
+      actualMinutes: supabaseTask.actual_minutes
+    }
+  }
+
+  // アプリタスクをSupabase形式に変換
+  convertAppTaskToSupabase(appTask) {
+    if (!appTask) return null
+
+    // メタデータをJSONとして保存
+    const metadata = {
+      originalDescription: appTask.description || '',
+      category: appTask.category,
+      source: appTask.source,
+      type: appTask.type,
+      bookTitle: appTask.bookTitle,
+      startPage: appTask.startPage,
+      endPage: appTask.endPage,
+      duration: appTask.duration
+    }
+
+    return {
+      title: appTask.title,
+      description: JSON.stringify(metadata),
+      status: appTask.completed ? 'completed' : 'pending',
+      priority: appTask.priority || 'medium',
+      estimated_minutes: appTask.estimatedMinutes || appTask.duration ? (appTask.duration * 60) : null,
+      actual_minutes: appTask.actualMinutes,
+      scheduled_date: appTask.scheduledDate,
+      scheduled_time: appTask.scheduledTime
+    }
+  }
+
   // エラーメッセージの変換
   getErrorMessage(error) {
     const errorMessages = {

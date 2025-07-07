@@ -8,7 +8,7 @@ export function CalendarWithSchedule({
   selectedDate,
   dailyTasks = [],
   dailyTaskPool,
-  onTasksUpdate,
+  onTasksUpdate,　
   onTaskDragStart,
   scheduledTasks,
   completedTasks,
