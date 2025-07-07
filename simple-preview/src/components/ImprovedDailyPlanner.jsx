@@ -101,10 +101,19 @@ export const ImprovedDailyPlanner = ({
       return todayTasks
     }
 
-    // 現在表示されている週の今日の日付を取得
+    // 現在表示されている週の今日の曜日に対応する日付を取得
     const realToday = new Date()
-    const displayedToday = new Date(realToday)
-    displayedToday.setDate(realToday.getDate() + (weekOffset * 7))
+    const realTodayDayOfWeek = realToday.getDay()
+    
+    // 表示されている週の開始日（日曜日）を計算
+    const today = new Date()
+    const todayDayOfWeek = today.getDay()
+    const startOfCurrentWeek = new Date(today)
+    startOfCurrentWeek.setDate(today.getDate() - todayDayOfWeek + (weekOffset * 7))
+    
+    // 表示されている週の今日の曜日に対応する日付を計算
+    const displayedToday = new Date(startOfCurrentWeek)
+    displayedToday.setDate(startOfCurrentWeek.getDate() + realTodayDayOfWeek)
     
     const todayKey = displayedToday.toISOString().split('T')[0]
     const dayPlans = studyPlans[todayKey] || []
