@@ -229,34 +229,34 @@ class AuthService {
     }
   }
 
-  // ログイン（超軽量版）
+  // ログイン（超高速版）
   async login(email, password) {
     try {
-      console.log('ログイン開始（超軽量版）:', { email })
+      console.log('ログイン開始（超高速版）:', { email })
       this.isLoginInProgress = true
       
-      const { data, error } = await auth.signIn(email, password)
+      // タイムアウト付きでSupabase認証を実行（5秒でタイムアウト）
+      const authPromise = auth.signIn(email, password)
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('認証タイムアウト')), 5000)
+      )
       
-      console.log('Supabase認証レスポンス:', {
+      const { data, error } = await Promise.race([authPromise, timeoutPromise])
+      
+      console.log('Supabase認証レスポンス（高速版）:', {
         hasData: !!data,
         hasError: !!error,
         errorMessage: error?.message,
-        errorCode: error?.status,
         userData: data?.user ? { id: data.user.id, email: data.user.email } : null
       })
       
       if (error) {
-        console.error('ログインエラー詳細:', {
-          message: error.message,
-          status: error.status,
-          code: error.code,
-          details: error
-        })
+        console.error('ログインエラー:', error.message)
         return { success: false, error: this.getErrorMessage(error) }
       }
 
       if (data.user) {
-        // 最軽量なユーザー情報設定（データベースアクセス一切なし）
+        // 最軽量なユーザー情報設定（データベースアクセス完全排除）
         const simpleUser = {
           id: data.user.id,
           email: data.user.email,
@@ -265,18 +265,20 @@ class AuthService {
         }
         
         this.currentUser = simpleUser
-        console.log('ログイン成功（超軽量版）:', simpleUser)
+        console.log('ログイン成功（超高速版）:', simpleUser)
         
         return {
           success: true,
-          user: simpleUser,
-          session: data.session
+          user: simpleUser
         }
       }
 
       return { success: false, error: 'ログイン処理に失敗しました' }
     } catch (error) {
       console.error('ログインエラー:', error)
+      if (error.message === '認証タイムアウト') {
+        return { success: false, error: 'ログインがタイムアウトしました。ネットワーク接続を確認してください。' }
+      }
       return {
         success: false,
         error: 'ログイン中にエラーが発生しました'

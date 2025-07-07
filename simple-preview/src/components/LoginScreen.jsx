@@ -79,22 +79,16 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
 
     try {
       if (isLoginMode) {
-        // ログイン処理
-        console.log('ログイン開始:', formData.email);
+        // ログイン処理（超高速版）
+        console.log('ログイン開始（超高速版）:', formData.email);
         const result = await authService.login(formData.email, formData.password);
-        console.log('auth.signIn結果:', result);
-        console.log('ログイン結果詳細:', {
-          success: result.success,
-          error: result.error,
-          user: result.user
-        });
         
         if (result.success) {
-          console.log('ログイン成功（超高速版）:', result.user);
-          // 手動で状態を更新（認証状態監視を使わない）
+          console.log('ログイン成功（即座に画面遷移）:', result.user);
+          // 即座に状態を更新してログイン画面を終了
           onRoleChange(result.user.role || 'STUDENT');
           onLogin(true);
-          // データ読み込みはApp.jsxで遅延実行されるため、ここでは実行しない
+          // データ読み込みは完全にバックグラウンドで実行
         } else {
           console.log('ログインエラー:', result.error);
           setErrors({ general: result.error });

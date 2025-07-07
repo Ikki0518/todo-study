@@ -231,10 +231,11 @@ export const supabase = (() => {
     console.log('✅ 実際のSupabaseクライアントを作成中...')
     const client = createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
-        autoRefreshToken: true,
-        persistSession: true,
+        autoRefreshToken: false,
+        persistSession: false,
         detectSessionInUrl: false,
-        flowType: 'implicit'
+        flowType: 'pkce',
+        debug: false
       },
       global: {
         headers: {
@@ -246,7 +247,7 @@ export const supabase = (() => {
       },
       realtime: {
         params: {
-          eventsPerSecond: 2
+          eventsPerSecond: 1
         }
       }
     })

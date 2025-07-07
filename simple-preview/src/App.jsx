@@ -351,24 +351,24 @@ function App() {
     console.log('App.jsx 初期化完了（認証監視なし）');
   }, []);
 
-  // ログイン状態変更時にユーザーデータを遅延読み込み（ログイン速度改善）
+  // ログイン状態変更時にユーザーデータを超遅延読み込み（ログイン速度最優先）
   useEffect(() => {
     if (isLoggedIn && currentUser) {
-      console.log('ログイン後のデータ読み込みを遅延実行（ログイン速度改善）');
-      // 1秒後に実行してログイン体験を改善
+      console.log('ログイン後のデータ読み込みを超遅延実行（ログイン速度最優先）');
+      // 3秒後に実行してログイン体験を最大限改善
       setTimeout(() => {
         loadUserData();
-      }, 1000);
+      }, 3000);
     }
   }, [isLoggedIn, currentUser]);
 
-  // タスクデータの自動保存（デバイス間同期のため）- デバウンス付き
+  // タスクデータの自動保存（デバイス間同期のため）- 超遅延デバウンス付き
   useEffect(() => {
     if (isLoggedIn && todayTasks.length > 0) {
       const timeoutId = setTimeout(() => {
         localStorage.setItem('todayTasks', JSON.stringify(todayTasks));
         console.log('今日のタスクを保存:', todayTasks.length, '件');
-      }, 500); // 500ms遅延
+      }, 2000); // 2秒遅延（ログイン速度優先）
       return () => clearTimeout(timeoutId);
     }
   }, [todayTasks, isLoggedIn]);
@@ -378,7 +378,7 @@ function App() {
       const timeoutId = setTimeout(() => {
         localStorage.setItem('scheduledTasks', JSON.stringify(scheduledTasks));
         console.log('スケジュールタスクを保存:', Object.keys(scheduledTasks).length, '件');
-      }, 500); // 500ms遅延
+      }, 2000); // 2秒遅延（ログイン速度優先）
       return () => clearTimeout(timeoutId);
     }
   }, [scheduledTasks, isLoggedIn]);
@@ -388,7 +388,7 @@ function App() {
       const timeoutId = setTimeout(() => {
         localStorage.setItem('completedTasks', JSON.stringify(completedTasks));
         console.log('完了タスクを保存:', Object.keys(completedTasks).length, '件');
-      }, 500); // 500ms遅延
+      }, 2000); // 2秒遅延（ログイン速度優先）
       return () => clearTimeout(timeoutId);
     }
   }, [completedTasks, isLoggedIn]);
