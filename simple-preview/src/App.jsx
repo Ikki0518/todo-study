@@ -478,14 +478,16 @@ function App() {
       `}>
         <div className="p-6">
           <div className="flex items-center relative">
-            <svg width="115" height="55" viewBox="0 0 115 55" className="flex-shrink-0">
-              <circle cx="90" cy="20" r="13" fill="#67E8F9" opacity="0.85"/>
-              <circle cx="73" cy="28" r="8" fill="#2563EB" opacity="0.9"/>
-              <circle cx="83" cy="35" r="5" fill="#A7F3D0" opacity="0.75"/>
-              <text x="0" y="42" fontSize="26" fontWeight="700" fill="#1E293B" fontFamily="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" letterSpacing="-1.2px">
-                suna
-              </text>
-            </svg>
+            <div className="flex items-center space-x-3">
+              {/* AI学習プランナーロゴ */}
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+                <span className="text-white font-bold text-lg">AI</span>
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">AI学習プランナー</h1>
+                <div className="w-8 h-1 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full"></div>
+              </div>
+            </div>
           </div>
           {currentUser && (
             <div className="mt-2 text-sm text-gray-600">
@@ -587,7 +589,12 @@ function App() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <h1 className="text-lg font-semibold text-gray-900">suna</h1>
+          <div className="flex items-center space-x-2">
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-sm">AI</span>
+            </div>
+            <h1 className="text-lg font-semibold text-gray-900">AI学習プランナー</h1>
+          </div>
           <div className="w-10"></div> {/* スペーサー */}
         </div>
 

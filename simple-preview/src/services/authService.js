@@ -216,8 +216,21 @@ class AuthService {
       
       const { data, error } = await auth.signIn(email, password)
       
+      console.log('Supabase認証レスポンス:', {
+        hasData: !!data,
+        hasError: !!error,
+        errorMessage: error?.message,
+        errorCode: error?.status,
+        userData: data?.user ? { id: data.user.id, email: data.user.email } : null
+      })
+      
       if (error) {
-        console.error('ログインエラー:', error)
+        console.error('ログインエラー詳細:', {
+          message: error.message,
+          status: error.status,
+          code: error.code,
+          details: error
+        })
         return { success: false, error: this.getErrorMessage(error) }
       }
 

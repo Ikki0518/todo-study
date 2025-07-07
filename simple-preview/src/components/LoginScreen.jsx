@@ -83,6 +83,11 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
         console.log('ログイン開始:', formData.email);
         const result = await authService.login(formData.email, formData.password);
         console.log('auth.signIn結果:', result);
+        console.log('ログイン結果詳細:', {
+          success: result.success,
+          error: result.error,
+          user: result.user
+        });
         
         if (result.success) {
           console.log('ログイン成功（手動状態更新）:', result.user);
@@ -149,22 +154,16 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
       <div className="max-w-md w-full space-y-8">
         <div>
           <div className="mt-6 flex justify-center">
-            {/* Sunaロゴ - ログイン画面用（少し大きめ） */}
-            <svg width="150" height="70" viewBox="0 0 150 70" className="flex-shrink-0">
-              {/* 大きな円（右上、明るいターコイズブルー） */}
-              <circle cx="115" cy="25" r="16" fill="#67E8F9" opacity="0.85"/>
-
-              {/* 中くらいの円（左中央、濃いブルー） */}
-              <circle cx="95" cy="35" r="10" fill="#2563EB" opacity="0.9"/>
-
-              {/* 小さな円（右下、薄いターコイズ） */}
-              <circle cx="108" cy="45" r="6" fill="#A7F3D0" opacity="0.75"/>
-
-              {/* テキスト "suna" - 太字、濃いネイビー */}
-              <text x="0" y="52" fontSize="34" fontWeight="700" fill="#1E293B" fontFamily="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" letterSpacing="-1.5px">
-                suna
-              </text>
-            </svg>
+            {/* AI学習プランナーロゴ - ログイン画面用 */}
+            <div className="flex items-center space-x-4">
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-xl">
+                <span className="text-white font-bold text-2xl">AI</span>
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">AI学習プランナー</h1>
+                <div className="w-12 h-1.5 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full mt-1"></div>
+              </div>
+            </div>
           </div>
           <p className="mt-2 text-center text-sm text-gray-600">
             {isLoginMode ? 'アカウントにログイン' : '新しいアカウントを作成'}
