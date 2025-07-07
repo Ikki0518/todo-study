@@ -1,8 +1,8 @@
 {
-  "buildCommand": "cd frontend && npm run build && ls -la && cp -r dist ../dist",
+  "buildCommand": "cd simple-preview && npm run build && ls -la && cp -r dist ../dist",
   "outputDirectory": "dist",
-  "installCommand": "cd frontend && npm install",
-  "devCommand": "cd frontend && npm run dev",
+  "installCommand": "cd simple-preview && npm install",
+  "devCommand": "cd simple-preview && npm run dev",
   "rewrites": [
     {
       "source": "/(.*)",
