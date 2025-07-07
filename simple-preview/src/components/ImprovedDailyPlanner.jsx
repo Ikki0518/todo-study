@@ -26,7 +26,10 @@ export const ImprovedDailyPlanner = ({
   handleTouchMove,
   handleTouchEnd,
   isDragging,
-  draggedTask
+  draggedTask,
+  // 学習計画とタスク変換関数
+  studyPlans,
+  convertPlansToTasks
 }) => {
   const [isMobile, setIsMobile] = useState(false)
 
@@ -92,6 +95,32 @@ export const ImprovedDailyPlanner = ({
   const dates = getDates()
   const dayNames = ['日', '月', '火', '水', '木', '金', '土']
 
+  // 週間表示で現在表示されている週の今日に対応するタスクを計算
+  const getCurrentWeekTodayTasks = () => {
+    if (isMobile || !studyPlans || !convertPlansToTasks) {
+      return todayTasks
+    }
+
+    // 現在表示されている週の今日の日付を取得
+    const realToday = new Date()
+    const displayedToday = new Date(realToday)
+    displayedToday.setDate(realToday.getDate() + (weekOffset * 7))
+    
+    const todayKey = displayedToday.toISOString().split('T')[0]
+    const dayPlans = studyPlans[todayKey] || []
+    const tasksFromCalendar = convertPlansToTasks(dayPlans)
+    
+    // 実際の今日の場合は既存のtodayTasksを使用、それ以外は計算されたタスクを使用
+    const realTodayKey = realToday.toISOString().split('T')[0]
+    if (todayKey === realTodayKey) {
+      return todayTasks
+    } else {
+      return tasksFromCalendar
+    }
+  }
+
+  const currentWeekTodayTasks = getCurrentWeekTodayTasks()
+
   return (
     <div>
       <div className="mb-6">
@@ -133,7 +162,7 @@ export const ImprovedDailyPlanner = ({
       <div className="flex flex-col lg:grid lg:grid-cols-12 gap-4">
         <div className="lg:col-span-3">
           <DailyTaskPool
-            dailyTasks={todayTasks}
+            dailyTasks={currentWeekTodayTasks}
             onTasksUpdate={setTodayTasks}
             onTaskDragStart={handleTaskDragStart}
             selectedDate={selectedDate}

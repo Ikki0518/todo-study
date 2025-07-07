@@ -627,6 +627,9 @@ function App() {
             handleTouchEnd={handleTouchEnd}
             isDragging={isDragging}
             draggedTask={draggedTask}
+            // 学習計画とタスク変換関数を渡す
+            studyPlans={studyPlans}
+            convertPlansToTasks={convertPlansToTasks}
           />
         )}
 
