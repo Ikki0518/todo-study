@@ -90,23 +90,11 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
         });
         
         if (result.success) {
-          console.log('ログイン成功（手動状態更新）:', result.user);
+          console.log('ログイン成功（超高速版）:', result.user);
           // 手動で状態を更新（認証状態監視を使わない）
           onRoleChange(result.user.role || 'STUDENT');
           onLogin(true);
-          
-          // バックグラウンドでユーザーデータを読み込み（ログイン速度に影響しない）
-          setTimeout(async () => {
-            try {
-              console.log('ユーザーデータ読み込み開始');
-              const goalsResult = await authService.getGoals();
-              if (goalsResult.success) {
-                console.log('目標データ読み込み完了:', goalsResult.goals.length, '件');
-              }
-            } catch (error) {
-              console.warn('ユーザーデータ読み込みエラー:', error);
-            }
-          }, 100);
+          // データ読み込みはApp.jsxで遅延実行されるため、ここでは実行しない
         } else {
           console.log('ログインエラー:', result.error);
           setErrors({ general: result.error });
