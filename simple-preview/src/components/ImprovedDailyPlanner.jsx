@@ -53,13 +53,16 @@ export const ImprovedDailyPlanner = ({
         dates.push(date)
       }
     } else {
-      // PC: 今日から6日後まで（7日間）
+      // PC: 週間表示（weekOffsetを考慮）
+      const dayOfWeek = today.getDay()
+      const startOfWeek = new Date(today)
+      startOfWeek.setDate(today.getDate() - dayOfWeek + (weekOffset * 7))
+      
       for (let i = 0; i < 7; i++) {
-        const date = new Date(today)
-        date.setDate(today.getDate() + i)
+        const date = new Date(startOfWeek)
+        date.setDate(startOfWeek.getDate() + i)
         dates.push(date)
       }
-      return dates
     }
     
     return dates
