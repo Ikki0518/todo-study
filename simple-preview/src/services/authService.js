@@ -12,11 +12,32 @@ class AuthService {
     this.isListenerRegistered = false
     this.isLoginInProgress = false
     
-    console.log('✅ AuthService 初期化開始（超軽量版）')
-    console.log('認証状態監視は完全に無効化されています')
+    console.log('✅ AuthService 初期化開始（セッション復元対応版）')
+    console.log('認証状態監視は無効化されていますが、セッション復元は有効です')
     
-    // 初期化処理もスキップ（最高速度のため）
-    this.isInitialized = true
+    // セッション復元のための軽量初期化
+    this.initializeSession()
+  }
+
+  // セッション復元のための軽量初期化
+  async initializeSession() {
+    try {
+      const { data: { user } } = await auth.getCurrentUser()
+      if (user) {
+        console.log('既存セッション復元:', user.email)
+        // 軽量なユーザー情報設定
+        this.currentUser = {
+          id: user.id,
+          email: user.email,
+          name: user.user_metadata?.name || user.email.split('@')[0],
+          role: user.user_metadata?.role || 'STUDENT'
+        }
+      }
+      this.isInitialized = true
+    } catch (error) {
+      console.warn('セッション復元エラー:', error)
+      this.isInitialized = true
+    }
   }
 
   // 認証状態変更のリスナーを追加（無効化）

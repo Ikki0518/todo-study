@@ -130,8 +130,8 @@ export const ImprovedDailyPlanner = ({
       <div className="flex flex-col lg:grid lg:grid-cols-12 gap-4">
         <div className="lg:col-span-3">
           <DailyTaskPool
-            dailyTasks={dailyTaskPool.length > 0 ? dailyTaskPool : todayTasks}
-            onTasksUpdate={dailyTaskPool.length > 0 ? setDailyTaskPool : setTodayTasks}
+            dailyTasks={todayTasks}
+            onTasksUpdate={setTodayTasks}
             onTaskDragStart={handleTaskDragStart}
             selectedDate={selectedDate}
             onTouchStart={handleTouchStart}

@@ -231,8 +231,8 @@ export const supabase = (() => {
     console.log('✅ 実際のSupabaseクライアントを作成中...')
     const client = createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
-        autoRefreshToken: false,
-        persistSession: false,
+        autoRefreshToken: true,
+        persistSession: true,
         detectSessionInUrl: false,
         flowType: 'implicit'
       },
