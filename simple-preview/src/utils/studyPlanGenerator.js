@@ -52,13 +52,17 @@ export function generateStudyPlan(studyBooks) {
     let currentDate
     if (book.startDate) {
       // 日付文字列を正確にパース（YYYY-MM-DD形式）
+      // UTC時間で作成して時差問題を回避
       const [year, month, day] = book.startDate.split('-').map(Number)
-      currentDate = new Date(year, month - 1, day) // 月は0ベース
-      currentDate.setHours(0, 0, 0, 0)
+      currentDate = new Date(Date.UTC(year, month - 1, day)) // UTC時間で作成
+      
+      console.log(`📅 開始日設定: ${book.startDate} → ${currentDate.toISOString().split('T')[0]} (曜日: ${currentDate.getDay()})`)
     } else {
-      // 今日の日付を正確に設定（時刻を00:00:00にリセット）
-      currentDate = new Date()
-      currentDate.setHours(0, 0, 0, 0)
+      // 今日の日付を正確に設定（UTC時間で統一）
+      const now = new Date()
+      currentDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()))
+      
+      console.log(`📅 開始日設定（今日）: ${currentDate.toISOString().split('T')[0]} (曜日: ${currentDate.getDay()})`)
     }
     let unitsLeft = remainingUnits
     let unitStart = currentProgress + 1

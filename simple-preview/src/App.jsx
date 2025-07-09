@@ -9,7 +9,9 @@ import { DailyTaskPool } from './components/DailyTaskPool';
 import { CalendarWithSchedule } from './components/CalendarWithSchedule';
 import { ProfileSettings } from './components/ProfileSettings';
 import { ImprovedDailyPlanner } from './components/ImprovedDailyPlanner';
+import { OverdueTaskPool } from './components/OverdueTaskPool';
 import { generateStudyPlan, convertPlansToTasks, calculateStudyPlanStats } from './utils/studyPlanGenerator';
+import { detectOverdueTasks, sortOverdueTasks } from './utils/overdueTaskDetector';
 import authService, { auth } from './services/authService';
 import './styles/touch-fixes.css';
 
@@ -55,6 +57,10 @@ function App() {
   const [studyPlans, setStudyPlans] = useState({})
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [dailyTaskPool, setDailyTaskPool] = useState([])
+  
+  // 未達成タスクプール用の状態
+  const [overdueTaskPool, setOverdueTaskPool] = useState([])
+  const [lastOverdueCheck, setLastOverdueCheck] = useState(new Date())
 
   // AI機能の状態
   const [currentAIMode, setCurrentAIMode] = useState('select');
@@ -136,6 +142,93 @@ function App() {
     
     setCurrentView('planner')
   }
+
+  // 未達成タスクプール管理関数
+  const updateOverdueTaskPool = () => {
+    console.log('🔍 未達成タスクを検出中...')
+    const detectedOverdueTasks = detectOverdueTasks(studyPlans, completedTasks)
+    const sortedOverdueTasks = sortOverdueTasks(detectedOverdueTasks)
+    
+    console.log('⚠️ 検出された未達成タスク:', sortedOverdueTasks)
+    setOverdueTaskPool(sortedOverdueTasks)
+    setLastOverdueCheck(new Date())
+  }
+
+  // 未達成タスクの完了処理
+  const handleOverdueTaskComplete = (taskId) => {
+    console.log('✅ 未達成タスクを完了:', taskId)
+    
+    // 完了状態を更新
+    const newCompletedTasks = {
+      ...completedTasks,
+      [taskId]: true
+    }
+    setCompletedTasks(newCompletedTasks)
+    
+    // 未達成タスクプールから除去
+    const updatedOverdueTasks = overdueTaskPool.filter(task => task.id !== taskId)
+    setOverdueTaskPool(updatedOverdueTasks)
+    
+    // Supabaseと同期
+    if (isLoggedIn && currentUser) {
+      setTimeout(async () => {
+        try {
+          const task = overdueTaskPool.find(t => t.id === taskId)
+          if (task) {
+            await authService.updateTask(taskId, {
+              ...task,
+              completed: true
+            })
+            console.log('✅ 未達成タスク完了状態をSupabaseと同期完了')
+          }
+        } catch (error) {
+          console.warn('未達成タスク完了状態同期エラー:', error)
+        }
+      }, 500)
+    }
+  }
+
+  // 未達成タスクの削除処理
+  const handleOverdueTaskDelete = (taskId) => {
+    console.log('🗑️ 未達成タスクを削除:', taskId)
+    
+    // 未達成タスクプールから除去
+    const updatedOverdueTasks = overdueTaskPool.filter(task => task.id !== taskId)
+    setOverdueTaskPool(updatedOverdueTasks)
+    
+    // 学習プランからも削除
+    const updatedStudyPlans = { ...studyPlans }
+    Object.keys(updatedStudyPlans).forEach(dateKey => {
+      updatedStudyPlans[dateKey] = updatedStudyPlans[dateKey].filter(plan => plan.id !== taskId)
+    })
+    setStudyPlans(updatedStudyPlans)
+    
+    // Supabaseと同期
+    if (isLoggedIn && currentUser) {
+      setTimeout(async () => {
+        try {
+          await authService.deleteTask(taskId)
+          console.log('🗑️ 未達成タスク削除をSupabaseと同期完了')
+        } catch (error) {
+          console.warn('未達成タスク削除同期エラー:', error)
+        }
+      }, 500)
+    }
+  }
+
+  // 未達成タスクの定期チェック（1分ごと）
+  useEffect(() => {
+    const interval = setInterval(() => {
+      updateOverdueTaskPool()
+    }, 60000) // 1分ごと
+    
+    return () => clearInterval(interval)
+  }, [studyPlans, completedTasks])
+
+  // 学習プランや完了状態が変更されたときに未達成タスクを再検出
+  useEffect(() => {
+    updateOverdueTaskPool()
+  }, [studyPlans, completedTasks])
 
   // 参考書学習計画生成関数（ページ・問題両対応）
   const generateBookStudyPlan = (goal) => {
@@ -1057,93 +1150,105 @@ function App() {
 
         <div className="p-4 lg:p-6">
         {userRole === 'STUDENT' && currentView === 'planner' && (
-          <ImprovedDailyPlanner
-            currentStreak={currentStreak}
-            todayString={todayString}
-            weekOffset={weekOffset}
-            setWeekOffset={(newOffset) => {
-              console.log('🗓️ 週間ナビゲーション:', {
-                oldOffset: weekOffset,
-                newOffset,
-                change: newOffset - weekOffset
-              });
-              setWeekOffset(newOffset);
-              
-              // 週変更時に新しい週のデータを読み込み
-              if (isLoggedIn && currentUser) {
-                setTimeout(async () => {
-                  try {
-                    console.log('📊 新しい週のデータ読み込み開始');
-                    const today = new Date();
-                    const weekStart = new Date(today);
-                    weekStart.setDate(today.getDate() - today.getDay() + (newOffset * 7));
-                    const weekEnd = new Date(weekStart);
-                    weekEnd.setDate(weekStart.getDate() + 6);
-                    
-                    console.log('📅 読み込み期間:', {
-                      start: weekStart.toISOString().split('T')[0],
-                      end: weekEnd.toISOString().split('T')[0]
-                    });
-                    
-                    const result = await authService.getScheduledTasks(
-                      weekStart.toISOString().split('T')[0],
-                      weekEnd.toISOString().split('T')[0]
-                    );
-                    
-                    if (result.success) {
-                      console.log('✅ 新しい週のデータ取得成功:', result.tasks.length, '件');
+          <div className="space-y-6">
+            {/* 未達成タスクプール */}
+            {overdueTaskPool.length > 0 && (
+              <OverdueTaskPool
+                overdueTasks={overdueTaskPool}
+                onTaskComplete={handleOverdueTaskComplete}
+                onTaskDelete={handleOverdueTaskDelete}
+              />
+            )}
+            
+            {/* メインプランナー */}
+            <ImprovedDailyPlanner
+              currentStreak={currentStreak}
+              todayString={todayString}
+              weekOffset={weekOffset}
+              setWeekOffset={(newOffset) => {
+                console.log('🗓️ 週間ナビゲーション:', {
+                  oldOffset: weekOffset,
+                  newOffset,
+                  change: newOffset - weekOffset
+                });
+                setWeekOffset(newOffset);
+                
+                // 週変更時に新しい週のデータを読み込み
+                if (isLoggedIn && currentUser) {
+                  setTimeout(async () => {
+                    try {
+                      console.log('📊 新しい週のデータ読み込み開始');
+                      const today = new Date();
+                      const weekStart = new Date(today);
+                      weekStart.setDate(today.getDate() - today.getDay() + (newOffset * 7));
+                      const weekEnd = new Date(weekStart);
+                      weekEnd.setDate(weekStart.getDate() + 6);
                       
-                      // スケジュールタスクを更新
-                      const scheduledMap = {};
-                      const completedMap = {};
-                      
-                      result.tasks.forEach(task => {
-                        if (task.scheduledDate && task.scheduledTime) {
-                          const key = `${task.scheduledDate}-${task.scheduledTime.split(':')[0]}`;
-                          scheduledMap[key] = task;
-                          if (task.completed) {
-                            completedMap[key] = true;
-                          }
-                        }
+                      console.log('📅 読み込み期間:', {
+                        start: weekStart.toISOString().split('T')[0],
+                        end: weekEnd.toISOString().split('T')[0]
                       });
                       
-                      setScheduledTasks(scheduledMap);
-                      setCompletedTasks(completedMap);
-                    } else {
-                      console.warn('⚠️ 新しい週のデータ取得失敗:', result.error);
+                      const result = await authService.getScheduledTasks(
+                        weekStart.toISOString().split('T')[0],
+                        weekEnd.toISOString().split('T')[0]
+                      );
+                      
+                      if (result.success) {
+                        console.log('✅ 新しい週のデータ取得成功:', result.tasks.length, '件');
+                        
+                        // スケジュールタスクを更新
+                        const scheduledMap = {};
+                        const completedMap = {};
+                        
+                        result.tasks.forEach(task => {
+                          if (task.scheduledDate && task.scheduledTime) {
+                            const key = `${task.scheduledDate}-${task.scheduledTime.split(':')[0]}`;
+                            scheduledMap[key] = task;
+                            if (task.completed) {
+                              completedMap[key] = true;
+                            }
+                          }
+                        });
+                        
+                        setScheduledTasks(scheduledMap);
+                        setCompletedTasks(completedMap);
+                      } else {
+                        console.warn('⚠️ 新しい週のデータ取得失敗:', result.error);
+                      }
+                    } catch (error) {
+                      console.error('❌ 週間データ読み込みエラー:', error);
                     }
-                  } catch (error) {
-                    console.error('❌ 週間データ読み込みエラー:', error);
-                  }
-                }, 100);
-              }
-            }}
-            dailyTaskPool={dailyTaskPool}
-            todayTasks={todayTasks}
-            setDailyTaskPool={updateDailyTaskPool}
-            setTodayTasks={updateTodayTasks}
-            handleTaskDragStart={handleTaskDragStart}
-            selectedDate={selectedDate}
-            scheduledTasks={scheduledTasks}
-            setScheduledTasks={updateScheduledTasks}
-            completedTasks={completedTasks}
-            handleDragOver={handleDragOver}
-            handleDrop={handleDrop}
-            handleTaskClick={handleTaskClick}
-            toggleTaskComplete={toggleTaskComplete}
-            getPriorityColor={getPriorityColor}
-            handleDragStart={handleDragStart}
-            DailyTaskPool={DailyTaskPool}
-            // タッチイベント用
-            handleTouchStart={handleTouchStart}
-            handleTouchMove={handleTouchMove}
-            handleTouchEnd={handleTouchEnd}
-            isDragging={isDragging}
-            draggedTask={draggedTask}
-            // 学習計画とタスク変換関数を渡す
-            studyPlans={studyPlans}
-            convertPlansToTasks={convertPlansToTasks}
-          />
+                  }, 100);
+                }
+              }}
+              dailyTaskPool={dailyTaskPool}
+              todayTasks={todayTasks}
+              setDailyTaskPool={updateDailyTaskPool}
+              setTodayTasks={updateTodayTasks}
+              handleTaskDragStart={handleTaskDragStart}
+              selectedDate={selectedDate}
+              scheduledTasks={scheduledTasks}
+              setScheduledTasks={updateScheduledTasks}
+              completedTasks={completedTasks}
+              handleDragOver={handleDragOver}
+              handleDrop={handleDrop}
+              handleTaskClick={handleTaskClick}
+              toggleTaskComplete={toggleTaskComplete}
+              getPriorityColor={getPriorityColor}
+              handleDragStart={handleDragStart}
+              DailyTaskPool={DailyTaskPool}
+              // タッチイベント用
+              handleTouchStart={handleTouchStart}
+              handleTouchMove={handleTouchMove}
+              handleTouchEnd={handleTouchEnd}
+              isDragging={isDragging}
+              draggedTask={draggedTask}
+              // 学習計画とタスク変換関数を渡す
+              studyPlans={studyPlans}
+              convertPlansToTasks={convertPlansToTasks}
+            />
+          </div>
         )}
 
         {userRole === 'STUDENT' && currentView === 'monthly-calendar' && (

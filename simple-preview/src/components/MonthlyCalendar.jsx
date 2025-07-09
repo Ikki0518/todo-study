@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 import { convertPlansToTasks } from '../utils/studyPlanGenerator'
+import { isPastDate, isToday, isTimeOverdue } from '../utils/overdueTaskDetector'
 
-export function MonthlyCalendar({ 
-  studyBooks = [], 
-  onDateClick, 
+export function MonthlyCalendar({
+  studyBooks = [],
+  onDateClick,
   selectedDate,
-  studyPlans = {} 
+  studyPlans = {},
+  completedTasks = {}
 }) {
   const [currentDate, setCurrentDate] = useState(new Date())
   
@@ -158,27 +160,38 @@ export function MonthlyCalendar({
                   const isProblems = task.studyType === 'problems'
                   const maxTitleLength = window.innerWidth < 640 ? 4 : window.innerWidth < 768 ? 6 : window.innerWidth < 1024 ? 8 : 10
                   
+                  // 未達成タスクの判定
+                  const isCompleted = completedTasks[task.id] || task.completed
+                  const isOverdue = !isCompleted && (
+                    isPastDate(date) ||
+                    (isToday(date) && task.timeSlot && isTimeOverdue(task.timeSlot, date))
+                  )
+                  
                   // 学習タイプに応じてtooltipとラベルを生成
                   const tooltipText = isProblems
-                    ? `${task.bookTitle}: ${task.startProblem}-${task.endProblem}問${isBookGoal ? ' (目標)' : ''}`
-                    : `${task.bookTitle}: ${task.startPage}-${task.endPage}ページ${isBookGoal ? ' (目標)' : ''}`
+                    ? `${task.bookTitle}: ${task.startProblem}-${task.endProblem}問${isBookGoal ? ' (目標)' : ''}${isOverdue ? ' ⚠️未達成' : ''}`
+                    : `${task.bookTitle}: ${task.startPage}-${task.endPage}ページ${isBookGoal ? ' (目標)' : ''}${isOverdue ? ' ⚠️未達成' : ''}`
                   
                   const rangeText = isProblems
                     ? `${task.startProblem}-${task.endProblem}問`
                     : `${task.startPage}-${task.endPage}p`
                   
+                  // 未達成タスクの場合は赤いスタイリング
+                  const taskStyle = isOverdue
+                    ? 'bg-red-100 text-red-800 border border-red-300'
+                    : isBookGoal
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-green-100 text-green-800'
+                  
                   return (
                     <div
                       key={taskIndex}
-                      className={`text-[10px] sm:text-xs lg:text-sm p-0.5 sm:p-1 rounded truncate leading-tight ${
-                        isBookGoal
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : 'bg-green-100 text-green-800'
-                      }`}
+                      className={`text-[10px] sm:text-xs lg:text-sm p-0.5 sm:p-1 rounded truncate leading-tight ${taskStyle}`}
                       title={tooltipText}
                     >
                       <div className="flex flex-col">
                         <span className="truncate">
+                          {isOverdue && <span className="mr-0.5">⚠️</span>}
                           {isBookGoal && <span className="mr-0.5">📚</span>}
                           {isProblems && <span className="mr-0.5">🧮</span>}
                           {task.bookTitle.length > maxTitleLength
@@ -187,6 +200,7 @@ export function MonthlyCalendar({
                         </span>
                         <span className="text-[9px] sm:text-[10px] opacity-80">
                           {rangeText}
+                          {isOverdue && <span className="ml-1 text-red-600">未達成</span>}
                         </span>
                       </div>
                     </div>
@@ -204,7 +218,7 @@ export function MonthlyCalendar({
       </div>
 
       {/* 凡例 */}
-      <div className="mt-4 flex items-center space-x-4 text-xs text-gray-600">
+      <div className="mt-4 flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-gray-600">
         <div className="flex items-center space-x-1">
           <div className="w-3 h-3 bg-blue-50 border border-blue-300 rounded"></div>
           <span>今日</span>
@@ -216,6 +230,10 @@ export function MonthlyCalendar({
         <div className="flex items-center space-x-1">
           <div className="w-3 h-3 bg-emerald-100 rounded"></div>
           <span>📚 参考書目標</span>
+        </div>
+        <div className="flex items-center space-x-1">
+          <div className="w-3 h-3 bg-red-100 border border-red-300 rounded"></div>
+          <span>⚠️ 未達成タスク</span>
         </div>
       </div>
     </div>

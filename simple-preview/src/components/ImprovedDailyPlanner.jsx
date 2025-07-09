@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { isTimeOverdue } from '../utils/overdueTaskDetector'
 
 export const ImprovedDailyPlanner = ({
   currentStreak,
@@ -65,11 +66,14 @@ export const ImprovedDailyPlanner = ({
     const hours = now.getHours()
     const minutes = now.getMinutes()
     
-    // 24時間グリッド（0-23時）の範囲内に制限
-    // 1時間 = 50px、1分 = 50/60px
-    const position = (hours * 50) + (minutes * 50 / 60)
+    // 各時間行の高さは50px
+    // 時間グリッドは0時から始まるので、現在時刻の行インデックスを計算
+    const hourIndex = hours
+    const minuteOffset = minutes / 60 // 0-1の範囲
     
-    // 23:59の最大位置は1199.17px（24 * 50 - 0.83）
+    // 位置計算：行インデックス * 50px + 分のオフセット * 50px
+    const position = (hourIndex * 50) + (minuteOffset * 50)
+    
     // 24時間グリッドの範囲（0-1199px）を超えないように制限
     const maxPosition = (24 * 50) - 1 // 1199px
     return Math.min(position, maxPosition)
@@ -303,12 +307,18 @@ export const ImprovedDailyPlanner = ({
                       const isOccupied = isOccupiedByOtherTask()
                       const isToday = date.toDateString() === new Date().toDateString()
                       
+                      // 時間超過タスクの判定
+                      const isTaskOverdue = scheduledTask &&
+                                           !completedTasks[taskKey] &&
+                                           isToday &&
+                                           isTimeOverdue(`${hour}:00`, date)
+                      
                       return (
                         <div
                           key={dateIndex}
                           className={`calendar-cell relative p-1 min-h-[50px] touch-optimized ${isMobile ? 'mobile-grid-cell' : ''} ${
                             isOccupied ? '' : 'hover:bg-gray-50'
-                          } ${isToday ? 'bg-blue-25' : ''}`}
+                          } ${isToday ? 'bg-blue-25' : ''} ${isTaskOverdue ? 'bg-red-50' : ''}`}
                           onDragOver={!isOccupied ? handleDragOver : undefined}
                           onDrop={!isOccupied ? (e) => handleDrop(e, dateKey, hour) : undefined}
                           onTouchEnd={!isOccupied ? (e) => handleTouchEnd(e, dateKey, hour) : undefined}
@@ -319,7 +329,9 @@ export const ImprovedDailyPlanner = ({
                               className={`absolute p-2 rounded cursor-pointer z-10 ${
                                 completedTasks[taskKey]
                                   ? 'bg-gray-300 text-gray-700'
-                                  : `${getPriorityColor(scheduledTask.priority)} text-white hover:opacity-90`
+                                  : isTaskOverdue
+                                    ? 'bg-red-500 text-white border-2 border-red-600 hover:bg-red-600'
+                                    : `${getPriorityColor(scheduledTask.priority)} text-white hover:opacity-90`
                               }`}
                               style={{
                                 height: `${(scheduledTask.duration || 1) * 50 - 2}px`,
@@ -348,10 +360,12 @@ export const ImprovedDailyPlanner = ({
                                 />
                                 <div className="flex-1 min-w-0">
                                   <div className={`font-medium text-responsive-xs leading-tight ${completedTasks[taskKey] ? 'line-through' : ''}`}>
+                                    {isTaskOverdue && <span className="mr-1">⚠️</span>}
                                     {scheduledTask.title}
                                   </div>
                                   <div className="text-xs opacity-75 mt-1">
                                     {hour.toString().padStart(2, '0')}:00 - {(hour + (scheduledTask.duration || 1)).toString().padStart(2, '0')}:00
+                                    {isTaskOverdue && <span className="ml-1 text-red-200">時間超過</span>}
                                   </div>
                                 </div>
                               </div>
