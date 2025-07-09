@@ -5,7 +5,9 @@ export function DailyTaskPool({
   onTasksUpdate,
   onTaskDragStart,
   selectedDate,
-  overdueTasks = []
+  // タッチイベント用
+  onTouchStart,
+  onTouchMove
 }) {
   const [showAddForm, setShowAddForm] = useState(false)
 
@@ -175,37 +177,6 @@ export function DailyTaskPool({
 
   return (
     <div className="bg-white rounded-lg shadow p-3 sm:p-4 lg:p-6">
-      {/* 未達成タスクプール */}
-      {overdueTasks.length > 0 && (
-        <div className="mb-4 p-3 bg-red-50 border-2 border-red-200 rounded-lg">
-          <h3 className="font-semibold text-red-700 mb-2 flex items-center">
-            ⚠️ 未達成タスクプール ({overdueTasks.length}件)
-          </h3>
-          <div className="space-y-2 max-h-48 overflow-y-auto">
-            {overdueTasks.map((task) => (
-              <div
-                key={task.id}
-                className="p-2 bg-white rounded-md border border-red-300 cursor-move hover:shadow-md transition-shadow"
-                draggable
-                onDragStart={(e) => onTaskDragStart && onTaskDragStart(e, task)}
-              >
-                <div className="flex items-center space-x-2">
-                  <span className="text-xs">{getPriorityIcon(task.priority)}</span>
-                  <h4 className="font-medium text-sm flex-1">{task.title}</h4>
-                  <span className="text-xs text-red-600">
-                    {task.originalDate && new Date(task.originalDate).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}
-                  </span>
-                </div>
-                {task.description && (
-                  <p className="text-xs text-gray-600 mt-1 line-clamp-1">{task.description}</p>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 本日のタスクプール */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-2">
         <h2 className="font-semibold text-base sm:text-lg lg:text-xl">
           📋 {formatDate(selectedDate)}のタスクプール
@@ -252,6 +223,8 @@ export function DailyTaskPool({
             }`}
             draggable={!task.completed}
             onDragStart={(e) => !task.completed && onTaskDragStart && onTaskDragStart(e, task)}
+            onTouchStart={(e) => !task.completed && onTouchStart && onTouchStart(e, task, 'pool')}
+            onTouchMove={onTouchMove}
           >
             <div className="flex items-start space-x-2 sm:space-x-3 lg:space-x-4">
               <input
@@ -286,7 +259,11 @@ export function DailyTaskPool({
                 )}
                 {task.bookTitle && (
                   <div className="text-xs sm:text-sm lg:text-base text-blue-600 mt-1">
-                    📚 {task.bookTitle}: {task.startPage}-{task.endPage}ページ
+                    {task.studyType === 'problems' ? (
+                      <>🧮 {task.bookTitle}: {task.startProblem}-{task.endProblem}問</>
+                    ) : (
+                      <>📚 {task.bookTitle}: {task.startPage}-{task.endPage}ページ</>
+                    )}
                   </div>
                 )}
               </div>

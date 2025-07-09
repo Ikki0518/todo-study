@@ -132,55 +132,6 @@ class ApiService {
     localStorage.removeItem('authToken');
   }
 
-  // ログイン
-  async login(email, password) {
-    const response = await this.post('/auth/login', { email, password });
-    if (response.success && response.data.token) {
-      this.setAuthToken(response.data.token);
-    }
-    return response;
-  }
-
-  // ログアウト
-  async logout() {
-    try {
-      await this.post('/auth/logout');
-    } catch (error) {
-      console.error('Logout error:', error);
-    } finally {
-      this.clearAuthToken();
-    }
-  }
-
-  // 新規登録
-  async register(userData) {
-    const response = await this.post('/auth/register', userData);
-    if (response.success && response.data.token) {
-      this.setAuthToken(response.data.token);
-    }
-    return response;
-  }
-
-  // 現在のユーザー情報取得
-  async getCurrentUser() {
-    return this.get('/auth/me');
-  }
-
-  // 招待の確認
-  async validateInvite(token) {
-    return this.get(`/auth/invite/${token}`);
-  }
-
-  // パスワードリセット要求
-  async requestPasswordReset(email) {
-    return this.post('/auth/forgot-password', { email });
-  }
-
-  // パスワードリセット実行
-  async resetPassword(token, password) {
-    return this.post('/auth/reset-password', { token, password });
-  }
-
   // ヘルスチェック
   async healthCheck() {
     return this.get('/health');

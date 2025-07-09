@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import apiService from '../services/apiService';
+import authService from '../services/authService';
 
 export const LoginScreen = ({ onLogin, onRoleChange }) => {
   const [isLoginMode, setIsLoginMode] = useState(true);
@@ -8,17 +8,12 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
     password: '',
     confirmPassword: '',
     name: '',
-    phoneNumber: ''
+    phone: '',
+    userRole: 'STUDENT'
   });
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
-  const [registrationSuccess, setRegistrationSuccess] = useState(false);
-  
-  // ローカルストレージでユーザー管理（APIエラー時のフォールバック）
-  const [localUsers, setLocalUsers] = useState(() => {
-    const saved = localStorage.getItem('localUsers');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [successMessage, setSuccessMessage] = useState('');
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -33,19 +28,10 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
         [name]: ''
       }));
     }
-  };
-
-  const handleRegistrationSuccess = () => {
-    setRegistrationSuccess(true);
-    setIsLoginMode(true);
-    setFormData({
-      email: formData.email, // メールアドレスは保持
-      password: '',
-      confirmPassword: '',
-      name: '',
-      phoneNumber: ''
-    });
-    setErrors({ success: '登録が完了しました。ログインしてください。' });
+    // 成功メッセージをクリア
+    if (successMessage) {
+      setSuccessMessage('');
+    }
   };
 
   const validateForm = () => {
@@ -70,10 +56,10 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
       if (!formData.name) {
         newErrors.name = '名前を入力してください';
       }
-      if (!formData.phoneNumber) {
-        newErrors.phoneNumber = '電話番号を入力してください';
-      } else if (!/^\d{3}-\d{4}-\d{4}$/.test(formData.phoneNumber)) {
-        newErrors.phoneNumber = '電話番号は000-0000-0000の形式で入力してください';
+      if (!formData.phone) {
+        newErrors.phone = '電話番号を入力してください';
+      } else if (!/^[0-9-+().\s]+$/.test(formData.phone)) {
+        newErrors.phone = '有効な電話番号を入力してください';
       }
       if (!formData.confirmPassword) {
         newErrors.confirmPassword = 'パスワード確認を入力してください';
@@ -95,119 +81,78 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
 
     setIsLoading(true);
     setErrors({});
+    setSuccessMessage('');
 
     try {
       if (isLoginMode) {
-        // ログイン処理
-        try {
-          const response = await apiService.login(formData.email, formData.password);
-          
-          if (response.success) {
-            const user = response.data.user;
-            localStorage.setItem('currentUser', JSON.stringify({
-              id: user.id,
-              email: user.email,
-              name: user.name,
-              userRole: user.role,
-              avatar_url: user.avatar_url,
-              phoneNumber: user.phoneNumber || formData.phoneNumber
-            }));
-            onRoleChange(user.role);
-            onLogin(true);
-          } else {
-            setErrors({ general: response.message || 'ログインに失敗しました' });
-          }
-        } catch (apiError) {
-          // APIエラーの場合はローカルストレージから確認
-          console.log('API unavailable, checking local storage');
-          
-          const user = localUsers.find(u =>
-            u.email === formData.email && u.password === formData.password
-          );
-          
-          if (user) {
-            localStorage.setItem('currentUser', JSON.stringify(user));
-            onRoleChange(user.userRole);
-            onLogin(true);
-          } else {
-            setErrors({ general: 'メールアドレスまたはパスワードが正しくありません' });
-          }
+        // ログイン処理（超高速版）
+        console.log('ログイン開始（超高速版）:', formData.email);
+        const result = await authService.login(formData.email, formData.password);
+        
+        if (result.success) {
+          console.log('ログイン成功（即座に画面遷移）:', result.user);
+          // 即座に状態を更新してログイン画面を終了
+          onRoleChange(result.user.role || 'STUDENT');
+          onLogin(true);
+          // データ読み込みは完全にバックグラウンドで実行
+        } else {
+          console.log('ログインエラー:', result.error);
+          setErrors({ general: result.error });
         }
       } else {
-        // 新規登録処理
-        try {
-          const response = await apiService.post('/auth/register-dev', {
-            email: formData.email,
-            name: formData.name,
-            password: formData.password,
-            phoneNumber: formData.phoneNumber,
-            role: 'STUDENT'
-          });
-          
-          if (response.success) {
-            // 登録成功 - ログイン画面に戻す
-            handleRegistrationSuccess();
-          } else {
-            setErrors({ general: response.message || '登録に失敗しました' });
-          }
-        } catch (apiError) {
-          // APIエラーの場合はローカルストレージにフォールバック
-          console.log('API unavailable, using local storage');
-          
-          // 既存ユーザーチェック
-          const existingUser = localUsers.find(u => u.email === formData.email);
-          if (existingUser) {
-            setErrors({ email: 'このメールアドレスは既に登録されています' });
-            return;
-          }
-          
-          // ローカルストレージに保存
-          const newUser = {
-            id: Date.now().toString(),
-            email: formData.email,
-            name: formData.name,
-            password: formData.password, // 実際の実装ではハッシュ化が必要
-            phoneNumber: formData.phoneNumber,
-            userRole: 'STUDENT'
-          };
-          
-          const updatedUsers = [...localUsers, newUser];
-          setLocalUsers(updatedUsers);
-          localStorage.setItem('localUsers', JSON.stringify(updatedUsers));
-          
-          handleRegistrationSuccess();
+        // 通常の新規登録処理
+        console.log('新規登録開始:', formData.email);
+        const result = await authService.register(formData.email, formData.password, {
+          name: formData.name,
+          phone: formData.phone,
+          userRole: formData.userRole
+        });
+        
+        if (result.success) {
+          console.log('新規登録成功（自動ログイン）:', result.user);
+          onRoleChange(result.user.role || 'STUDENT');
+          onLogin(true);
+        } else {
+          setErrors({ general: result.error });
         }
       }
     } catch (error) {
-      console.error('Auth error:', error);
-      setErrors({ general: error.message || 'エラーが発生しました。もう一度お試しください。' });
+      console.error('認証エラー:', error);
+      setErrors({ general: 'システムエラーが発生しました。もう一度お試しください。' });
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleModeSwitch = (loginMode) => {
+    setIsLoginMode(loginMode);
+    setErrors({});
+    setSuccessMessage('');
+    setFormData({
+      email: '',
+      password: '',
+      confirmPassword: '',
+      name: '',
+      phone: '',
+      userRole: 'STUDENT'
+    });
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
           <div className="mt-6 flex justify-center">
-            {/* Sunaロゴ - ログイン画面用（少し大きめ） */}
-            <svg width="150" height="70" viewBox="0 0 150 70" className="flex-shrink-0">
-              {/* 大きな円（右上、明るいターコイズブルー） */}
-              <circle cx="115" cy="25" r="16" fill="#67E8F9" opacity="0.85"/>
-
-              {/* 中くらいの円（左中央、濃いブルー） */}
-              <circle cx="95" cy="35" r="10" fill="#2563EB" opacity="0.9"/>
-
-              {/* 小さな円（右下、薄いターコイズ） */}
-              <circle cx="108" cy="45" r="6" fill="#A7F3D0" opacity="0.75"/>
-
-              {/* テキスト "suna" - 太字、濃いネイビー */}
-              <text x="0" y="52" fontSize="34" fontWeight="700" fill="#1E293B" fontFamily="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" letterSpacing="-1.5px">
-                suna
-              </text>
-            </svg>
+            {/* AI学習プランナーロゴ - ログイン画面用 */}
+            <div className="flex items-center space-x-4">
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-xl">
+                <span className="text-white font-bold text-2xl">AI</span>
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">AI学習プランナー</h1>
+                <div className="w-12 h-1.5 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full mt-1"></div>
+              </div>
+            </div>
           </div>
           <p className="mt-2 text-center text-sm text-gray-600">
             {isLoginMode ? 'アカウントにログイン' : '新しいアカウントを作成'}
@@ -218,20 +163,20 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
           {/* タブ切り替え */}
           <div className="flex mb-6">
             <button
-              onClick={() => setIsLoginMode(true)}
+              onClick={() => handleModeSwitch(true)}
               className={`flex-1 py-2 px-4 text-center rounded-l-md border ${
-                isLoginMode
-                  ? 'bg-blue-600 text-white border-blue-600'
+                isLoginMode 
+                  ? 'bg-blue-600 text-white border-blue-600' 
                   : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200'
               }`}
             >
               ログイン
             </button>
             <button
-              onClick={() => setIsLoginMode(false)}
+              onClick={() => handleModeSwitch(false)}
               className={`flex-1 py-2 px-4 text-center rounded-r-md border ${
-                !isLoginMode
-                  ? 'bg-blue-600 text-white border-blue-600'
+                !isLoginMode 
+                  ? 'bg-blue-600 text-white border-blue-600' 
                   : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200'
               }`}
             >
@@ -239,68 +184,71 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
             </button>
           </div>
 
-          {/* メッセージ表示 */}
+          {/* 成功メッセージ */}
+          {successMessage && (
+            <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded">
+              {successMessage}
+            </div>
+          )}
+
+          {/* エラーメッセージ */}
           {errors.general && (
             <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
               {errors.general}
             </div>
           )}
-          {errors.success && (
-            <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded">
-              {errors.success}
-            </div>
-          )}
 
           {/* フォーム */}
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* 新規登録時の名前入力 */}
+            {/* 新規登録時の名前・電話番号入力 */}
             {!isLoginMode && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  名前
-                </label>
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  className={`w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    errors.name ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                  placeholder="山田太郎"
-                />
-                {errors.name && (
-                  <p className="mt-1 text-sm text-red-600">{errors.name}</p>
-                )}
-              </div>
-            )}
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    名前 <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    className={`w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                      errors.name ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    placeholder="山田太郎"
+                    disabled={isLoading}
+                  />
+                  {errors.name && (
+                    <p className="mt-1 text-sm text-red-600">{errors.name}</p>
+                  )}
+                </div>
 
-            {/* 新規登録時の電話番号入力 */}
-            {!isLoginMode && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  電話番号
-                </label>
-                <input
-                  type="tel"
-                  name="phoneNumber"
-                  value={formData.phoneNumber}
-                  onChange={handleInputChange}
-                  className={`w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    errors.phoneNumber ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                  placeholder="000-0000-0000"
-                />
-                {errors.phoneNumber && (
-                  <p className="mt-1 text-sm text-red-600">{errors.phoneNumber}</p>
-                )}
-              </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    電話番号 <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleInputChange}
+                    className={`w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                      errors.phone ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    placeholder="090-1234-5678"
+                    disabled={isLoading}
+                  />
+                  {errors.phone && (
+                    <p className="mt-1 text-sm text-red-600">{errors.phone}</p>
+                  )}
+                </div>
+              </>
             )}
 
             {/* メールアドレス */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                メールアドレス
+                メールアドレス <span className="text-red-500">*</span>
               </label>
               <input
                 type="email"
@@ -311,6 +259,7 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
                   errors.email ? 'border-red-500' : 'border-gray-300'
                 }`}
                 placeholder="example@email.com"
+                disabled={isLoading}
               />
               {errors.email && (
                 <p className="mt-1 text-sm text-red-600">{errors.email}</p>
@@ -320,7 +269,7 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
             {/* パスワード */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                パスワード
+                パスワード <span className="text-red-500">*</span>
               </label>
               <input
                 type="password"
@@ -331,32 +280,37 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
                   errors.password ? 'border-red-500' : 'border-gray-300'
                 }`}
                 placeholder="6文字以上"
+                disabled={isLoading}
               />
               {errors.password && (
                 <p className="mt-1 text-sm text-red-600">{errors.password}</p>
               )}
             </div>
 
-            {/* 新規登録時のパスワード確認 */}
+            {/* 新規登録時の追加フィールド */}
             {!isLoginMode && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  パスワード確認
-                </label>
-                <input
-                  type="password"
-                  name="confirmPassword"
-                  value={formData.confirmPassword}
-                  onChange={handleInputChange}
-                  className={`w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    errors.confirmPassword ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                  placeholder="パスワードを再入力"
-                />
-                {errors.confirmPassword && (
-                  <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>
-                )}
-              </div>
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    パスワード確認 <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    name="confirmPassword"
+                    value={formData.confirmPassword}
+                    onChange={handleInputChange}
+                    className={`w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                      errors.confirmPassword ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    placeholder="パスワードを再入力"
+                    disabled={isLoading}
+                  />
+                  {errors.confirmPassword && (
+                    <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>
+                  )}
+                </div>
+
+              </>
             )}
 
             {/* 送信ボタン */}
@@ -369,9 +323,42 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
                   : 'bg-blue-600 hover:bg-blue-700 focus:ring-2 focus:ring-blue-500'
               } transition-colors`}
             >
-              {isLoading ? '処理中...' : (isLoginMode ? 'ログイン' : 'アカウント作成')}
+              {isLoading ? (
+                <div className="flex items-center justify-center">
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  処理中...
+                </div>
+              ) : (
+                isLoginMode ? 'ログイン' : 'アカウント作成'
+              )}
             </button>
           </form>
+
+          {/* Supabase使用の説明 */}
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            <div className="text-center">
+              <p className="text-sm text-gray-600 mb-2">
+                <strong>Supabaseで安全に管理</strong>
+              </p>
+              <p className="text-xs text-gray-500">
+                アカウント情報はSupabaseデータベースに安全に保存されます
+              </p>
+            </div>
+          </div>
+
+          {/* 新規登録時の説明 */}
+          {!isLoginMode && (
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+              <p className="text-sm text-blue-700">
+                <strong>新規登録について:</strong><br/>
+                アカウント作成後、すぐにログインできます。<br/>
+                入力した情報は安全に保存されます。
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

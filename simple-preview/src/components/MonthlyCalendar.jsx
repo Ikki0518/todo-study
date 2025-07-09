@@ -164,7 +164,7 @@ export function MonthlyCalendar({
                   const isCompleted = completedTasks[task.id] || task.completed
                   const isOverdue = !isCompleted && (
                     isPastDate(date) ||
-                    (isToday(date) && task.timeSlot && isTimeOverdue(task.timeSlot, date))
+                    (isToday(date) && task.timeSlot && isTimeOverdue(task.timeSlot, date, task.duration || 1))
                   )
                   
                   // 学習タイプに応じてtooltipとラベルを生成

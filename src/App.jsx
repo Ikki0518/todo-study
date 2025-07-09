@@ -8,16 +8,39 @@ import { StudyBookManager } from './components/StudyBookManager';
 import { DailyTaskPool } from './components/DailyTaskPool';
 import { CalendarWithSchedule } from './components/CalendarWithSchedule';
 import { ProfileSettings } from './components/ProfileSettings';
-import { InviteManager } from './components/InviteManager';
+import { ImprovedDailyPlanner } from './components/ImprovedDailyPlanner';
+import { OverdueTaskPool } from './components/OverdueTaskPool';
 import { generateStudyPlan, convertPlansToTasks, calculateStudyPlanStats } from './utils/studyPlanGenerator';
-import apiService from './services/apiService';
+import { detectOverdueTasks, sortOverdueTasks } from './utils/overdueTaskDetector';
+import authService, { auth } from './services/authService';
+import './styles/touch-fixes.css';
 
 function App() {
   const [currentView, setCurrentView] = useState('goals')
   const [currentStreak] = useState(15)
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [userRole, setUserRole] = useState('STUDENT')
-  const [currentUser, setCurrentUser] = useState(null)
+  // LocalStorageからログイン状態を復元
+  const [isLoggedIn, setIsLoggedIn] = useState(() => {
+    try {
+      return localStorage.getItem('isLoggedIn') === 'true'
+    } catch {
+      return false
+    }
+  })
+  const [userRole, setUserRole] = useState(() => {
+    try {
+      return localStorage.getItem('userRole') || 'STUDENT'
+    } catch {
+      return 'STUDENT'
+    }
+  })
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const savedUser = localStorage.getItem('currentUser')
+      return savedUser ? JSON.parse(savedUser) : null
+    } catch {
+      return null
+    }
+  })
   const [goals, setGoals] = useState([])
   const [todayTasks, setTodayTasks] = useState([])
   const [scheduledTasks, setScheduledTasks] = useState({})
@@ -34,47 +57,14 @@ function App() {
   const [studyPlans, setStudyPlans] = useState({})
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [dailyTaskPool, setDailyTaskPool] = useState([])
-  const [allTasksHistory, setAllTasksHistory] = useState({})
+  
+  // 未達成タスクプール用の状態
+  const [overdueTaskPool, setOverdueTaskPool] = useState([])
+  const [lastOverdueCheck, setLastOverdueCheck] = useState(new Date())
 
   // AI機能の状態
   const [currentAIMode, setCurrentAIMode] = useState('select');
   const [userKnowledge, setUserKnowledge] = useState(null);
-
-  // 未達成タスクを収集する関数
-  const getOverdueTasks = () => {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const todayKey = today.toISOString().split('T')[0]
-    
-    const overdue = []
-    
-    // allTasksHistoryから過去の未完了タスクを収集
-    Object.entries(allTasksHistory).forEach(([dateKey, tasks]) => {
-      if (dateKey < todayKey) {
-        tasks.forEach(task => {
-          if (!task.completed) {
-            overdue.push({
-              ...task,
-              originalDate: dateKey
-            })
-          }
-        })
-      }
-    })
-    
-    // scheduledTasksから過去の未完了タスクを収集
-    Object.entries(scheduledTasks).forEach(([taskKey, task]) => {
-      const dateKey = taskKey.split('-').slice(0, 3).join('-')
-      if (dateKey < todayKey && !completedTasks[taskKey]) {
-        overdue.push({
-          ...task,
-          originalDate: dateKey
-        })
-      }
-    })
-    
-    return overdue
-  }
 
   // 新機能のハンドラー関数
   const handleDateClick = (date) => {
@@ -82,6 +72,44 @@ function App() {
     const dateKey = date.toISOString().split('T')[0]
     const dayPlans = studyPlans[dateKey] || []
     const tasksFromCalendar = convertPlansToTasks(dayPlans)
+    
+    // デバッグ用：学習プランとタスクの内容を比較
+    console.log('📅 月間カレンダー用学習プラン:', dayPlans)
+    console.log('📋 タスクプール用変換タスク:', tasksFromCalendar)
+    
+    // 詳細なデバッグ：問題ベースの場合の比較
+    dayPlans.forEach((plan, index) => {
+      if (plan.studyType === 'problems') {
+        const task = tasksFromCalendar[index]
+        console.log(`🔍 問題ベース比較 [${index}] - ${plan.bookTitle}:`)
+        console.log('  学習プラン:', {
+          startProblem: plan.startProblem,
+          endProblem: plan.endProblem,
+          problems: plan.problems
+        })
+        console.log('  タスク:', {
+          startProblem: task?.startProblem,
+          endProblem: task?.endProblem,
+          problems: task?.problems,
+          title: task?.title
+        })
+        
+        const isMatching = plan.startProblem === task?.startProblem &&
+                          plan.endProblem === task?.endProblem &&
+                          plan.problems === task?.problems
+        
+        console.log(`  一致性: ${isMatching ? '✅ 一致' : '❌ 不一致'}`)
+        
+        if (!isMatching) {
+          console.log('  ❌ 不一致が検出されました！')
+          console.log('  差分:', {
+            startProblem: `${plan.startProblem} → ${task?.startProblem}`,
+            endProblem: `${plan.endProblem} → ${task?.endProblem}`,
+            problems: `${plan.problems} → ${task?.problems}`
+          })
+        }
+      }
+    })
     
     // 選択した日付の週を計算してweekOffsetを設定
     const today = new Date()
@@ -102,24 +130,110 @@ function App() {
     
     if (isToday) {
       // 今日の場合は、今日のタスクプールに追加
-      setTodayTasks(prevTasks => {
-        const existingTaskIds = prevTasks.map(task => task.id)
-        const newTasks = tasksFromCalendar.filter(task => !existingTaskIds.includes(task.id))
-        return [...prevTasks, ...newTasks]
-      })
+      const existingTaskIds = todayTasks.map(task => task.id)
+      const newTasks = tasksFromCalendar.filter(task => !existingTaskIds.includes(task.id))
+      updateTodayTasks([...todayTasks, ...newTasks])
       // デイリータスクプールはクリア
-      setDailyTaskPool([])
+      updateDailyTaskPool([])
     } else {
       // 今日以外の場合は、デイリータスクプールのみ設定
-      setDailyTaskPool(tasksFromCalendar)
+      updateDailyTaskPool(tasksFromCalendar)
     }
     
     setCurrentView('planner')
   }
 
-  // 参考書学習計画生成関数
+  // 未達成タスクプール管理関数
+  const updateOverdueTaskPool = () => {
+    console.log('🔍 未達成タスクを検出中...')
+    const detectedOverdueTasks = detectOverdueTasks(studyPlans, completedTasks)
+    const sortedOverdueTasks = sortOverdueTasks(detectedOverdueTasks)
+    
+    console.log('⚠️ 検出された未達成タスク:', sortedOverdueTasks)
+    setOverdueTaskPool(sortedOverdueTasks)
+    setLastOverdueCheck(new Date())
+  }
+
+  // 未達成タスクの完了処理
+  const handleOverdueTaskComplete = (taskId) => {
+    console.log('✅ 未達成タスクを完了:', taskId)
+    
+    // 完了状態を更新
+    const newCompletedTasks = {
+      ...completedTasks,
+      [taskId]: true
+    }
+    setCompletedTasks(newCompletedTasks)
+    
+    // 未達成タスクプールから除去
+    const updatedOverdueTasks = overdueTaskPool.filter(task => task.id !== taskId)
+    setOverdueTaskPool(updatedOverdueTasks)
+    
+    // Supabaseと同期
+    if (isLoggedIn && currentUser) {
+      setTimeout(async () => {
+        try {
+          const task = overdueTaskPool.find(t => t.id === taskId)
+          if (task) {
+            await authService.updateTask(taskId, {
+              ...task,
+              completed: true
+            })
+            console.log('✅ 未達成タスク完了状態をSupabaseと同期完了')
+          }
+        } catch (error) {
+          console.warn('未達成タスク完了状態同期エラー:', error)
+        }
+      }, 500)
+    }
+  }
+
+  // 未達成タスクの削除処理
+  const handleOverdueTaskDelete = (taskId) => {
+    console.log('🗑️ 未達成タスクを削除:', taskId)
+    
+    // 未達成タスクプールから除去
+    const updatedOverdueTasks = overdueTaskPool.filter(task => task.id !== taskId)
+    setOverdueTaskPool(updatedOverdueTasks)
+    
+    // 学習プランからも削除
+    const updatedStudyPlans = { ...studyPlans }
+    Object.keys(updatedStudyPlans).forEach(dateKey => {
+      updatedStudyPlans[dateKey] = updatedStudyPlans[dateKey].filter(plan => plan.id !== taskId)
+    })
+    setStudyPlans(updatedStudyPlans)
+    
+    // Supabaseと同期
+    if (isLoggedIn && currentUser) {
+      setTimeout(async () => {
+        try {
+          await authService.deleteTask(taskId)
+          console.log('🗑️ 未達成タスク削除をSupabaseと同期完了')
+        } catch (error) {
+          console.warn('未達成タスク削除同期エラー:', error)
+        }
+      }, 500)
+    }
+  }
+
+  // 未達成タスクの定期チェック（1分ごと）
+  useEffect(() => {
+    const interval = setInterval(() => {
+      updateOverdueTaskPool()
+    }, 60000) // 1分ごと
+    
+    return () => clearInterval(interval)
+  }, [studyPlans, completedTasks])
+
+  // 学習プランや完了状態が変更されたときに未達成タスクを再検出
+  useEffect(() => {
+    updateOverdueTaskPool()
+  }, [studyPlans, completedTasks])
+
+  // 参考書学習計画生成関数（ページ・問題両対応）
   const generateBookStudyPlan = (goal) => {
-    const totalPages = goal.totalPages
+    const isProblems = goal.studyType === 'problems'
+    const totalUnits = isProblems ? goal.totalProblems : goal.totalPages
     const excludeDays = goal.excludeDays || [] // 0=日曜日, 1=月曜日, ..., 6=土曜日
     
     // 日付文字列を年、月、日に分解して正確にDateオブジェクトを作成
@@ -129,7 +243,8 @@ function App() {
     const startDate = new Date(startYear, startMonth - 1, startDay) // 月は0ベース
     const endDate = new Date(endYear, endMonth - 1, endDay)
     
-    console.log('開始日:', startDate.toDateString(), '終了日:', endDate.toDateString())
+    console.log(`学習計画生成（${isProblems ? '問題' : 'ページ'}ベース）:`,
+                '開始日:', startDate.toDateString(), '終了日:', endDate.toDateString())
     
     // 学習可能日数を計算
     const studyDays = []
@@ -144,23 +259,26 @@ function App() {
       currentDate.setDate(currentDate.getDate() + 1)
     }
     
-    
     if (studyDays.length === 0) {
       alert('学習可能な日がありません。除外する曜日を見直してください。')
-      return { dailyPages: 0, schedule: [] }
+      return {
+        dailyPages: 0,
+        dailyProblems: 0,
+        schedule: []
+      }
     }
     
-    // 1日あたりのページ数を計算
-    const dailyPages = Math.ceil(totalPages / studyDays.length)
+    // 1日あたりの単位数を計算
+    const dailyUnits = Math.ceil(totalUnits / studyDays.length)
     
     // 学習スケジュールを生成
     const schedule = []
-    let currentPage = 1
+    let currentUnit = 1
     
     studyDays.forEach((date, index) => {
-      const startPage = currentPage
-      const endPage = Math.min(currentPage + dailyPages - 1, totalPages)
-      const pages = endPage - startPage + 1
+      const startUnit = currentUnit
+      const endUnit = Math.min(currentUnit + dailyUnits - 1, totalUnits)
+      const units = endUnit - startUnit + 1
       
       // 日付をYYYY-MM-DD形式で正確に生成
       const year = date.getFullYear()
@@ -168,18 +286,32 @@ function App() {
       const day = String(date.getDate()).padStart(2, '0')
       const dateString = `${year}-${month}-${day}`
       
-      schedule.push({
-        date: dateString,
-        startPage,
-        endPage,
-        pages
-      })
+      if (isProblems) {
+        schedule.push({
+          date: dateString,
+          startProblem: startUnit,
+          endProblem: endUnit,
+          problems: units,
+          studyType: 'problems'
+        })
+      } else {
+        schedule.push({
+          date: dateString,
+          startPage: startUnit,
+          endPage: endUnit,
+          pages: units,
+          studyType: 'pages'
+        })
+      }
       
-      
-      currentPage = endPage + 1
+      currentUnit = endUnit + 1
     })
     
-    return { dailyPages, schedule }
+    return {
+      dailyPages: isProblems ? 0 : dailyUnits,
+      dailyProblems: isProblems ? dailyUnits : 0,
+      schedule
+    }
   }
 
   const handleGenerateStudyPlan = () => {
@@ -191,24 +323,42 @@ function App() {
     const newStudyPlans = generateStudyPlan(studyBooks, new Date())
     setStudyPlans(newStudyPlans)
     
-    // 今日の日付のタスクがあれば、今日のタスクプールに追加
+    // 今日の日付のタスクがあれば、今日のタスクプールを完全に置き換え
     const today = new Date()
     const todayKey = today.toISOString().split('T')[0]
     const todayPlans = newStudyPlans[todayKey] || []
     
+    // デバッグログ：今日のタスク取得処理
+    console.log('🔍 今日のタスク取得処理:')
+    console.log(`  今日の日付: ${todayKey} (曜日: ${today.getDay()})`)
+    console.log(`  生成された学習プラン:`, newStudyPlans)
+    console.log(`  今日の学習プラン:`, todayPlans)
+    
     if (todayPlans.length > 0) {
-      const todayTasks = convertPlansToTasks(todayPlans)
+      const todayTasksToAdd = convertPlansToTasks(todayPlans)
       
-      setTodayTasks(prevTasks => {
-        const existingTaskIds = prevTasks.map(task => task.id)
-        const newTasks = todayTasks.filter(task => !existingTaskIds.includes(task.id))
-        return [...prevTasks, ...newTasks]
-      })
+      // デバッグログ：変換されたタスク
+      console.log(`  変換されたタスク:`, todayTasksToAdd)
+      
+      // 既存の今日のタスクの中からカレンダー由来のタスクを除去
+      const nonCalendarTasks = todayTasks.filter(task => task.source !== 'calendar')
+      
+      // 新しいカレンダータスクと手動追加タスクを組み合わせ
+      updateTodayTasks([...nonCalendarTasks, ...todayTasksToAdd])
+    } else {
+      // 今日の計画がない場合は、カレンダー由来のタスクのみを削除
+      const nonCalendarTasks = todayTasks.filter(task => task.source !== 'calendar')
+      updateTodayTasks(nonCalendarTasks)
     }
     
     const stats = calculateStudyPlanStats(newStudyPlans, studyBooks)
     alert(`学習計画を生成しました！\n総学習日数: ${stats.totalDays}日\n総学習時間: ${stats.totalHours}時間${todayPlans.length > 0 ? '\n今日のタスクプールに追加されました！' : ''}`)
   }
+
+  // タッチデバイス用の状態
+  const [draggedTask, setDraggedTask] = useState(null)
+  const [dragFromLocation, setDragFromLocation] = useState(null)
+  const [isDragging, setIsDragging] = useState(false)
 
   const handleTaskDragStart = (e, task) => {
     e.dataTransfer.setData('task', JSON.stringify(task))
@@ -225,10 +375,47 @@ function App() {
     e.preventDefault()
   }
 
-  const handleDrop = (e, dateKey, hour) => {
+  // タッチイベント用のハンドラー
+  const handleTouchStart = (e, task, fromLocation = null) => {
     e.preventDefault()
-    const task = JSON.parse(e.dataTransfer.getData('task'))
-    const fromLocation = e.dataTransfer.getData('fromLocation')
+    setDraggedTask(task)
+    setDragFromLocation(fromLocation || 'pool')
+    setIsDragging(true)
+  }
+
+  const handleTouchMove = (e) => {
+    if (!isDragging) return
+    e.preventDefault()
+  }
+
+  const handleTouchEnd = (e, dateKey = null, hour = null) => {
+    if (!isDragging || !draggedTask) return
+    
+    e.preventDefault()
+    
+    // タッチ位置から要素を取得
+    const touch = e.changedTouches[0]
+    const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY)
+    
+    // ドロップ可能な要素を探す
+    let dropTarget = elementBelow
+    while (dropTarget && !dropTarget.dataset.dropzone) {
+      dropTarget = dropTarget.parentElement
+    }
+    
+    if (dropTarget && dropTarget.dataset.dropzone) {
+      const [targetDate, targetHour] = dropTarget.dataset.dropzone.split('-')
+      handleTaskDrop(draggedTask, dragFromLocation, targetDate, parseInt(targetHour))
+    }
+    
+    // リセット
+    setDraggedTask(null)
+    setDragFromLocation(null)
+    setIsDragging(false)
+  }
+
+  // 統一されたドロップ処理
+  const handleTaskDrop = (task, fromLocation, dateKey, hour) => {
     const newScheduledTasks = { ...scheduledTasks }
     const key = `${dateKey}-${hour}`
     
@@ -237,22 +424,29 @@ function App() {
     // タスクプールからの移動
     if (fromLocation === 'pool') {
       if (dailyTaskPool.length > 0) {
-        setDailyTaskPool(dailyTaskPool.filter(t => t.id !== task.id))
+        updateDailyTaskPool(dailyTaskPool.filter(t => t.id !== task.id))
       } else {
-        setTodayTasks(todayTasks.filter(t => t.id !== task.id))
+        updateTodayTasks(todayTasks.filter(t => t.id !== task.id))
       }
     }
     // スケジュール間での移動
-    else if (fromLocation.startsWith('scheduled-')) {
+    else if (fromLocation && fromLocation.startsWith('scheduled-')) {
       const oldKey = fromLocation.replace('scheduled-', '')
       delete newScheduledTasks[oldKey]
     }
     
     newScheduledTasks[key] = {
       ...task,
-      duration: task.duration || 1 // 既存のdurationを保持、なければ1時間
+      duration: task.duration || 1
     }
     setScheduledTasks(newScheduledTasks)
+  }
+
+  const handleDrop = (e, dateKey, hour) => {
+    e.preventDefault()
+    const task = JSON.parse(e.dataTransfer.getData('task'))
+    const fromLocation = e.dataTransfer.getData('fromLocation')
+    handleTaskDrop(task, fromLocation, dateKey, hour)
   }
 
   const handleTaskClick = (task, taskKey) => {
@@ -269,10 +463,10 @@ function App() {
     
     if (isToday) {
       // 今日のタスクプールに戻す
-      setTodayTasks(prevTasks => [...prevTasks, task])
+      updateTodayTasks([...todayTasks, task])
     } else {
       // デイリータスクプールに戻す
-      setDailyTaskPool(prevTasks => [...prevTasks, task])
+      updateDailyTaskPool([...dailyTaskPool, task])
     }
   }
 
@@ -289,20 +483,39 @@ function App() {
   const toggleTaskComplete = (taskId, location) => {
     if (location === 'pool') {
       if (dailyTaskPool.length > 0) {
-        setDailyTaskPool(dailyTaskPool.map(task =>
+        const updatedTasks = dailyTaskPool.map(task =>
           task.id === taskId ? { ...task, completed: !task.completed } : task
-        ))
+        )
+        updateDailyTaskPool(updatedTasks)
       } else {
-        setTodayTasks(todayTasks.map(task =>
+        const updatedTasks = todayTasks.map(task =>
           task.id === taskId ? { ...task, completed: !task.completed } : task
-        ))
+        )
+        updateTodayTasks(updatedTasks)
       }
     } else if (location.startsWith('scheduled-')) {
       const key = location.replace('scheduled-', '')
-      setCompletedTasks({
+      const newCompletedTasks = {
         ...completedTasks,
         [key]: !completedTasks[key]
-      })
+      }
+      setCompletedTasks(newCompletedTasks)
+      
+      // スケジュールされたタスクの完了状態もSupabaseと同期
+      if (isLoggedIn && currentUser && scheduledTasks[key]) {
+        setTimeout(async () => {
+          try {
+            const task = scheduledTasks[key]
+            await authService.updateTask(task.id, {
+              ...task,
+              completed: newCompletedTasks[key]
+            })
+            console.log('スケジュールタスク完了状態をSupabaseと同期完了')
+          } catch (error) {
+            console.warn('スケジュールタスク完了状態同期エラー:', error)
+          }
+        }, 500)
+      }
     }
   }
 
@@ -327,80 +540,478 @@ function App() {
   const today = new Date()
   const todayString = `${today.getFullYear()}年${today.getMonth() + 1}月${today.getDate()}日（${dayNames[today.getDay()]}）`
 
+  // ログイン状態をLocalStorageに保存
   useEffect(() => {
-    const initializeAuth = async () => {
-      const authToken = localStorage.getItem('authToken');
-      const savedUser = localStorage.getItem('currentUser');
-      
-      if (authToken && savedUser) {
-        try {
-          // トークンがある場合は、現在のユーザー情報を取得
-          const response = await apiService.getCurrentUser();
-          
-          if (response.success) {
-            const user = response.data.user;
-            const userData = {
-              id: user.id,
-              email: user.email,
-              name: user.name,
-              userRole: user.role,
-              avatar_url: user.avatar_url
-            };
-            
-            setCurrentUser(userData);
-            setUserRole(user.role);
-            setIsLoggedIn(true);
-            
-            // ローカルストレージのユーザー情報を最新に更新
-            localStorage.setItem('currentUser', JSON.stringify(userData));
-          } else {
-            // トークンが無効な場合はクリア
-            apiService.clearAuthToken();
-            localStorage.removeItem('currentUser');
-          }
-        } catch (error) {
-          console.error('Failed to fetch current user:', error);
-          // エラーの場合もクリア
-          apiService.clearAuthToken();
-          localStorage.removeItem('currentUser');
-        }
+    try {
+      localStorage.setItem('isLoggedIn', isLoggedIn.toString())
+    } catch (error) {
+      console.warn('LocalStorage保存エラー (isLoggedIn):', error)
+    }
+  }, [isLoggedIn])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('userRole', userRole)
+    } catch (error) {
+      console.warn('LocalStorage保存エラー (userRole):', error)
+    }
+  }, [userRole])
+
+  useEffect(() => {
+    try {
+      if (currentUser) {
+        localStorage.setItem('currentUser', JSON.stringify(currentUser))
+      } else {
+        localStorage.removeItem('currentUser')
       }
-      
-      // タスク履歴を読み込む
-      const savedTasksHistory = localStorage.getItem('allTasksHistory');
-      if (savedTasksHistory) {
-        try {
-          setAllTasksHistory(JSON.parse(savedTasksHistory));
-        } catch (error) {
-          console.error('Failed to load tasks history:', error);
+    } catch (error) {
+      console.warn('LocalStorage保存エラー (currentUser):', error)
+    }
+  }, [currentUser])
+
+  useEffect(() => {
+    console.log('App.jsx 初期化開始（永続化セッション対応版）');
+    
+    // LocalStorageからの復元を優先し、Supabaseセッションは補助的に使用
+    const initializeAuth = async () => {
+      try {
+        // LocalStorageにログイン状態がある場合は、それを信頼
+        const savedIsLoggedIn = localStorage.getItem('isLoggedIn') === 'true'
+        const savedUser = localStorage.getItem('currentUser')
+        
+        if (savedIsLoggedIn && savedUser) {
+          console.log('LocalStorageからセッション復元成功');
+          const user = JSON.parse(savedUser)
+          setCurrentUser(user);
+          setUserRole(user.role || 'STUDENT');
+          setIsLoggedIn(true);
+          return
         }
+        
+        // LocalStorageにない場合のみSupabaseセッションを確認
+        await authService.initializeSession();
+        const user = authService.getCurrentUser();
+        
+        if (user) {
+          console.log('Supabaseセッション復元成功:', user.email);
+          setCurrentUser(user);
+          setUserRole(user.role || 'STUDENT');
+          setIsLoggedIn(true);
+        } else {
+          console.log('セッションなし - ログイン画面表示');
+          // LocalStorageもクリア
+          localStorage.removeItem('isLoggedIn')
+          localStorage.removeItem('userRole')
+          localStorage.removeItem('currentUser')
+          setCurrentUser(null);
+          setUserRole('STUDENT');
+          setIsLoggedIn(false);
+        }
+      } catch (error) {
+        console.warn('セッション復元エラー:', error);
+        // エラー時はLocalStorageをクリア
+        localStorage.removeItem('isLoggedIn')
+        localStorage.removeItem('userRole')
+        localStorage.removeItem('currentUser')
+        setCurrentUser(null);
+        setUserRole('STUDENT');
+        setIsLoggedIn(false);
       }
     };
     
     initializeAuth();
+    console.log('App.jsx 初期化完了（永続化セッション対応）');
   }, []);
 
-  // タスクが更新されたら履歴を保存
+  // ログイン状態変更時にユーザーデータを超遅延読み込み（ログイン速度最優先）
   useEffect(() => {
-    if (todayTasks.length > 0 || Object.keys(scheduledTasks).length > 0) {
-      const today = new Date().toISOString().split('T')[0];
-      const updatedHistory = {
-        ...allTasksHistory,
-        [today]: todayTasks
-      };
-      setAllTasksHistory(updatedHistory);
-      localStorage.setItem('allTasksHistory', JSON.stringify(updatedHistory));
+    if (isLoggedIn && currentUser) {
+      console.log('ログイン後のデータ読み込みを超遅延実行（ログイン速度最優先）');
+      // 3秒後に実行してログイン体験を最大限改善
+      setTimeout(() => {
+        loadUserData();
+      }, 3000);
     }
-  }, [todayTasks, scheduledTasks]);
+  }, [isLoggedIn, currentUser]);
 
+  // タスクデータの軽量キャッシュ（パフォーマンス向上のため）
+  useEffect(() => {
+    if (isLoggedIn && todayTasks.length > 0) {
+      const timeoutId = setTimeout(() => {
+        localStorage.setItem('todayTasks_cache', JSON.stringify(todayTasks));
+        console.log('今日のタスクをキャッシュ:', todayTasks.length, '件');
+      }, 1000); // 1秒遅延でキャッシュ
+      return () => clearTimeout(timeoutId);
+    }
+  }, [todayTasks, isLoggedIn]);
 
+  useEffect(() => {
+    if (isLoggedIn && Object.keys(scheduledTasks).length > 0) {
+      const timeoutId = setTimeout(() => {
+        localStorage.setItem('scheduledTasks_cache', JSON.stringify(scheduledTasks));
+        console.log('スケジュールタスクをキャッシュ:', Object.keys(scheduledTasks).length, '件');
+      }, 1000); // 1秒遅延でキャッシュ
+      return () => clearTimeout(timeoutId);
+    }
+  }, [scheduledTasks, isLoggedIn]);
+
+  useEffect(() => {
+    if (isLoggedIn && Object.keys(completedTasks).length > 0) {
+      const timeoutId = setTimeout(() => {
+        localStorage.setItem('completedTasks_cache', JSON.stringify(completedTasks));
+        console.log('完了タスクをキャッシュ:', Object.keys(completedTasks).length, '件');
+      }, 1000); // 1秒遅延でキャッシュ
+      return () => clearTimeout(timeoutId);
+    }
+  }, [completedTasks, isLoggedIn]);
+
+  // ユーザーデータ読み込み関数
+  const loadUserData = async () => {
+    try {
+      console.log('全ユーザーデータ読み込み開始');
+      
+      // 目標データを読み込み
+      const goalsResult = await authService.getGoals();
+      if (goalsResult.success) {
+        setGoals(goalsResult.goals);
+        console.log('目標データ読み込み完了:', goalsResult.goals.length, '件');
+      }
+      
+      // Supabaseからタスクデータを取得（主要データソース）
+      try {
+        console.log('Supabaseからタスクデータ取得開始');
+        
+        // 今日のタスク取得
+        const todayResult = await authService.getTodayTasks();
+        if (todayResult.success && todayResult.tasks) {
+          setTodayTasks(todayResult.tasks);
+          console.log('今日のタスク取得成功:', todayResult.tasks.length, '件');
+        }
+        
+        // 週間スケジュールタスク取得
+        const today = new Date();
+        const weekStart = new Date(today);
+        weekStart.setDate(today.getDate() - today.getDay());
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 13); // 2週間分
+        
+        const scheduledResult = await authService.getScheduledTasks(
+          weekStart.toISOString().split('T')[0],
+          weekEnd.toISOString().split('T')[0]
+        );
+        
+        if (scheduledResult.success && scheduledResult.tasks) {
+          // タスクをスケジュール形式に変換
+          const scheduledMap = {};
+          const completedMap = {};
+          
+          scheduledResult.tasks.forEach(task => {
+            if (task.scheduledDate && task.scheduledTime) {
+              const key = `${task.scheduledDate}-${task.scheduledTime.split(':')[0]}`;
+              scheduledMap[key] = task;
+              if (task.completed) {
+                completedMap[key] = true;
+              }
+            }
+          });
+          
+          setScheduledTasks(scheduledMap);
+          setCompletedTasks(completedMap);
+          console.log('スケジュールタスク取得成功:', Object.keys(scheduledMap).length, '件');
+        }
+        
+        // 軽量キャッシュも更新（オフライン対応）
+        try {
+          if (todayResult.success && todayResult.tasks) {
+            localStorage.setItem('todayTasks_cache', JSON.stringify(todayResult.tasks));
+          }
+          if (scheduledResult.success) {
+            localStorage.setItem('scheduledTasks_cache', JSON.stringify(scheduledMap || {}));
+            localStorage.setItem('completedTasks_cache', JSON.stringify(completedMap || {}));
+          }
+        } catch (cacheError) {
+          console.warn('キャッシュ更新エラー:', cacheError);
+        }
+        
+      } catch (supabaseError) {
+        console.warn('Supabaseタスク取得エラー、キャッシュから復元を試行:', supabaseError);
+        
+        // Supabase取得に失敗した場合のみキャッシュから復元
+        try {
+          const cachedTasks = localStorage.getItem('todayTasks_cache');
+          const cachedScheduled = localStorage.getItem('scheduledTasks_cache');
+          const cachedCompleted = localStorage.getItem('completedTasks_cache');
+          
+          if (cachedTasks) {
+            const tasks = JSON.parse(cachedTasks);
+            setTodayTasks(tasks);
+            console.log('今日のタスクをキャッシュから復元:', tasks.length, '件');
+          }
+          
+          if (cachedScheduled) {
+            const scheduled = JSON.parse(cachedScheduled);
+            setScheduledTasks(scheduled);
+            console.log('スケジュールタスクをキャッシュから復元:', Object.keys(scheduled).length, '件');
+          }
+          
+          if (cachedCompleted) {
+            const completed = JSON.parse(cachedCompleted);
+            setCompletedTasks(completed);
+            console.log('完了タスクをキャッシュから復元:', Object.keys(completed).length, '件');
+          }
+        } catch (cacheError) {
+          console.warn('キャッシュからの復元もエラー:', cacheError);
+        }
+      }
+      
+    } catch (error) {
+      console.warn('ユーザーデータ読み込みエラー:', error);
+    }
+  };
+
+  // ログアウト処理
+  const handleLogout = async () => {
+    try {
+      await authService.logout();
+    } catch (error) {
+      console.error('ログアウトエラー:', error);
+    }
+    
+    // LocalStorageをクリア
+    try {
+      localStorage.removeItem('isLoggedIn')
+      localStorage.removeItem('userRole')
+      localStorage.removeItem('currentUser')
+      console.log('LocalStorage クリア完了')
+    } catch (error) {
+      console.warn('LocalStorage クリアエラー:', error)
+    }
+    
+    // 状態をリセット（authServiceのリスナーで処理されるが、念のため）
+    setCurrentUser(null);
+    setUserRole('STUDENT');
+    setIsLoggedIn(false);
+    setCurrentView('goals');
+    // 他の状態もリセット
+    setGoals([]);
+    setTodayTasks([]);
+    setScheduledTasks({});
+    setCompletedTasks({});
+    setStudyBooks([]);
+    setStudyPlans({});
+    setDailyTaskPool([]);
+    setUserKnowledge(null);
+    setCurrentAIMode('select');
+  };
+
+  // ==================================================
+  // Supabase同期タスク管理関数
+  // ==================================================
+
+  // 今日のタスク更新（Supabaseと同期）
+  const updateTodayTasks = async (newTasks) => {
+    try {
+      console.log('今日のタスクを更新中:', newTasks.length, '件');
+      
+      // ローカル状態を即座に更新（UX向上）
+      setTodayTasks(newTasks);
+      
+      // バックグラウンドでSupabaseと同期
+      if (isLoggedIn && currentUser) {
+        // 現在のタスクとの差分を計算して効率的に同期
+        const currentTasks = todayTasks;
+        
+        // 新しく追加されたタスク
+        const addedTasks = newTasks.filter(newTask =>
+          !currentTasks.find(current => current.id === newTask.id)
+        );
+        
+        // 削除されたタスク
+        const deletedTasks = currentTasks.filter(current =>
+          !newTasks.find(newTask => newTask.id === current.id)
+        );
+        
+        // 更新されたタスク
+        const updatedTasks = newTasks.filter(newTask => {
+          const current = currentTasks.find(c => c.id === newTask.id);
+          return current && JSON.stringify(current) !== JSON.stringify(newTask);
+        });
+        
+        // Supabaseと同期（バックグラウンド）
+        setTimeout(async () => {
+          try {
+            // 新しいタスクを作成
+            for (const task of addedTasks) {
+              await authService.createTask(task);
+            }
+            
+            // タスクを更新
+            for (const task of updatedTasks) {
+              await authService.updateTask(task.id, task);
+            }
+            
+            // タスクを削除
+            for (const task of deletedTasks) {
+              await authService.deleteTask(task.id);
+            }
+            
+            console.log('今日のタスクSupabase同期完了');
+          } catch (syncError) {
+            console.warn('今日のタスクSupabase同期エラー:', syncError);
+          }
+        }, 500); // 500ms後に同期
+      }
+    } catch (error) {
+      console.error('今日のタスク更新エラー:', error);
+    }
+  };
+
+  // デイリータスクプール更新（Supabaseと同期）
+  const updateDailyTaskPool = async (newTasks) => {
+    try {
+      console.log('🔄 デイリータスクプール更新開始:', {
+        newTasksCount: newTasks.length,
+        selectedDate: selectedDate.toISOString().split('T')[0],
+        isLoggedIn,
+        hasCurrentUser: !!currentUser
+      });
+      
+      // ローカル状態を即座に更新
+      setDailyTaskPool(newTasks);
+      console.log('✅ ローカル状態更新完了');
+      
+      // 選択された日付が今日以外の場合のみSupabaseと同期
+      const today = new Date().toISOString().split('T')[0];
+      const selectedDateKey = selectedDate.toISOString().split('T')[0];
+      
+      if (isLoggedIn && currentUser) {
+        console.log('🔄 Supabase同期開始:', { selectedDateKey, today, willSync: selectedDateKey !== today });
+        
+        // バックグラウンドでSupabaseと同期
+        setTimeout(async () => {
+          try {
+            // 現在のタスクプールと比較して新しいタスクのみを処理
+            const currentTasks = dailyTaskPool;
+            const addedTasks = newTasks.filter(newTask =>
+              !currentTasks.find(current => current.id === newTask.id)
+            );
+            
+            console.log('📝 追加されたタスク:', addedTasks.length, '件');
+            
+            // 新しいタスクのみをSupabaseに保存
+            for (const task of addedTasks) {
+              console.log('💾 タスク保存中:', task.title);
+              
+              const taskWithDate = {
+                ...task,
+                scheduledDate: selectedDateKey !== today ? selectedDateKey : null
+              };
+              
+              try {
+                const result = await authService.createTask(taskWithDate);
+                if (result.success) {
+                  console.log('✅ タスク保存成功:', task.title);
+                } else {
+                  console.error('❌ タスク保存失敗:', result.error);
+                }
+              } catch (taskError) {
+                console.error('❌ 個別タスク保存エラー:', taskError);
+              }
+            }
+            
+            console.log('✅ デイリータスクプールSupabase同期完了');
+          } catch (syncError) {
+            console.error('❌ デイリータスクプールSupabase同期エラー:', syncError);
+          }
+        }, 500);
+      } else {
+        console.log('⚠️ Supabase同期スキップ（未ログインまたはユーザー情報なし）');
+      }
+    } catch (error) {
+      console.error('❌ デイリータスクプール更新エラー:', error);
+    }
+  };
+
+  // スケジュールタスク更新（Supabaseと同期）
+  const updateScheduledTasks = async (newScheduledTasks) => {
+    try {
+      console.log('スケジュールタスクを更新中');
+      
+      // ローカル状態を即座に更新
+      setScheduledTasks(newScheduledTasks);
+      
+      // バックグラウンドでSupabaseと同期
+      if (isLoggedIn && currentUser) {
+        setTimeout(async () => {
+          try {
+            for (const [key, task] of Object.entries(newScheduledTasks)) {
+              const [date, hour] = key.split('-');
+              const taskWithSchedule = {
+                ...task,
+                scheduledDate: date,
+                scheduledTime: `${hour}:00`
+              };
+              
+              if (!task.id || task.id.toString().startsWith('temp-')) {
+                await authService.createTask(taskWithSchedule);
+              } else {
+                await authService.updateTask(task.id, taskWithSchedule);
+              }
+            }
+            
+            console.log('スケジュールタスクSupabase同期完了');
+          } catch (syncError) {
+            console.warn('スケジュールタスクSupabase同期エラー:', syncError);
+          }
+        }, 500);
+      }
+    } catch (error) {
+      console.error('スケジュールタスク更新エラー:', error);
+    }
+  };
+
+  // ユーザー情報更新のハンドラー
+  const handleUserUpdate = (updatedUser) => {
+    setCurrentUser(updatedUser);
+  };
+
+  // ログイン成功時のハンドラー（LocalStorage保存付き）
+  const handleLogin = (loginStatus) => {
+    setIsLoggedIn(loginStatus)
+    
+    if (loginStatus) {
+      // ログイン成功時にAuthServiceからユーザー情報を取得してLocalStorageに保存
+      const user = authService.getCurrentUser()
+      if (user) {
+        console.log('ログイン成功 - LocalStorageに保存:', user)
+        setCurrentUser(user)
+        try {
+          localStorage.setItem('currentUser', JSON.stringify(user))
+          localStorage.setItem('isLoggedIn', 'true')
+          localStorage.setItem('userRole', user.role || 'STUDENT')
+        } catch (error) {
+          console.warn('LocalStorage保存エラー:', error)
+        }
+      }
+    }
+  }
+
+  // ロール変更時のハンドラー（LocalStorage保存付き）
+  const handleRoleChange = (role) => {
+    setUserRole(role)
+    try {
+      localStorage.setItem('userRole', role)
+    } catch (error) {
+      console.warn('LocalStorage保存エラー (role):', error)
+    }
+  }
 
   if (!isLoggedIn) {
-    return <LoginScreen onLogin={setIsLoggedIn} onRoleChange={setUserRole} />
+    return <LoginScreen onLogin={handleLogin} onRoleChange={handleRoleChange} />
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 lg:flex">
+    <div className="min-h-screen bg-gray-50 lg:flex" style={{ overscrollBehavior: 'none', touchAction: 'pan-x pan-y' }}>
       {/* モバイル用オーバーレイ */}
       {showMobileMenu && (
         <div
@@ -411,17 +1022,21 @@ function App() {
 
       {/* サイドバー */}
       <div className={`
-        fixed inset-y-0 left-0 w-64 bg-white border-r border-gray-200 z-50 transform transition-transform duration-300 ease-in-out min-h-screen flex flex-col
+        fixed inset-y-0 left-0 w-64 bg-white border-r border-gray-200 z-50 transform transition-transform duration-300 ease-in-out min-h-screen
         ${showMobileMenu ? 'translate-x-0' : '-translate-x-full'}
         lg:translate-x-0 lg:static lg:inset-0 lg:h-screen lg:flex-shrink-0
       `}>
         <div className="p-6">
           <div className="flex items-center relative">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+              {/* AI学習プランナーロゴ */}
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
                 <span className="text-white font-bold text-lg">AI</span>
               </div>
-              <h1 className="text-xl font-bold text-gray-900">AI学習プランナー</h1>
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">AI学習プランナー</h1>
+                <div className="w-8 h-1 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full"></div>
+              </div>
             </div>
           </div>
           {currentUser && (
@@ -433,7 +1048,7 @@ function App() {
             </div>
           )}
         </div>
-        <nav className="px-4 flex-1">
+        <nav className="px-4">
           {userRole === 'STUDENT' ? (
             <>
               <button
@@ -478,80 +1093,38 @@ function App() {
               </button>
             </>
           ) : (
-            <>
-              <button
-                onClick={() => setCurrentView('dashboard')}
-                className={`w-full text-left px-4 py-2 rounded-md mb-2 ${
-                  currentView === 'dashboard' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100'
-                }`}
-              >
-                📊 ダッシュボード
-              </button>
-              <button
-                onClick={() => setCurrentView('invites')}
-                className={`w-full text-left px-4 py-2 rounded-md mb-2 ${
-                  currentView === 'invites' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100'
-                }`}
-              >
-                ✉️ 招待管理
-              </button>
-            </>
-          )}
-        </nav>
-        
-        {/* 下部のアイコンボタン */}
-        <div className="border-t border-gray-200 p-4">
-          <div className="flex items-center justify-center space-x-4">
             <button
-              onClick={() => setCurrentView('settings')}
-              className={`p-2 rounded-lg transition-colors ${
-                currentView === 'settings' ? 'bg-gray-200 text-gray-900' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+              onClick={() => setCurrentView('dashboard')}
+              className={`w-full text-left px-4 py-2 rounded-md mb-2 ${
+                currentView === 'dashboard' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100'
               }`}
-              title="設定"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
+              📊 ダッシュボード
             </button>
+          )}
+          
+          {/* プロフィール設定ボタン */}
+          <div className="mt-6 pt-4 border-t border-gray-200">
             <button
-              onClick={async () => {
-                try {
-                  // APIでログアウト
-                  await apiService.logout();
-                  
-                  // ローカルデータをクリア
-                  localStorage.removeItem('currentUser')
-                  localStorage.removeItem('authToken')
-                  localStorage.removeItem('allTasksHistory')
-                  
-                  // 状態をリセット
-                  setIsLoggedIn(false)
-                  setCurrentUser(null)
-                  setUserRole('STUDENT')
-                  setCurrentView('goals')
-                  setGoals([])
-                  setTodayTasks([])
-                  setScheduledTasks({})
-                  setCompletedTasks({})
-                  setStudyBooks([])
-                  setStudyPlans({})
-                  setDailyTaskPool([])
-                  setAllTasksHistory({})
-                  setUserKnowledge(null)
-                } catch (error) {
-                  console.error('Logout error:', error);
-                }
-              }}
-              className="p-2 rounded-lg text-gray-600 hover:bg-red-50 hover:text-red-600 transition-colors"
-              title="ログアウト"
+              onClick={() => setCurrentView('profile')}
+              className={`w-full text-left px-4 py-2 rounded-md mb-2 ${
+                currentView === 'profile' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100'
+              }`}
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
+              ⚙️ プロフィール設定
             </button>
           </div>
-        </div>
+          
+          {/* ログアウトボタン */}
+          <div className="pt-2">
+            <button
+              onClick={handleLogout}
+              className="w-full text-left px-4 py-2 rounded-md text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors"
+            >
+              🚪 ログアウト
+            </button>
+          </div>
+        </nav>
       </div>
 
       {/* メインコンテンツ */}
@@ -566,204 +1139,115 @@ function App() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <h1 className="text-lg font-semibold text-gray-900">AI学習プランナー</h1>
+          <div className="flex items-center space-x-2">
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-sm">AI</span>
+            </div>
+            <h1 className="text-lg font-semibold text-gray-900">AI学習プランナー</h1>
+          </div>
           <div className="w-10"></div> {/* スペーサー */}
         </div>
 
         <div className="p-4 lg:p-6">
         {userRole === 'STUDENT' && currentView === 'planner' && (
-          <div>
-            <div className="mb-6">
-              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-2">週間プランナー</h1>
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:space-x-4">
-                  <span className="text-base sm:text-lg lg:text-xl font-medium text-gray-700">{todayString}</span>
-                  <span className="bg-orange-100 text-orange-800 px-3 py-1 lg:px-4 lg:py-2 rounded-full text-sm lg:text-base font-semibold w-fit">
-                    🔥 {currentStreak}日連続！
-                  </span>
-                </div>
-                <div className="flex items-center space-x-1 sm:space-x-2 lg:space-x-3">
-                  <button
-                    onClick={() => setWeekOffset(weekOffset - 1)}
-                    className="px-2 py-1 sm:px-3 lg:px-4 lg:py-2 border rounded hover:bg-gray-100 text-sm sm:text-base"
-                  >
-                    ← 前週
-                  </button>
-                  <button
-                    onClick={() => setWeekOffset(0)}
-                    className={`px-2 py-1 sm:px-3 lg:px-4 lg:py-2 rounded text-sm sm:text-base ${weekOffset === 0 ? 'bg-blue-500 text-white' : 'border hover:bg-gray-100'}`}
-                  >
-                    今週
-                  </button>
-                  <button
-                    onClick={() => setWeekOffset(weekOffset + 1)}
-                    className="px-2 py-1 sm:px-3 lg:px-4 lg:py-2 border rounded hover:bg-gray-100 text-sm sm:text-base"
-                  >
-                    次週 →
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-col lg:grid lg:grid-cols-12 gap-4">
-              <div className="lg:col-span-3">
-                <DailyTaskPool
-                  dailyTasks={dailyTaskPool.length > 0 ? dailyTaskPool : todayTasks}
-                  onTasksUpdate={dailyTaskPool.length > 0 ? setDailyTaskPool : setTodayTasks}
-                  onTaskDragStart={handleTaskDragStart}
-                  selectedDate={selectedDate}
-                  overdueTasks={getOverdueTasks()}
-                />
-              </div>
-
-              <div className="lg:col-span-9 bg-white rounded-lg shadow overflow-hidden">
-                <div className="overflow-x-auto">
-                  <div className={`grid border-b min-w-[600px]`} style={{gridTemplateColumns: `60px repeat(7, 1fr)`}}>
-                    <div className="p-1 sm:p-2 text-center text-xs sm:text-sm font-medium bg-gray-50"></div>
-                    {weekDates.map((date, index) => {
-                      const isToday = date.toDateString() === new Date().toDateString()
-                      const day = date.getDate()
-                      return (
-                        <div
-                          key={index}
-                          className={`p-1 sm:p-2 text-center border-l ${isToday ? 'bg-blue-50' : ''}`}
-                        >
-                          <div className="text-xs text-gray-500">
-                            {dayNames[date.getDay()]}
-                          </div>
-                          <div className={`text-sm sm:text-lg font-semibold ${isToday ? 'text-blue-600' : ''}`}>
-                            {day}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
+          <div className="space-y-6">
+            {/* 未達成タスクプール */}
+            {overdueTaskPool.length > 0 && (
+              <OverdueTaskPool
+                overdueTasks={overdueTaskPool}
+                onTaskComplete={handleOverdueTaskComplete}
+                onTaskDelete={handleOverdueTaskDelete}
+              />
+            )}
+            
+            {/* メインプランナー */}
+            <ImprovedDailyPlanner
+              currentStreak={currentStreak}
+              todayString={todayString}
+              weekOffset={weekOffset}
+              setWeekOffset={(newOffset) => {
+                console.log('🗓️ 週間ナビゲーション:', {
+                  oldOffset: weekOffset,
+                  newOffset,
+                  change: newOffset - weekOffset
+                });
+                setWeekOffset(newOffset);
                 
-                <div className="overflow-x-auto overflow-y-auto" style={{ height: '400px', maxHeight: '60vh' }}>
-                  <div className="min-w-[600px]">
-                  {[...Array(24)].map((_, hourIndex) => {
-                    const hour = hourIndex
-                    return (
-                      <div key={hour} className={`grid border-b`} style={{gridTemplateColumns: `60px repeat(7, 1fr)`}}>
-                        <div className="p-2 text-right text-xs text-gray-500 bg-gray-50">
-                          {hour}:00
-                        </div>
-                        {weekDates.map((date, dateIndex) => {
-                          const dateKey = date.toISOString().split('T')[0]
-                          const taskKey = `${dateKey}-${hour}`
-                          const scheduledTask = scheduledTasks[taskKey]
-                          
-                          // 他のタスクがこの時間スロットを占有しているかチェック
-                          const isOccupiedByOtherTask = () => {
-                            for (let checkHour = 0; checkHour < hour; checkHour++) {
-                              const checkKey = `${dateKey}-${checkHour}`
-                              const checkTask = scheduledTasks[checkKey]
-                              if (checkTask && checkTask.duration && checkHour + checkTask.duration > hour) {
-                                return true
-                              }
+                // 週変更時に新しい週のデータを読み込み
+                if (isLoggedIn && currentUser) {
+                  setTimeout(async () => {
+                    try {
+                      console.log('📊 新しい週のデータ読み込み開始');
+                      const today = new Date();
+                      const weekStart = new Date(today);
+                      weekStart.setDate(today.getDate() - today.getDay() + (newOffset * 7));
+                      const weekEnd = new Date(weekStart);
+                      weekEnd.setDate(weekStart.getDate() + 6);
+                      
+                      console.log('📅 読み込み期間:', {
+                        start: weekStart.toISOString().split('T')[0],
+                        end: weekEnd.toISOString().split('T')[0]
+                      });
+                      
+                      const result = await authService.getScheduledTasks(
+                        weekStart.toISOString().split('T')[0],
+                        weekEnd.toISOString().split('T')[0]
+                      );
+                      
+                      if (result.success) {
+                        console.log('✅ 新しい週のデータ取得成功:', result.tasks.length, '件');
+                        
+                        // スケジュールタスクを更新
+                        const scheduledMap = {};
+                        const completedMap = {};
+                        
+                        result.tasks.forEach(task => {
+                          if (task.scheduledDate && task.scheduledTime) {
+                            const key = `${task.scheduledDate}-${task.scheduledTime.split(':')[0]}`;
+                            scheduledMap[key] = task;
+                            if (task.completed) {
+                              completedMap[key] = true;
                             }
-                            return false
                           }
-                          
-                          const isOccupied = isOccupiedByOtherTask()
-                          
-                          return (
-                            <div
-                              key={dateIndex}
-                              className={`relative p-1 border-l min-h-[50px] ${isOccupied ? '' : 'hover:bg-gray-50'}`}
-                              onDragOver={!isOccupied ? handleDragOver : undefined}
-                              onDrop={!isOccupied ? (e) => handleDrop(e, dateKey, hour) : undefined}
-                            >
-                              {scheduledTask && !isOccupied && (
-                                <div
-                                  className={`absolute p-2 rounded text-xs cursor-pointer z-10 ${
-                                    completedTasks[taskKey]
-                                      ? 'bg-gray-300 text-gray-700'
-                                      : `${getPriorityColor(scheduledTask.priority)} text-white hover:opacity-90`
-                                  }`}
-                                  style={{
-                                    height: `${(scheduledTask.duration || 1) * 50 - 2}px`,
-                                    width: 'calc(100% - 8px)',
-                                    left: '4px',
-                                    top: '2px'
-                                  }}
-                                  draggable={!completedTasks[taskKey]}
-                                  onDragStart={(e) => !completedTasks[taskKey] && handleDragStart(e, scheduledTask, `scheduled-${taskKey}`)}
-                                  onClick={(e) => {
-                                    // チェックボックスやリサイズハンドルのクリックでない場合のみタスクプールに戻す
-                                    if (!e.target.closest('input') && !e.target.closest('.resize-handle')) {
-                                      handleTaskClick(scheduledTask, taskKey)
-                                    }
-                                  }}
-                                >
-                                  <div className="flex items-start space-x-1">
-                                    <input
-                                      type="checkbox"
-                                      checked={completedTasks[taskKey] || false}
-                                      onChange={() => toggleTaskComplete(scheduledTask.id, `scheduled-${taskKey}`)}
-                                      className="mt-0.5 cursor-pointer"
-                                      onClick={(e) => e.stopPropagation()}
-                                    />
-                                    <div className="flex-1">
-                                      <div className={`font-medium ${completedTasks[taskKey] ? 'line-through' : ''}`}>
-                                        {scheduledTask.title}
-                                      </div>
-                                      <div className="text-xs opacity-75 mt-1">
-                                        {hour}:00 - {hour + (scheduledTask.duration || 1)}:00
-                                      </div>
-                                    </div>
-                                  </div>
-                                  
-                                  {/* リサイズハンドル */}
-                                  <div
-                                    className="resize-handle absolute bottom-0 right-0 w-3 h-3 bg-white bg-opacity-30 cursor-se-resize"
-                                    onMouseDown={(e) => {
-                                      e.preventDefault()
-                                      e.stopPropagation()
-                                      
-                                      const startY = e.clientY
-                                      const startDuration = scheduledTask.duration || 1
-                                      
-                                      const handleMouseMove = (moveEvent) => {
-                                        const deltaY = moveEvent.clientY - startY
-                                        const hourChange = Math.round(deltaY / 50)
-                                        const newDuration = Math.max(1, Math.min(6, startDuration + hourChange))
-                                        
-                                        setScheduledTasks(prev => ({
-                                          ...prev,
-                                          [taskKey]: {
-                                            ...scheduledTask,
-                                            duration: newDuration
-                                          }
-                                        }))
-                                      }
-                                      
-                                      const handleMouseUp = () => {
-                                        document.removeEventListener('mousemove', handleMouseMove)
-                                        document.removeEventListener('mouseup', handleMouseUp)
-                                      }
-                                      
-                                      document.addEventListener('mousemove', handleMouseMove)
-                                      document.addEventListener('mouseup', handleMouseUp)
-                                    }}
-                                  >
-                                    <div className="w-full h-full flex items-end justify-end">
-                                      <div className="w-2 h-2 border-r-2 border-b-2 border-white opacity-60"></div>
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )
-                  })}
-                  </div>
-                </div>
-              </div>
-            </div>
+                        });
+                        
+                        setScheduledTasks(scheduledMap);
+                        setCompletedTasks(completedMap);
+                      } else {
+                        console.warn('⚠️ 新しい週のデータ取得失敗:', result.error);
+                      }
+                    } catch (error) {
+                      console.error('❌ 週間データ読み込みエラー:', error);
+                    }
+                  }, 100);
+                }
+              }}
+              dailyTaskPool={dailyTaskPool}
+              todayTasks={todayTasks}
+              setDailyTaskPool={updateDailyTaskPool}
+              setTodayTasks={updateTodayTasks}
+              handleTaskDragStart={handleTaskDragStart}
+              selectedDate={selectedDate}
+              scheduledTasks={scheduledTasks}
+              setScheduledTasks={updateScheduledTasks}
+              completedTasks={completedTasks}
+              handleDragOver={handleDragOver}
+              handleDrop={handleDrop}
+              handleTaskClick={handleTaskClick}
+              toggleTaskComplete={toggleTaskComplete}
+              getPriorityColor={getPriorityColor}
+              handleDragStart={handleDragStart}
+              DailyTaskPool={DailyTaskPool}
+              // タッチイベント用
+              handleTouchStart={handleTouchStart}
+              handleTouchMove={handleTouchMove}
+              handleTouchEnd={handleTouchEnd}
+              isDragging={isDragging}
+              draggedTask={draggedTask}
+              // 学習計画とタスク変換関数を渡す
+              studyPlans={studyPlans}
+              convertPlansToTasks={convertPlansToTasks}
+            />
           </div>
         )}
 
@@ -774,9 +1258,8 @@ function App() {
             onDateClick={handleDateClick}
             selectedDate={selectedDate}
             dailyTaskPool={dailyTaskPool}
-            onTasksUpdate={setDailyTaskPool}
+            onTasksUpdate={updateDailyTaskPool}
             onTaskDragStart={handleTaskDragStart}
-            overdueTasks={getOverdueTasks()}
             scheduledTasks={scheduledTasks}
             completedTasks={completedTasks}
             onDragOver={handleDragOver}
@@ -952,7 +1435,7 @@ function App() {
                           <div>
                             <p className="text-sm text-gray-600 mb-1">目標</p>
                             <p className="font-medium">
-                              {goal.targetValue} {goal.unit} ({goal.aggregationMethod})
+                              {goal.targetValue} {goal.unit}
                             </p>
                           </div>
                         )}
@@ -1048,8 +1531,11 @@ function App() {
                   </button>
                 </div>
                 <PersonalizeMode
-                  userKnowledge={userKnowledge}
-                  onKnowledgeUpdate={setUserKnowledge}
+                  studentId={currentUser?.id}
+                  onComplete={(data) => {
+                    setUserKnowledge(data);
+                    setCurrentAIMode('companion');
+                  }}
                 />
               </div>
             )}
@@ -1064,7 +1550,13 @@ function App() {
                     ← モード選択に戻る
                   </button>
                 </div>
-                <CompanionMode />
+                <CompanionMode
+                  userKnowledge={userKnowledge}
+                  onKnowledgeUpdate={setUserKnowledge}
+                  onTasksGenerated={(tasks) => {
+                    updateTodayTasks([...todayTasks, ...tasks]);
+                  }}
+                />
               </div>
             )}
           </div>
@@ -1073,22 +1565,11 @@ function App() {
         {userRole === 'INSTRUCTOR' && currentView === 'dashboard' && (
           <InstructorDailyPlanner />
         )}
-        
-        {userRole === 'INSTRUCTOR' && currentView === 'invites' && (
-          <InviteManager currentUser={currentUser} />
-        )}
-        
-        {currentView === 'settings' && (
+
+        {currentView === 'profile' && (
           <ProfileSettings
             currentUser={currentUser}
-            onUpdateUser={(updatedUser) => {
-              setCurrentUser(updatedUser);
-              localStorage.setItem('currentUser', JSON.stringify(updatedUser));
-            }}
-            onClose={() => {
-              // 前の画面に戻る
-              setCurrentView(userRole === 'STUDENT' ? 'goals' : 'dashboard');
-            }}
+            onUserUpdate={handleUserUpdate}
           />
         )}
       </div>
@@ -1104,18 +1585,12 @@ function App() {
               e.preventDefault()
               const formData = new FormData(e.target)
               const goalType = formData.get('goalType')
-              const unitValue = formData.get('unit')
-              const customUnit = formData.get('customUnit')
-              
-              // カスタム単位が選択された場合は、customUnit の値を使用
-              const finalUnit = unitValue === 'custom' ? customUnit : unitValue
               
               const newGoal = {
                 id: editingGoal ? editingGoal.id : Date.now(),
                 title: formData.get('title'),
                 description: formData.get('description'),
-                unit: finalUnit,
-                aggregationMethod: formData.get('aggregationMethod'),
+                unit: formData.get('unit'),
                 targetValue: parseFloat(formData.get('targetValue')),
                 startDate: formData.get('startDate'),
                 endDate: formData.get('endDate'),
@@ -1166,11 +1641,9 @@ function App() {
                     type: 'book-goal'
                   })))
                   
-                  setTodayTasks(prevTasks => {
-                    const existingTaskIds = prevTasks.map(task => task.id)
-                    const newTasks = todayTasks.filter(task => !existingTaskIds.includes(task.id))
-                    return [...prevTasks, ...newTasks]
-                  })
+                  const existingTaskIds = todayTasks.map(task => task.id)
+                  const newTasks = todayTasks.filter(task => !existingTaskIds.includes(task.id))
+                  updateTodayTasks([...todayTasks, ...newTasks])
                 }
               }
               
@@ -1288,20 +1761,9 @@ function App() {
                   </label>
                   <select
                     name="unit"
-                    defaultValue={editingGoal && !['件', '円', '%', '人', '時間', 'ページ', '問題', '点'].includes(editingGoal.unit) ? 'custom' : (editingGoal?.unit || '')}
+                    defaultValue={editingGoal?.unit || ''}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
-                    onChange={(e) => {
-                      const customUnitInput = document.getElementById('customUnitInput')
-                      if (e.target.value === 'custom') {
-                        customUnitInput.style.display = 'block'
-                        customUnitInput.querySelector('input').required = true
-                      } else {
-                        customUnitInput.style.display = 'none'
-                        customUnitInput.querySelector('input').required = false
-                        customUnitInput.querySelector('input').value = ''
-                      }
-                    }}
                   >
                     <option value="">単位を選択してください</option>
                     <option value="件">件</option>
@@ -1312,44 +1774,19 @@ function App() {
                     <option value="ページ">ページ</option>
                     <option value="問題">問題</option>
                     <option value="点">点</option>
-                    <option value="custom">カスタム</option>
                   </select>
-                  <div
-                    id="customUnitInput"
-                    style={{ display: editingGoal && !['件', '円', '%', '人', '時間', 'ページ', '問題', '点'].includes(editingGoal.unit) ? 'block' : 'none' }}
-                    className="mt-2"
-                  >
-                    <input
-                      type="text"
-                      name="customUnit"
-                      defaultValue={editingGoal && !['件', '円', '%', '人', '時間', 'ページ', '問題', '点'].includes(editingGoal.unit) ? editingGoal.unit : ''}
-                      placeholder="カスタム単位を入力してください"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
                 </div>
 
-                {/* 集計方針 */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    集計方針 <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    name="aggregationMethod"
-                    defaultValue={editingGoal?.aggregationMethod || ''}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  >
-                    <option value="">集計方針を選択してください</option>
-                    <option value="合計（上回れば達成）">合計（上回れば達成）</option>
-                    <option value="合計（下回れば達成）">合計（下回れば達成）</option>
-                    <option value="平均（上回れば達成）">平均（上回れば達成）</option>
-                    <option value="平均（下回れば達成）">平均（下回れば達成）</option>
-                    <option value="最大（上回れば達成）">最大（上回れば達成）</option>
-                    <option value="最大（下回れば達成）">最大（下回れば達成）</option>
-                    <option value="最小（上回れば達成）">最小（上回れば達成）</option>
-                    <option value="最小（下回れば達成）">最小（下回れば達成）</option>
-                  </select>
+                <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                  <div className="flex items-center">
+                    <svg className="w-5 h-5 text-blue-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                    <div>
+                      <p className="text-sm font-medium text-blue-800">達成条件</p>
+                      <p className="text-sm text-blue-700">全ての科目で目標数値に到達したら達成となります</p>
+                    </div>
+                  </div>
                 </div>
 
                 {/* 目標数値 */}

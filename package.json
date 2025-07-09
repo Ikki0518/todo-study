@@ -1,20 +1,23 @@
 {
   "name": "ai-study-planner-preview",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check-env": "node scripts/check-env.js",
+    "diagnose": "npm run check-env && echo '詳細は SUPABASE_TROUBLESHOOTING.md を参照してください'"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.50.2",
+    "clsx": "^2.0.0",
+    "lucide-react": "^0.294.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.20.1",
-    "lucide-react": "^0.294.0",
-    "clsx": "^2.0.0",
-    "zustand": "^4.4.7",
-    "socket.io-client": "^4.7.2"
+    "socket.io-client": "^4.7.2",
+    "zustand": "^4.4.7"
   },
   "devDependencies": {
     "@types/react": "^18.2.43",
