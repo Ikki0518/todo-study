@@ -214,7 +214,7 @@ const createDemoClient = () => ({
   })
 })
 
-// Supabaseクライアントの作成（強制的に実際のSupabaseを使用）
+// Supabaseクライアントの作成（環境変数がない場合はデモモードを使用）
 export const supabase = (() => {
   console.log('Supabase設定確認:', {
     url: supabaseUrl,
@@ -223,8 +223,8 @@ export const supabase = (() => {
   })
   
   if (!isValidConfig) {
-    console.error('❌ Supabase環境変数が設定されていません')
-    throw new Error('Supabase環境変数が必要です')
+    console.warn('⚠️ Supabase環境変数が設定されていません - デモモードで動作します')
+    return createDemoClient()
   }
   
   try {
