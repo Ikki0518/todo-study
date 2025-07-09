@@ -38,6 +38,9 @@ export function generateStudyPlan(studyBooks) {
     let unitsLeft = remainingUnits
     let unitStart = currentProgress + 1
     
+    // デバッグログを追加：開始位置の確認
+    console.log(`📚 学習プラン生成 - ${book.title}: currentProgress=${currentProgress}, unitStart=${unitStart}, totalUnits=${totalUnits}`)
+    
     // 開始日が除外日の場合、最初の学習可能日まで進める
     while (excludeDays.includes(currentDate.getDay())) {
       currentDate.setDate(currentDate.getDate() + 1)
@@ -139,8 +142,19 @@ function getPriorityByCategory(category) {
  * @returns {Array} タスク配列
  */
 export function convertPlansToTasks(dayPlans) {
+  console.log('🔄 convertPlansToTasks 開始 - 入力データ:', dayPlans)
+  
   return dayPlans.map(plan => {
     const isProblems = plan.studyType === 'problems'
+    
+    console.log('📋 タスク変換:', {
+      bookTitle: plan.bookTitle,
+      studyType: plan.studyType,
+      startProblem: plan.startProblem,
+      endProblem: plan.endProblem,
+      startPage: plan.startPage,
+      endPage: plan.endPage
+    })
     
     // タイトルと説明を学習タイプに応じて生成
     let title, description

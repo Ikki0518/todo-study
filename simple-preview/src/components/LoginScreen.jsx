@@ -8,6 +8,7 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
     password: '',
     confirmPassword: '',
     name: '',
+    phone: '',
     userRole: 'STUDENT'
   });
   const [errors, setErrors] = useState({});
@@ -55,6 +56,11 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
       if (!formData.name) {
         newErrors.name = '名前を入力してください';
       }
+      if (!formData.phone) {
+        newErrors.phone = '電話番号を入力してください';
+      } else if (!/^[0-9-+().\s]+$/.test(formData.phone)) {
+        newErrors.phone = '有効な電話番号を入力してください';
+      }
       if (!formData.confirmPassword) {
         newErrors.confirmPassword = 'パスワード確認を入力してください';
       } else if (formData.password !== formData.confirmPassword) {
@@ -94,16 +100,16 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
           setErrors({ general: result.error });
         }
       } else {
-        // 新規登録処理
+        // 通常の新規登録処理
         console.log('新規登録開始:', formData.email);
         const result = await authService.register(formData.email, formData.password, {
           name: formData.name,
+          phone: formData.phone,
           userRole: formData.userRole
         });
         
         if (result.success) {
           console.log('新規登録成功（自動ログイン）:', result.user);
-          // 新規登録後は自動的にログイン状態にする
           onRoleChange(result.user.role || 'STUDENT');
           onLogin(true);
         } else {
@@ -127,6 +133,7 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
       password: '',
       confirmPassword: '',
       name: '',
+      phone: '',
       userRole: 'STUDENT'
     });
   };
@@ -193,27 +200,49 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
 
           {/* フォーム */}
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* 新規登録時の名前入力 */}
+            {/* 新規登録時の名前・電話番号入力 */}
             {!isLoginMode && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  名前 <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  className={`w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    errors.name ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                  placeholder="山田太郎"
-                  disabled={isLoading}
-                />
-                {errors.name && (
-                  <p className="mt-1 text-sm text-red-600">{errors.name}</p>
-                )}
-              </div>
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    名前 <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    className={`w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                      errors.name ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    placeholder="山田太郎"
+                    disabled={isLoading}
+                  />
+                  {errors.name && (
+                    <p className="mt-1 text-sm text-red-600">{errors.name}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    電話番号 <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleInputChange}
+                    className={`w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                      errors.phone ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    placeholder="090-1234-5678"
+                    disabled={isLoading}
+                  />
+                  {errors.phone && (
+                    <p className="mt-1 text-sm text-red-600">{errors.phone}</p>
+                  )}
+                </div>
+              </>
             )}
 
             {/* メールアドレス */}
@@ -281,21 +310,6 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
                   )}
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    ユーザー種別
-                  </label>
-                  <select
-                    name="userRole"
-                    value={formData.userRole}
-                    onChange={handleInputChange}
-                    className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    disabled={isLoading}
-                  >
-                    <option value="STUDENT">生徒</option>
-                    <option value="INSTRUCTOR">講師</option>
-                  </select>
-                </div>
               </>
             )}
 
@@ -340,8 +354,8 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
             <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
               <p className="text-sm text-blue-700">
                 <strong>新規登録について:</strong><br/>
-                アカウント作成後、確認メールが送信されます。<br/>
-                メール内のリンクをクリックしてアカウントを有効化してください。
+                アカウント作成後、すぐにログインできます。<br/>
+                入力した情報は安全に保存されます。
               </p>
             </div>
           )}

@@ -1,5 +1,5 @@
 {
-  "buildCommand": "cd simple-preview && npm run build && ls -la && cp -r dist ../dist",
+  "buildCommand": "cd simple-preview && npm run build && ls -la dist && cp -r dist ../",
   "outputDirectory": "dist",
   "installCommand": "cd simple-preview && npm install",
   "devCommand": "cd simple-preview && npm run dev",

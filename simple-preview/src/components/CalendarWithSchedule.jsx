@@ -102,7 +102,14 @@ export function CalendarWithSchedule({
                       )}
                     </div>
                     <div className="text-sm text-gray-600 mt-1">
-                      {task.startPage}-{task.endPage}ページ ({task.pages}ページ)
+                      {task.studyType === 'problems' ? (
+                        <>
+                          {task.startProblem}-{task.endProblem}問 ({task.problems}問)
+                          <span className="ml-2 text-xs text-purple-600">🧮</span>
+                        </>
+                      ) : (
+                        `${task.startPage}-${task.endPage}ページ (${task.pages}ページ)`
+                      )}
                     </div>
                   </div>
                 </div>
@@ -138,9 +145,17 @@ export function CalendarWithSchedule({
             </div>
             <div>
               <div className="text-2xl font-bold text-green-600">
-                {selectedTasks.reduce((total, task) => total + (task.endPage - task.startPage + 1), 0)}
+                {selectedTasks.reduce((total, task) => {
+                  if (task.studyType === 'problems') {
+                    return total + (task.endProblem - task.startProblem + 1)
+                  } else {
+                    return total + (task.endPage - task.startPage + 1)
+                  }
+                }, 0)}
               </div>
-              <div className="text-sm text-gray-600">総ページ数</div>
+              <div className="text-sm text-gray-600">
+                {selectedTasks.some(task => task.studyType === 'problems') ? '総学習量' : '総ページ数'}
+              </div>
             </div>
             <div>
               <div className="text-2xl font-bold text-purple-600">

@@ -67,6 +67,10 @@ function App() {
     const dayPlans = studyPlans[dateKey] || []
     const tasksFromCalendar = convertPlansToTasks(dayPlans)
     
+    // デバッグ用：学習プランとタスクの内容を比較
+    console.log('📅 月間カレンダー用学習プラン:', dayPlans)
+    console.log('📋 タスクプール用変換タスク:', tasksFromCalendar)
+    
     // 選択した日付の週を計算してweekOffsetを設定
     const today = new Date()
     const todayKey = today.toISOString().split('T')[0]
@@ -192,7 +196,7 @@ function App() {
     const newStudyPlans = generateStudyPlan(studyBooks, new Date())
     setStudyPlans(newStudyPlans)
     
-    // 今日の日付のタスクがあれば、今日のタスクプールに追加
+    // 今日の日付のタスクがあれば、今日のタスクプールを完全に置き換え
     const today = new Date()
     const todayKey = today.toISOString().split('T')[0]
     const todayPlans = newStudyPlans[todayKey] || []
@@ -200,9 +204,15 @@ function App() {
     if (todayPlans.length > 0) {
       const todayTasksToAdd = convertPlansToTasks(todayPlans)
       
-      const existingTaskIds = todayTasks.map(task => task.id)
-      const newTasks = todayTasksToAdd.filter(task => !existingTaskIds.includes(task.id))
-      updateTodayTasks([...todayTasks, ...newTasks])
+      // 既存の今日のタスクの中からカレンダー由来のタスクを除去
+      const nonCalendarTasks = todayTasks.filter(task => task.source !== 'calendar')
+      
+      // 新しいカレンダータスクと手動追加タスクを組み合わせ
+      updateTodayTasks([...nonCalendarTasks, ...todayTasksToAdd])
+    } else {
+      // 今日の計画がない場合は、カレンダー由来のタスクのみを削除
+      const nonCalendarTasks = todayTasks.filter(task => task.source !== 'calendar')
+      updateTodayTasks(nonCalendarTasks)
     }
     
     const stats = calculateStudyPlanStats(newStudyPlans, studyBooks)

@@ -123,7 +123,18 @@ export function MonthlyCalendar({
               <div className="space-y-0.5 sm:space-y-1">
                 {dayStudyPlan.slice(0, window.innerWidth < 640 ? 2 : window.innerWidth < 1024 ? 3 : 4).map((plan, planIndex) => {
                   const isBookGoal = plan.type === 'book-goal'
+                  const isProblems = plan.studyType === 'problems'
                   const maxTitleLength = window.innerWidth < 640 ? 4 : window.innerWidth < 768 ? 6 : window.innerWidth < 1024 ? 8 : 10
+                  
+                  // 学習タイプに応じてtooltipとラベルを生成
+                  const tooltipText = isProblems
+                    ? `${plan.bookTitle}: ${plan.startProblem}-${plan.endProblem}問${isBookGoal ? ' (目標)' : ''}`
+                    : `${plan.bookTitle}: ${plan.startPage}-${plan.endPage}ページ${isBookGoal ? ' (目標)' : ''}`
+                  
+                  const rangeText = isProblems
+                    ? `${plan.startProblem}-${plan.endProblem}問`
+                    : `${plan.startPage}-${plan.endPage}p`
+                  
                   return (
                     <div
                       key={planIndex}
@@ -132,17 +143,18 @@ export function MonthlyCalendar({
                           ? 'bg-emerald-100 text-emerald-800'
                           : 'bg-green-100 text-green-800'
                       }`}
-                      title={`${plan.bookTitle}: ${plan.startPage}-${plan.endPage}ページ${isBookGoal ? ' (目標)' : ''}`}
+                      title={tooltipText}
                     >
                       <div className="flex flex-col">
                         <span className="truncate">
                           {isBookGoal && <span className="mr-0.5">📚</span>}
+                          {isProblems && <span className="mr-0.5">🧮</span>}
                           {plan.bookTitle.length > maxTitleLength
                             ? plan.bookTitle.substring(0, maxTitleLength) + '...'
                             : plan.bookTitle}
                         </span>
                         <span className="text-[9px] sm:text-[10px] opacity-80">
-                          {plan.startPage}-{plan.endPage}p
+                          {rangeText}
                         </span>
                       </div>
                     </div>

@@ -119,6 +119,7 @@ class AuthService {
         const newProfile = {
           email: userData.email,
           name: userData.user_metadata?.name || userData.email.split('@')[0],
+          phone: userData.user_metadata?.phone || '',
           role: userData.user_metadata?.role || 'STUDENT',
           created_at: new Date().toISOString()
         }
@@ -178,6 +179,7 @@ class AuthService {
         const profileData = {
           email: data.user.email,
           name: userData.name || data.user.email.split('@')[0],
+          phone: userData.phone || '',
           role: userData.userRole || 'STUDENT',
           created_at: new Date().toISOString()
         }
@@ -225,6 +227,162 @@ class AuthService {
       return {
         success: false,
         error: 'アカウント作成中にエラーが発生しました'
+      }
+    }
+  }
+
+  // OTP認証付き新規登録
+  async registerWithOTP(email, password, userData = {}) {
+    try {
+      console.log('OTP認証付き新規登録開始:', { email, name: userData.name })
+      console.log('送信するユーザーデータ:', userData)
+      
+      const { data, error } = await auth.signUpWithOTP(email, password, userData)
+      
+      console.log('Supabase OTP レスポンス:', { data, error })
+      
+      if (error) {
+        console.error('OTP登録エラー詳細:', {
+          message: error.message,
+          status: error.status,
+          statusCode: error.statusCode,
+          details: error
+        })
+        return {
+          success: false,
+          error: this.getErrorMessage(error),
+          debugInfo: error
+        }
+      }
+
+      if (data.user) {
+        console.log('OTP認証メール送信成功:', {
+          email: data.user.email,
+          id: data.user.id,
+          emailConfirmedAt: data.user.email_confirmed_at,
+          confirmationSentAt: data.user.confirmation_sent_at
+        })
+        
+        // メール確認が必要かどうかをチェック
+        const needsConfirmation = !data.user.email_confirmed_at
+        console.log('メール確認が必要:', needsConfirmation)
+        
+        return {
+          success: true,
+          requiresVerification: needsConfirmation,
+          email: data.user.email,
+          message: needsConfirmation
+            ? '確認コードをメールに送信しました。メールをご確認ください。'
+            : 'アカウントが作成されました。',
+          debugInfo: {
+            userId: data.user.id,
+            emailConfirmed: !!data.user.email_confirmed_at,
+            confirmationSent: !!data.user.confirmation_sent_at
+          }
+        }
+      }
+
+      console.warn('予期しないレスポンス:', { data, error })
+      return { success: false, error: '登録処理に失敗しました' }
+    } catch (error) {
+      console.error('OTP登録例外エラー:', error)
+      return {
+        success: false,
+        error: 'アカウント作成中にエラーが発生しました',
+        debugInfo: error
+      }
+    }
+  }
+
+  // OTP認証コードの確認
+  async verifyOTP(email, token) {
+    try {
+      console.log('OTP認証開始:', { email })
+      
+      const { data, error } = await auth.verifyOTP(email, token, 'signup')
+      
+      if (error) {
+        console.error('OTP認証エラー:', error)
+        return { success: false, error: this.getErrorMessage(error) }
+      }
+
+      if (data.user) {
+        // ユーザープロフィールをデータベースに保存
+        const profileData = {
+          email: data.user.email,
+          name: data.user.user_metadata?.name || data.user.email.split('@')[0],
+          phone: data.user.user_metadata?.phone || '',
+          role: data.user.user_metadata?.userRole || 'STUDENT',
+          created_at: new Date().toISOString()
+        }
+        
+        try {
+          const { data: profile, error: profileError } = await database.upsertUserProfile(
+            data.user.id,
+            profileData
+          )
+          
+          if (!profileError) {
+            this.currentUser = profile
+            console.log('OTP認証成功（データベース保存済み）:', profile)
+            return {
+              success: true,
+              user: profile,
+              message: 'アカウントが正常に作成されました。'
+            }
+          } else {
+            console.warn('プロフィール保存失敗、軽量版で継続:', profileError)
+            const simpleUser = { id: data.user.id, ...profileData }
+            this.currentUser = simpleUser
+            return {
+              success: true,
+              user: simpleUser,
+              message: 'アカウントが正常に作成されました。'
+            }
+          }
+        } catch (dbError) {
+          console.warn('データベースエラー、軽量版で継続:', dbError)
+          const simpleUser = { id: data.user.id, ...profileData }
+          this.currentUser = simpleUser
+          return {
+            success: true,
+            user: simpleUser,
+            message: 'アカウントが正常に作成されました。'
+          }
+        }
+      }
+
+      return { success: false, error: 'OTP認証に失敗しました' }
+    } catch (error) {
+      console.error('OTP認証エラー:', error)
+      return {
+        success: false,
+        error: 'OTP認証中にエラーが発生しました'
+      }
+    }
+  }
+
+  // OTP再送信
+  async resendOTP(email) {
+    try {
+      console.log('OTP再送信開始:', { email })
+      
+      const { data, error } = await auth.resendOTP(email, 'signup')
+      
+      if (error) {
+        console.error('OTP再送信エラー:', error)
+        return { success: false, error: this.getErrorMessage(error) }
+      }
+
+      return {
+        success: true,
+        message: '確認コードを再送信しました。メールをご確認ください。'
+      }
+    } catch (error) {
+      console.error('OTP再送信エラー:', error)
+      return {
+        success: false,
+        error: 'OTP再送信中にエラーが発生しました'
       }
     }
   }
@@ -621,6 +779,12 @@ class AuthService {
       bookTitle: metadata.bookTitle,
       startPage: metadata.startPage,
       endPage: metadata.endPage,
+      pages: metadata.pages,
+      // 問題数ベースの情報を追加
+      startProblem: metadata.startProblem,
+      endProblem: metadata.endProblem,
+      problems: metadata.problems,
+      studyType: metadata.studyType,
       duration: metadata.duration || 1,
       scheduledDate: supabaseTask.scheduled_date,
       scheduledTime: supabaseTask.scheduled_time,
@@ -642,6 +806,12 @@ class AuthService {
       bookTitle: appTask.bookTitle,
       startPage: appTask.startPage,
       endPage: appTask.endPage,
+      pages: appTask.pages,
+      // 問題数ベースの情報を追加
+      startProblem: appTask.startProblem,
+      endProblem: appTask.endProblem,
+      problems: appTask.problems,
+      studyType: appTask.studyType,
       duration: appTask.duration
     }
 

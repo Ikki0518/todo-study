@@ -259,7 +259,11 @@ export function DailyTaskPool({
                 )}
                 {task.bookTitle && (
                   <div className="text-xs sm:text-sm lg:text-base text-blue-600 mt-1">
-                    📚 {task.bookTitle}: {task.startPage}-{task.endPage}ページ
+                    {task.studyType === 'problems' ? (
+                      <>🧮 {task.bookTitle}: {task.startProblem}-{task.endProblem}問</>
+                    ) : (
+                      <>📚 {task.bookTitle}: {task.startPage}-{task.endPage}ページ</>
+                    )}
                   </div>
                 )}
               </div>

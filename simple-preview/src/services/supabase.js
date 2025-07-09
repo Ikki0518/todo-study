@@ -328,6 +328,57 @@ export const auth = {
   async updateUser(updates) {
     const { data, error } = await supabase.auth.updateUser(updates)
     return { data, error }
+  },
+
+  // OTP認証用のメール送信
+  async signUpWithOTP(email, password, userData = {}) {
+    console.log('Supabase signUp 呼び出し開始:', {
+      email,
+      hasPassword: !!password,
+      userData,
+      redirectTo: `${window.location.origin}/verify-email`
+    })
+    
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: userData,
+        emailRedirectTo: `${window.location.origin}/verify-email`
+      }
+    })
+    
+    console.log('Supabase signUp レスポンス:', {
+      success: !error,
+      hasUser: !!data?.user,
+      hasSession: !!data?.session,
+      userEmail: data?.user?.email,
+      userConfirmed: data?.user?.email_confirmed_at,
+      errorMessage: error?.message,
+      errorCode: error?.code,
+      fullError: error
+    })
+    
+    return { data, error }
+  },
+
+  // OTP認証コードの確認
+  async verifyOTP(email, token, type = 'signup') {
+    const { data, error } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type
+    })
+    return { data, error }
+  },
+
+  // OTP再送信
+  async resendOTP(email, type = 'signup') {
+    const { data, error } = await supabase.auth.resend({
+      type,
+      email
+    })
+    return { data, error }
   }
 }
 
