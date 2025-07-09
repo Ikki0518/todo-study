@@ -1,5 +1,5 @@
 {
-  "buildCommand": "cd simple-preview && npm run build && mkdir -p dist && ls -la && ls -la dist || echo 'dist not found, checking for build output' && find . -name 'index.html' -type f",
+  "buildCommand": "cd simple-preview && npm run build && find . -name 'index.html' -type f && find . -name '*.css' -type f && find . -name '*.js' -type f | head -5 && ls -la dist",
   "outputDirectory": "simple-preview/dist",
   "installCommand": "cd simple-preview && npm install",
   "devCommand": "cd simple-preview && npm run dev",
