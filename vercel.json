@@ -1,6 +1,6 @@
 {
-  "buildCommand": "cd simple-preview && npm run build",
-  "outputDirectory": "simple-preview/dist",
+  "buildCommand": "cd simple-preview && npm run build && cd .. && cp -r simple-preview/dist ./dist",
+  "outputDirectory": "dist",
   "installCommand": "cd simple-preview && npm install",
   "devCommand": "cd simple-preview && npm run dev",
   "rewrites": [
