@@ -1,12 +1,21 @@
 {
-  "buildCommand": "cd simple-preview && npm run build && find . -name 'index.html' -type f && find . -name '*.css' -type f && find . -name '*.js' -type f | head -5 && ls -la dist",
-  "outputDirectory": "simple-preview/dist",
-  "installCommand": "cd simple-preview && npm install",
-  "devCommand": "cd simple-preview && npm run dev",
-  "rewrites": [
+  "version": 2,
+  "builds": [
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "src": "simple-preview/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
     }
   ]
 }
