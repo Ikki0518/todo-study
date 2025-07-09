@@ -16,9 +16,29 @@ import './styles/touch-fixes.css';
 function App() {
   const [currentView, setCurrentView] = useState('goals')
   const [currentStreak] = useState(15)
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [userRole, setUserRole] = useState('STUDENT')
-  const [currentUser, setCurrentUser] = useState(null)
+  // LocalStorageからログイン状態を復元
+  const [isLoggedIn, setIsLoggedIn] = useState(() => {
+    try {
+      return localStorage.getItem('isLoggedIn') === 'true'
+    } catch {
+      return false
+    }
+  })
+  const [userRole, setUserRole] = useState(() => {
+    try {
+      return localStorage.getItem('userRole') || 'STUDENT'
+    } catch {
+      return 'STUDENT'
+    }
+  })
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const savedUser = localStorage.getItem('currentUser')
+      return savedUser ? JSON.parse(savedUser) : null
+    } catch {
+      return null
+    }
+  })
   const [goals, setGoals] = useState([])
   const [todayTasks, setTodayTasks] = useState([])
   const [scheduledTasks, setScheduledTasks] = useState({})
@@ -79,9 +99,10 @@ function App() {
     setCurrentView('planner')
   }
 
-  // 参考書学習計画生成関数
+  // 参考書学習計画生成関数（ページ・問題両対応）
   const generateBookStudyPlan = (goal) => {
-    const totalPages = goal.totalPages
+    const isProblems = goal.studyType === 'problems'
+    const totalUnits = isProblems ? goal.totalProblems : goal.totalPages
     const excludeDays = goal.excludeDays || [] // 0=日曜日, 1=月曜日, ..., 6=土曜日
     
     // 日付文字列を年、月、日に分解して正確にDateオブジェクトを作成
@@ -91,7 +112,8 @@ function App() {
     const startDate = new Date(startYear, startMonth - 1, startDay) // 月は0ベース
     const endDate = new Date(endYear, endMonth - 1, endDay)
     
-    console.log('開始日:', startDate.toDateString(), '終了日:', endDate.toDateString())
+    console.log(`学習計画生成（${isProblems ? '問題' : 'ページ'}ベース）:`,
+                '開始日:', startDate.toDateString(), '終了日:', endDate.toDateString())
     
     // 学習可能日数を計算
     const studyDays = []
@@ -106,23 +128,26 @@ function App() {
       currentDate.setDate(currentDate.getDate() + 1)
     }
     
-    
     if (studyDays.length === 0) {
       alert('学習可能な日がありません。除外する曜日を見直してください。')
-      return { dailyPages: 0, schedule: [] }
+      return {
+        dailyPages: 0,
+        dailyProblems: 0,
+        schedule: []
+      }
     }
     
-    // 1日あたりのページ数を計算
-    const dailyPages = Math.ceil(totalPages / studyDays.length)
+    // 1日あたりの単位数を計算
+    const dailyUnits = Math.ceil(totalUnits / studyDays.length)
     
     // 学習スケジュールを生成
     const schedule = []
-    let currentPage = 1
+    let currentUnit = 1
     
     studyDays.forEach((date, index) => {
-      const startPage = currentPage
-      const endPage = Math.min(currentPage + dailyPages - 1, totalPages)
-      const pages = endPage - startPage + 1
+      const startUnit = currentUnit
+      const endUnit = Math.min(currentUnit + dailyUnits - 1, totalUnits)
+      const units = endUnit - startUnit + 1
       
       // 日付をYYYY-MM-DD形式で正確に生成
       const year = date.getFullYear()
@@ -130,18 +155,32 @@ function App() {
       const day = String(date.getDate()).padStart(2, '0')
       const dateString = `${year}-${month}-${day}`
       
-      schedule.push({
-        date: dateString,
-        startPage,
-        endPage,
-        pages
-      })
+      if (isProblems) {
+        schedule.push({
+          date: dateString,
+          startProblem: startUnit,
+          endProblem: endUnit,
+          problems: units,
+          studyType: 'problems'
+        })
+      } else {
+        schedule.push({
+          date: dateString,
+          startPage: startUnit,
+          endPage: endUnit,
+          pages: units,
+          studyType: 'pages'
+        })
+      }
       
-      
-      currentPage = endPage + 1
+      currentUnit = endUnit + 1
     })
     
-    return { dailyPages, schedule }
+    return {
+      dailyPages: isProblems ? 0 : dailyUnits,
+      dailyProblems: isProblems ? dailyUnits : 0,
+      schedule
+    }
   }
 
   const handleGenerateStudyPlan = () => {
@@ -355,15 +394,87 @@ function App() {
   const today = new Date()
   const todayString = `${today.getFullYear()}年${today.getMonth() + 1}月${today.getDate()}日（${dayNames[today.getDay()]}）`
 
+  // ログイン状態をLocalStorageに保存
   useEffect(() => {
-    console.log('App.jsx 初期化開始（超軽量版）');
+    try {
+      localStorage.setItem('isLoggedIn', isLoggedIn.toString())
+    } catch (error) {
+      console.warn('LocalStorage保存エラー (isLoggedIn):', error)
+    }
+  }, [isLoggedIn])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('userRole', userRole)
+    } catch (error) {
+      console.warn('LocalStorage保存エラー (userRole):', error)
+    }
+  }, [userRole])
+
+  useEffect(() => {
+    try {
+      if (currentUser) {
+        localStorage.setItem('currentUser', JSON.stringify(currentUser))
+      } else {
+        localStorage.removeItem('currentUser')
+      }
+    } catch (error) {
+      console.warn('LocalStorage保存エラー (currentUser):', error)
+    }
+  }, [currentUser])
+
+  useEffect(() => {
+    console.log('App.jsx 初期化開始（永続化セッション対応版）');
     
-    // 最小限の初期状態設定のみ
-    setCurrentUser(null);
-    setUserRole('STUDENT');
-    setIsLoggedIn(false);
+    // LocalStorageからの復元を優先し、Supabaseセッションは補助的に使用
+    const initializeAuth = async () => {
+      try {
+        // LocalStorageにログイン状態がある場合は、それを信頼
+        const savedIsLoggedIn = localStorage.getItem('isLoggedIn') === 'true'
+        const savedUser = localStorage.getItem('currentUser')
+        
+        if (savedIsLoggedIn && savedUser) {
+          console.log('LocalStorageからセッション復元成功');
+          const user = JSON.parse(savedUser)
+          setCurrentUser(user);
+          setUserRole(user.role || 'STUDENT');
+          setIsLoggedIn(true);
+          return
+        }
+        
+        // LocalStorageにない場合のみSupabaseセッションを確認
+        await authService.initializeSession();
+        const user = authService.getCurrentUser();
+        
+        if (user) {
+          console.log('Supabaseセッション復元成功:', user.email);
+          setCurrentUser(user);
+          setUserRole(user.role || 'STUDENT');
+          setIsLoggedIn(true);
+        } else {
+          console.log('セッションなし - ログイン画面表示');
+          // LocalStorageもクリア
+          localStorage.removeItem('isLoggedIn')
+          localStorage.removeItem('userRole')
+          localStorage.removeItem('currentUser')
+          setCurrentUser(null);
+          setUserRole('STUDENT');
+          setIsLoggedIn(false);
+        }
+      } catch (error) {
+        console.warn('セッション復元エラー:', error);
+        // エラー時はLocalStorageをクリア
+        localStorage.removeItem('isLoggedIn')
+        localStorage.removeItem('userRole')
+        localStorage.removeItem('currentUser')
+        setCurrentUser(null);
+        setUserRole('STUDENT');
+        setIsLoggedIn(false);
+      }
+    };
     
-    console.log('App.jsx 初期化完了（認証監視なし）');
+    initializeAuth();
+    console.log('App.jsx 初期化完了（永続化セッション対応）');
   }, []);
 
   // ログイン状態変更時にユーザーデータを超遅延読み込み（ログイン速度最優先）
@@ -520,6 +631,16 @@ function App() {
       console.error('ログアウトエラー:', error);
     }
     
+    // LocalStorageをクリア
+    try {
+      localStorage.removeItem('isLoggedIn')
+      localStorage.removeItem('userRole')
+      localStorage.removeItem('currentUser')
+      console.log('LocalStorage クリア完了')
+    } catch (error) {
+      console.warn('LocalStorage クリアエラー:', error)
+    }
+    
     // 状態をリセット（authServiceのリスナーで処理されるが、念のため）
     setCurrentUser(null);
     setUserRole('STUDENT');
@@ -602,43 +723,66 @@ function App() {
   // デイリータスクプール更新（Supabaseと同期）
   const updateDailyTaskPool = async (newTasks) => {
     try {
-      console.log('デイリータスクプールを更新中:', newTasks.length, '件');
+      console.log('🔄 デイリータスクプール更新開始:', {
+        newTasksCount: newTasks.length,
+        selectedDate: selectedDate.toISOString().split('T')[0],
+        isLoggedIn,
+        hasCurrentUser: !!currentUser
+      });
       
       // ローカル状態を即座に更新
       setDailyTaskPool(newTasks);
+      console.log('✅ ローカル状態更新完了');
       
       // 選択された日付が今日以外の場合のみSupabaseと同期
       const today = new Date().toISOString().split('T')[0];
       const selectedDateKey = selectedDate.toISOString().split('T')[0];
       
-      if (isLoggedIn && currentUser && selectedDateKey !== today) {
+      if (isLoggedIn && currentUser) {
+        console.log('🔄 Supabase同期開始:', { selectedDateKey, today, willSync: selectedDateKey !== today });
+        
         // バックグラウンドでSupabaseと同期
         setTimeout(async () => {
           try {
-            // 日付固有のタスクとしてSupabaseに保存
-            for (const task of newTasks) {
+            // 現在のタスクプールと比較して新しいタスクのみを処理
+            const currentTasks = dailyTaskPool;
+            const addedTasks = newTasks.filter(newTask =>
+              !currentTasks.find(current => current.id === newTask.id)
+            );
+            
+            console.log('📝 追加されたタスク:', addedTasks.length, '件');
+            
+            // 新しいタスクのみをSupabaseに保存
+            for (const task of addedTasks) {
+              console.log('💾 タスク保存中:', task.title);
+              
               const taskWithDate = {
                 ...task,
-                scheduledDate: selectedDateKey
+                scheduledDate: selectedDateKey !== today ? selectedDateKey : null
               };
               
-              if (!task.id || task.id.toString().startsWith('temp-')) {
-                // 新しいタスクを作成
-                await authService.createTask(taskWithDate);
-              } else {
-                // 既存タスクを更新
-                await authService.updateTask(task.id, taskWithDate);
+              try {
+                const result = await authService.createTask(taskWithDate);
+                if (result.success) {
+                  console.log('✅ タスク保存成功:', task.title);
+                } else {
+                  console.error('❌ タスク保存失敗:', result.error);
+                }
+              } catch (taskError) {
+                console.error('❌ 個別タスク保存エラー:', taskError);
               }
             }
             
-            console.log('デイリータスクプールSupabase同期完了');
+            console.log('✅ デイリータスクプールSupabase同期完了');
           } catch (syncError) {
-            console.warn('デイリータスクプールSupabase同期エラー:', syncError);
+            console.error('❌ デイリータスクプールSupabase同期エラー:', syncError);
           }
         }, 500);
+      } else {
+        console.log('⚠️ Supabase同期スキップ（未ログインまたはユーザー情報なし）');
       }
     } catch (error) {
-      console.error('デイリータスクプール更新エラー:', error);
+      console.error('❌ デイリータスクプール更新エラー:', error);
     }
   };
 
@@ -685,9 +829,39 @@ function App() {
     setCurrentUser(updatedUser);
   };
 
+  // ログイン成功時のハンドラー（LocalStorage保存付き）
+  const handleLogin = (loginStatus) => {
+    setIsLoggedIn(loginStatus)
+    
+    if (loginStatus) {
+      // ログイン成功時にAuthServiceからユーザー情報を取得してLocalStorageに保存
+      const user = authService.getCurrentUser()
+      if (user) {
+        console.log('ログイン成功 - LocalStorageに保存:', user)
+        setCurrentUser(user)
+        try {
+          localStorage.setItem('currentUser', JSON.stringify(user))
+          localStorage.setItem('isLoggedIn', 'true')
+          localStorage.setItem('userRole', user.role || 'STUDENT')
+        } catch (error) {
+          console.warn('LocalStorage保存エラー:', error)
+        }
+      }
+    }
+  }
+
+  // ロール変更時のハンドラー（LocalStorage保存付き）
+  const handleRoleChange = (role) => {
+    setUserRole(role)
+    try {
+      localStorage.setItem('userRole', role)
+    } catch (error) {
+      console.warn('LocalStorage保存エラー (role):', error)
+    }
+  }
 
   if (!isLoggedIn) {
-    return <LoginScreen onLogin={setIsLoggedIn} onRoleChange={setUserRole} />
+    return <LoginScreen onLogin={handleLogin} onRoleChange={handleRoleChange} />
   }
 
   return (
@@ -834,7 +1008,63 @@ function App() {
             currentStreak={currentStreak}
             todayString={todayString}
             weekOffset={weekOffset}
-            setWeekOffset={setWeekOffset}
+            setWeekOffset={(newOffset) => {
+              console.log('🗓️ 週間ナビゲーション:', {
+                oldOffset: weekOffset,
+                newOffset,
+                change: newOffset - weekOffset
+              });
+              setWeekOffset(newOffset);
+              
+              // 週変更時に新しい週のデータを読み込み
+              if (isLoggedIn && currentUser) {
+                setTimeout(async () => {
+                  try {
+                    console.log('📊 新しい週のデータ読み込み開始');
+                    const today = new Date();
+                    const weekStart = new Date(today);
+                    weekStart.setDate(today.getDate() - today.getDay() + (newOffset * 7));
+                    const weekEnd = new Date(weekStart);
+                    weekEnd.setDate(weekStart.getDate() + 6);
+                    
+                    console.log('📅 読み込み期間:', {
+                      start: weekStart.toISOString().split('T')[0],
+                      end: weekEnd.toISOString().split('T')[0]
+                    });
+                    
+                    const result = await authService.getScheduledTasks(
+                      weekStart.toISOString().split('T')[0],
+                      weekEnd.toISOString().split('T')[0]
+                    );
+                    
+                    if (result.success) {
+                      console.log('✅ 新しい週のデータ取得成功:', result.tasks.length, '件');
+                      
+                      // スケジュールタスクを更新
+                      const scheduledMap = {};
+                      const completedMap = {};
+                      
+                      result.tasks.forEach(task => {
+                        if (task.scheduledDate && task.scheduledTime) {
+                          const key = `${task.scheduledDate}-${task.scheduledTime.split(':')[0]}`;
+                          scheduledMap[key] = task;
+                          if (task.completed) {
+                            completedMap[key] = true;
+                          }
+                        }
+                      });
+                      
+                      setScheduledTasks(scheduledMap);
+                      setCompletedTasks(completedMap);
+                    } else {
+                      console.warn('⚠️ 新しい週のデータ取得失敗:', result.error);
+                    }
+                  } catch (error) {
+                    console.error('❌ 週間データ読み込みエラー:', error);
+                  }
+                }, 100);
+              }
+            }}
             dailyTaskPool={dailyTaskPool}
             todayTasks={todayTasks}
             setDailyTaskPool={updateDailyTaskPool}
@@ -842,7 +1072,7 @@ function App() {
             handleTaskDragStart={handleTaskDragStart}
             selectedDate={selectedDate}
             scheduledTasks={scheduledTasks}
-            setScheduledTasks={setScheduledTasks}
+            setScheduledTasks={updateScheduledTasks}
             completedTasks={completedTasks}
             handleDragOver={handleDragOver}
             handleDrop={handleDrop}

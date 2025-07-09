@@ -32,6 +32,7 @@ export const ImprovedDailyPlanner = ({
   convertPlansToTasks
 }) => {
   const [isMobile, setIsMobile] = useState(false)
+  const [currentTime, setCurrentTime] = useState(new Date())
 
   useEffect(() => {
     const checkMobile = () => {
@@ -42,6 +43,53 @@ export const ImprovedDailyPlanner = ({
     window.addEventListener('resize', checkMobile)
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
+
+  // 現在時刻を10秒ごとに更新（よりリアルタイムに）
+  useEffect(() => {
+    const updateCurrentTime = () => {
+      setCurrentTime(new Date())
+    }
+    
+    // 初回実行
+    updateCurrentTime()
+    
+    // 10秒ごとに更新
+    const interval = setInterval(updateCurrentTime, 10000)
+    
+    return () => clearInterval(interval)
+  }, [])
+
+  // 現在時刻の位置を計算（ピクセル単位）
+  const getCurrentTimePosition = () => {
+    const now = currentTime
+    const hours = now.getHours()
+    const minutes = now.getMinutes()
+    
+    // 24時間グリッド（0-23時）の範囲内に制限
+    // 1時間 = 50px、1分 = 50/60px
+    const position = (hours * 50) + (minutes * 50 / 60)
+    
+    // 23:59の最大位置は1199.17px（24 * 50 - 0.83）
+    // 24時間グリッドの範囲（0-1199px）を超えないように制限
+    const maxPosition = (24 * 50) - 1 // 1199px
+    return Math.min(position, maxPosition)
+  }
+
+  // 現在時刻の文字列を取得
+  const getCurrentTimeString = () => {
+    const now = currentTime
+    const hours = now.getHours().toString().padStart(2, '0')
+    const minutes = now.getMinutes().toString().padStart(2, '0')
+    return `${hours}:${minutes}`
+  }
+
+  // 現在時刻が24時間グリッド内にあるかチェック
+  const isCurrentTimeInGrid = () => {
+    const now = currentTime
+    const hours = now.getHours()
+    // 0-23時の範囲内かチェック
+    return hours >= 0 && hours <= 23
+  }
 
   // 日付の取得関数を改善
   const getDates = () => {
@@ -217,7 +265,7 @@ export const ImprovedDailyPlanner = ({
           </div>
           
           {/* スクロール可能な時間グリッド */}
-          <div className="planner-body custom-scrollbar" style={{ height: '400px', maxHeight: '60vh' }}>
+          <div className="planner-body custom-scrollbar" style={{ height: '400px', maxHeight: '60vh', position: 'relative' }}>
             <div className={isMobile ? 'w-full' : 'min-w-[600px]'}>
               {[...Array(24)].map((_, hourIndex) => {
                 const hour = hourIndex
@@ -354,6 +402,51 @@ export const ImprovedDailyPlanner = ({
                 )
               })}
             </div>
+            
+            {/* 現在時刻インジケーター - 24時間グリッド内の場合のみ表示 */}
+            {isCurrentTimeInGrid() && (
+              <div
+                className="absolute left-0 right-0 pointer-events-none z-20"
+                style={{
+                  top: `${getCurrentTimePosition()}px`,
+                  height: '2px'
+                }}
+              >
+              <div
+                className="calendar-grid"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: isMobile
+                    ? `60px repeat(3, 1fr)`
+                    : `60px repeat(7, 1fr)`,
+                  height: '2px'
+                }}
+              >
+                {/* 時間列のスペース */}
+                <div className="relative">
+                  <div className="absolute right-2 -top-3 text-xs font-semibold text-blue-600 bg-white px-1 rounded shadow-sm">
+                    {getCurrentTimeString()}
+                  </div>
+                </div>
+                
+                {/* 各日付列 - 全ての列に青い線を表示 */}
+                {dates.map((date, dateIndex) => {
+                  return (
+                    <div key={dateIndex} className="relative">
+                      <div className="absolute inset-0 bg-blue-500 h-0.5 shadow-sm">
+                        {dateIndex === 0 && (
+                          <div className="absolute left-0 -top-1 w-2 h-2 bg-blue-500 rounded-full"></div>
+                        )}
+                        {dateIndex === dates.length - 1 && (
+                          <div className="absolute right-0 -top-1 w-2 h-2 bg-blue-500 rounded-full"></div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
