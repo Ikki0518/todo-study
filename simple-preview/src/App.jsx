@@ -71,6 +71,40 @@ function App() {
     console.log('📅 月間カレンダー用学習プラン:', dayPlans)
     console.log('📋 タスクプール用変換タスク:', tasksFromCalendar)
     
+    // 詳細なデバッグ：問題ベースの場合の比較
+    dayPlans.forEach((plan, index) => {
+      if (plan.studyType === 'problems') {
+        const task = tasksFromCalendar[index]
+        console.log(`🔍 問題ベース比較 [${index}] - ${plan.bookTitle}:`)
+        console.log('  学習プラン:', {
+          startProblem: plan.startProblem,
+          endProblem: plan.endProblem,
+          problems: plan.problems
+        })
+        console.log('  タスク:', {
+          startProblem: task?.startProblem,
+          endProblem: task?.endProblem,
+          problems: task?.problems,
+          title: task?.title
+        })
+        
+        const isMatching = plan.startProblem === task?.startProblem &&
+                          plan.endProblem === task?.endProblem &&
+                          plan.problems === task?.problems
+        
+        console.log(`  一致性: ${isMatching ? '✅ 一致' : '❌ 不一致'}`)
+        
+        if (!isMatching) {
+          console.log('  ❌ 不一致が検出されました！')
+          console.log('  差分:', {
+            startProblem: `${plan.startProblem} → ${task?.startProblem}`,
+            endProblem: `${plan.endProblem} → ${task?.endProblem}`,
+            problems: `${plan.problems} → ${task?.problems}`
+          })
+        }
+      }
+    })
+    
     // 選択した日付の週を計算してweekOffsetを設定
     const today = new Date()
     const todayKey = today.toISOString().split('T')[0]
@@ -201,8 +235,17 @@ function App() {
     const todayKey = today.toISOString().split('T')[0]
     const todayPlans = newStudyPlans[todayKey] || []
     
+    // デバッグログ：今日のタスク取得処理
+    console.log('🔍 今日のタスク取得処理:')
+    console.log(`  今日の日付: ${todayKey} (曜日: ${today.getDay()})`)
+    console.log(`  生成された学習プラン:`, newStudyPlans)
+    console.log(`  今日の学習プラン:`, todayPlans)
+    
     if (todayPlans.length > 0) {
       const todayTasksToAdd = convertPlansToTasks(todayPlans)
+      
+      // デバッグログ：変換されたタスク
+      console.log(`  変換されたタスク:`, todayTasksToAdd)
       
       // 既存の今日のタスクの中からカレンダー由来のタスクを除去
       const nonCalendarTasks = todayTasks.filter(task => task.source !== 'calendar')

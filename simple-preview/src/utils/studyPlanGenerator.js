@@ -6,6 +6,7 @@
  * @returns {Object} 日付をキーとした学習計画オブジェクト
  */
 export function generateStudyPlan(studyBooks) {
+  console.log('📊 学習プラン生成開始:', studyBooks)
   const studyPlan = {}
   
   studyBooks.forEach(book => {
@@ -14,11 +15,35 @@ export function generateStudyPlan(studyBooks) {
     const currentProgress = isProblems ? (book.currentProblem || 0) : (book.currentPage || 0)
     const totalUnits = isProblems ? book.totalProblems : book.totalPages
     
-    if (!dailyTarget || dailyTarget <= 0) return
+    // デバッグログ：参考書の詳細情報
+    console.log(`📖 参考書詳細 - ${book.title}:`, {
+      studyType: book.studyType,
+      isProblems,
+      dailyTarget,
+      currentProgress,
+      totalUnits,
+      remainingUnits: totalUnits - currentProgress,
+      rawData: {
+        dailyPages: book.dailyPages,
+        dailyProblems: book.dailyProblems,
+        currentPage: book.currentPage,
+        currentProblem: book.currentProblem,
+        totalPages: book.totalPages,
+        totalProblems: book.totalProblems
+      }
+    })
+    
+    if (!dailyTarget || dailyTarget <= 0) {
+      console.log(`⚠️ スキップ: dailyTarget が無効 (${dailyTarget})`)
+      return
+    }
     
     const remainingUnits = totalUnits - currentProgress
     
-    if (remainingUnits <= 0) return
+    if (remainingUnits <= 0) {
+      console.log(`⚠️ スキップ: 残り単位が0以下 (${remainingUnits})`)
+      return
+    }
     
     // 除外する曜日を取得（デフォルトは土曜日のみ）
     const excludeDays = book.excludeDays || [6] // 0=日曜日, 1=月曜日, ..., 6=土曜日
@@ -39,23 +64,26 @@ export function generateStudyPlan(studyBooks) {
     let unitStart = currentProgress + 1
     
     // デバッグログを追加：開始位置の確認
-    console.log(`📚 学習プラン生成 - ${book.title}: currentProgress=${currentProgress}, unitStart=${unitStart}, totalUnits=${totalUnits}`)
+    console.log(`📚 学習プラン生成 - ${book.title}: currentProgress=${currentProgress}, unitStart=${unitStart}, totalUnits=${totalUnits}, remainingUnits=${remainingUnits}`)
     
-    // 開始日が除外日の場合、最初の学習可能日まで進める
-    while (excludeDays.includes(currentDate.getDay())) {
-      currentDate.setDate(currentDate.getDate() + 1)
-    }
+    // 指定された開始日から正確に開始（除外日処理は学習日のスキップのみ）
+    const originalStartDate = new Date(currentDate)
+    console.log(`📅 学習開始日: ${originalStartDate.toISOString().split('T')[0]} (曜日: ${originalStartDate.getDay()})`)
+    
+    // 除外日の場合でも開始日は変更しない
+    // 除外日は単純にスキップするだけ
     
     while (unitsLeft > 0) {
       const dayOfWeek = currentDate.getDay()
+      const dateKey = currentDate.toISOString().split('T')[0]
       
       // 除外する曜日でない場合のみ学習計画を追加
       if (!excludeDays.includes(dayOfWeek)) {
-        const dateKey = currentDate.toISOString().split('T')[0]
-        
         // その日に学習する単位数を決定
         const unitsToStudy = Math.min(dailyTarget, unitsLeft)
         const unitEnd = unitStart + unitsToStudy - 1
+        
+        console.log(`📅 学習日 ${dateKey}: ${unitStart}-${unitEnd} (${unitsToStudy}単位, 残り${unitsLeft}単位)`)
         
         // 学習計画を追加
         if (!studyPlan[dateKey]) {
@@ -76,10 +104,34 @@ export function generateStudyPlan(studyBooks) {
           planData.startProblem = unitStart
           planData.endProblem = unitEnd
           planData.problems = unitsToStudy
+          
+          // デバッグログ：問題範囲の確認
+          console.log(`🧮 問題ベース学習プラン生成 [${dateKey}]:`, {
+            bookTitle: book.title,
+            unitStart,
+            unitEnd,
+            unitsToStudy,
+            unitsLeft,
+            currentProgress,
+            startProblem: unitStart,
+            endProblem: unitEnd
+          })
         } else {
           planData.startPage = unitStart
           planData.endPage = unitEnd
           planData.pages = unitsToStudy
+          
+          // デバッグログ：ページ範囲の確認
+          console.log(`📚 ページベース学習プラン生成 [${dateKey}]:`, {
+            bookTitle: book.title,
+            unitStart,
+            unitEnd,
+            unitsToStudy,
+            unitsLeft,
+            currentProgress,
+            startPage: unitStart,
+            endPage: unitEnd
+          })
         }
         
         studyPlan[dateKey].push(planData)
@@ -144,16 +196,18 @@ function getPriorityByCategory(category) {
 export function convertPlansToTasks(dayPlans) {
   console.log('🔄 convertPlansToTasks 開始 - 入力データ:', dayPlans)
   
-  return dayPlans.map(plan => {
+  return dayPlans.map((plan, index) => {
     const isProblems = plan.studyType === 'problems'
     
-    console.log('📋 タスク変換:', {
+    console.log(`📋 タスク変換 [${index}]:`, {
       bookTitle: plan.bookTitle,
       studyType: plan.studyType,
       startProblem: plan.startProblem,
       endProblem: plan.endProblem,
       startPage: plan.startPage,
-      endPage: plan.endPage
+      endPage: plan.endPage,
+      problems: plan.problems,
+      pages: plan.pages
     })
     
     // タイトルと説明を学習タイプに応じて生成
