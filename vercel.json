@@ -1,5 +1,5 @@
 {
-  "buildCommand": "cd simple-preview && npm run build && ls -la && pwd",
+  "buildCommand": "cd simple-preview && npm run build && ls -la && pwd && find . -name '*.html' && find . -type d -name 'dist'",
   "outputDirectory": "simple-preview/dist",
   "installCommand": "cd simple-preview && npm install",
   "devCommand": "cd simple-preview && npm run dev",
