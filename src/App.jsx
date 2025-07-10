@@ -314,7 +314,7 @@ function App() {
     }
   }
 
-  const handleGenerateStudyPlan = () => {
+  const handleGenerateStudyPlan = async () => {
     if (studyBooks.length === 0) {
       alert('参考書を追加してから学習計画を生成してください。')
       return
@@ -322,6 +322,29 @@ function App() {
     
     const newStudyPlans = generateStudyPlan(studyBooks, new Date())
     setStudyPlans(newStudyPlans)
+    
+    // Supabaseに即座に保存（本番環境用）
+    if (isLoggedIn && currentUser) {
+      try {
+        console.log('📚 学習計画をSupabaseに保存中...')
+        
+        // 学習計画をタスクに変換してSupabaseに保存
+        for (const [dateKey, plans] of Object.entries(newStudyPlans)) {
+          const tasks = convertPlansToTasks(plans)
+          for (const task of tasks) {
+            await authService.saveTask({
+              ...task,
+              date: dateKey,
+              user_id: currentUser.id
+            })
+          }
+        }
+        
+        console.log('✅ 学習計画のSupabase保存完了')
+      } catch (error) {
+        console.warn('学習計画保存エラー:', error)
+      }
+    }
     
     // 今日の日付のタスクがあれば、今日のタスクプールを完全に置き換え
     const today = new Date()
@@ -623,14 +646,12 @@ function App() {
     console.log('App.jsx 初期化完了（永続化セッション対応）');
   }, []);
 
-  // ログイン状態変更時にユーザーデータを超遅延読み込み（ログイン速度最優先）
+  // ログイン状態変更時にユーザーデータを即座に読み込み（本番環境用）
   useEffect(() => {
     if (isLoggedIn && currentUser) {
-      console.log('ログイン後のデータ読み込みを超遅延実行（ログイン速度最優先）');
-      // 3秒後に実行してログイン体験を最大限改善
-      setTimeout(() => {
-        loadUserData();
-      }, 3000);
+      console.log('ログイン後のデータ読み込みを即座に実行（本番環境）');
+      // 即座に実行してデータの永続化を確保
+      loadUserData();
     }
   }, [isLoggedIn, currentUser]);
 

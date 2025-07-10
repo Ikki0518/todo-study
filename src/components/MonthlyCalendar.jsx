@@ -2,6 +2,28 @@ import { useState, useEffect } from 'react'
 import { convertPlansToTasks } from '../utils/studyPlanGenerator'
 import { isPastDate, isToday, isTimeOverdue } from '../utils/overdueTaskDetector'
 
+// ウィンドウサイズを安全に取得するフック
+const useWindowSize = () => {
+  const [windowSize, setWindowSize] = useState({
+    width: typeof window !== 'undefined' ? window.innerWidth : 1024
+  })
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const handleResize = () => {
+      setWindowSize({ width: window.innerWidth })
+    }
+
+    window.addEventListener('resize', handleResize)
+    handleResize() // 初期値を設定
+
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  return windowSize
+}
+
 export function MonthlyCalendar({
   studyBooks = [],
   onDateClick,
@@ -10,6 +32,7 @@ export function MonthlyCalendar({
   completedTasks = {}
 }) {
   const [currentDate, setCurrentDate] = useState(new Date())
+  const { width: windowWidth } = useWindowSize()
   
   // 月の最初の日と最後の日を取得
   const getMonthInfo = (date) => {
@@ -155,10 +178,10 @@ export function MonthlyCalendar({
               
               {/* その日の学習計画を表示 */}
               <div className="space-y-0.5 sm:space-y-1">
-                {dayStudyPlan.slice(0, window.innerWidth < 640 ? 2 : window.innerWidth < 1024 ? 3 : 4).map((task, taskIndex) => {
+                {dayStudyPlan.slice(0, windowWidth < 640 ? 2 : windowWidth < 1024 ? 3 : 4).map((task, taskIndex) => {
                   const isBookGoal = task.type === 'book-goal'
                   const isProblems = task.studyType === 'problems'
-                  const maxTitleLength = window.innerWidth < 640 ? 4 : window.innerWidth < 768 ? 6 : window.innerWidth < 1024 ? 8 : 10
+                  const maxTitleLength = windowWidth < 640 ? 4 : windowWidth < 768 ? 6 : windowWidth < 1024 ? 8 : 10
                   
                   // 未達成タスクの判定
                   const isCompleted = completedTasks[task.id] || task.completed
@@ -206,9 +229,9 @@ export function MonthlyCalendar({
                     </div>
                   )
                 })}
-                {dayStudyPlan.length > (window.innerWidth < 640 ? 2 : 3) && (
+                {dayStudyPlan.length > (windowWidth < 640 ? 2 : 3) && (
                   <div className="text-[9px] sm:text-xs text-gray-500">
-                    +{dayStudyPlan.length - (window.innerWidth < 640 ? 2 : 3)}件
+                    +{dayStudyPlan.length - (windowWidth < 640 ? 2 : 3)}件
                   </div>
                 )}
               </div>

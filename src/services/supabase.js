@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 
-// Supabaseの設定
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+// Supabaseの設定（本番環境用）
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://wjpcfsjtjgxvhijczxnj.supabase.co'
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndqcGNmc2p0amd4dmhpamN6eG5qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAzMDYxOTcsImV4cCI6MjA2NTg4MjE5N30.TRMV3BrHkCKH-7RYFD6rGLdYq1kxUqZYQr3uD-WaPy0'
 
 // Supabase設定を有効化（接続テストで正常動作を確認済み）
 const isValidConfig = supabaseUrl && supabaseAnonKey
@@ -214,7 +214,7 @@ const createDemoClient = () => ({
   })
 })
 
-// Supabaseクライアントの作成（環境変数がない場合はデモモードを使用）
+// Supabaseクライアントの作成（本番環境用）
 export const supabase = (() => {
   console.log('Supabase設定確認:', {
     url: supabaseUrl,
@@ -222,10 +222,7 @@ export const supabase = (() => {
     isValid: isValidConfig
   })
   
-  if (!isValidConfig) {
-    console.warn('⚠️ Supabase環境変数が設定されていません - デモモードで動作します')
-    return createDemoClient()
-  }
+  console.log('✅ 本番Supabaseクライアントを作成します')
   
   try {
     console.log('✅ 実際のSupabaseクライアントを作成中...')

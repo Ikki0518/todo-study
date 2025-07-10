@@ -66,16 +66,18 @@ export const ImprovedDailyPlanner = ({
     const hours = now.getHours()
     const minutes = now.getMinutes()
     
-    // 各時間行の高さは50px
+    // 各時間行の高さ：モバイル50px、PC版80px
+    const hourHeight = isMobile ? 50 : 80
+    
     // 時間グリッドは0時から始まるので、現在時刻の行インデックスを計算
     const hourIndex = hours
     const minuteOffset = minutes / 60 // 0-1の範囲
     
-    // 位置計算：行インデックス * 50px + 分のオフセット * 50px
-    const position = (hourIndex * 50) + (minuteOffset * 50)
+    // 位置計算：行インデックス * 高さ + 分のオフセット * 高さ
+    const position = (hourIndex * hourHeight) + (minuteOffset * hourHeight)
     
-    // 24時間グリッドの範囲（0-1199px）を超えないように制限
-    const maxPosition = (24 * 50) - 1 // 1199px
+    // 24時間グリッドの範囲を超えないように制限
+    const maxPosition = (24 * hourHeight) - 1
     return Math.min(position, maxPosition)
   }
 
@@ -317,7 +319,7 @@ export const ImprovedDailyPlanner = ({
                       return (
                         <div
                           key={dateIndex}
-                          className={`calendar-cell relative p-1 min-h-[50px] touch-optimized ${isMobile ? 'mobile-grid-cell' : ''} ${
+                          className={`calendar-cell relative p-1 min-h-[50px] lg:min-h-[80px] touch-optimized ${isMobile ? 'mobile-grid-cell' : ''} ${
                             isOccupied ? '' : 'hover:bg-gray-50'
                           } ${isToday ? 'bg-blue-25' : ''} ${isTaskOverdue ? 'bg-red-50' : ''}`}
                           onDragOver={!isOccupied ? handleDragOver : undefined}
@@ -335,7 +337,7 @@ export const ImprovedDailyPlanner = ({
                                     : `${getPriorityColor(scheduledTask.priority)} text-white hover:opacity-90`
                               }`}
                               style={{
-                                height: `${(scheduledTask.duration || 1) * 50 - 2}px`,
+                                height: `${(scheduledTask.duration || 1) * (isMobile ? 50 : 80) - 2}px`,
                                 width: 'calc(100% - 8px)',
                                 left: '4px',
                                 top: '2px'
@@ -383,7 +385,8 @@ export const ImprovedDailyPlanner = ({
                                   
                                   const handleMouseMove = (moveEvent) => {
                                     const deltaY = moveEvent.clientY - startY
-                                    const hourChange = Math.round(deltaY / 50)
+                                    const hourHeight = isMobile ? 50 : 80
+                                    const hourChange = Math.round(deltaY / hourHeight)
                                     const newDuration = Math.max(1, Math.min(6, startDuration + hourChange))
                                     
                                     setScheduledTasks(prev => ({
