@@ -313,6 +313,7 @@ export const ImprovedDailyPlanner = ({
                                            isToday &&
                                            isTimeOverdue(`${hour}:00`, date, scheduledTask.duration || 1)
                       
+                      
                       return (
                         <div
                           key={dateIndex}

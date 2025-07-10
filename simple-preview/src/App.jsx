@@ -43,7 +43,24 @@ function App() {
   })
   const [goals, setGoals] = useState([])
   const [todayTasks, setTodayTasks] = useState([])
-  const [scheduledTasks, setScheduledTasks] = useState({})
+  const [scheduledTasks, setScheduledTasks] = useState(() => {
+    // テスト用の今日のスケジュールタスク（時間超過テスト用）
+    const today = new Date()
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    
+    // 現在時刻より過去の時間にタスクを設定（例：数時間前）
+    const pastHour = Math.max(0, today.getHours() - 3) // 3時間前、最小0時
+    
+    return {
+      [`${todayStr}-${pastHour}`]: {
+        id: 'test-overdue-task',
+        title: '時間超過テストタスク',
+        priority: 'high',
+        duration: 2, // 2時間のタスク
+        completed: false
+      }
+    }
+  })
   const [completedTasks, setCompletedTasks] = useState({})
   const [showGoalModal, setShowGoalModal] = useState(false)
   const [editingGoal, setEditingGoal] = useState(null)
@@ -54,7 +71,51 @@ function App() {
 
   // 新機能の状態
   const [studyBooks, setStudyBooks] = useState([])
-  const [studyPlans, setStudyPlans] = useState({})
+  const [studyPlans, setStudyPlans] = useState(() => {
+    // テスト用のサンプルデータ
+    const today = new Date()
+    const yesterday = new Date(today)
+    yesterday.setDate(today.getDate() - 1)
+    
+    // ローカル時間ベースで日付文字列を作成
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`
+    
+    return {
+      [yesterdayStr]: [
+        {
+          id: 'test-yesterday-1',
+          bookTitle: '数学基礎',
+          startPage: 1,
+          endPage: 10,
+          pages: 10,
+          type: 'book-goal',
+          completed: false
+        },
+        {
+          id: 'test-yesterday-2',
+          bookTitle: '英語長文',
+          startProblem: 1,
+          endProblem: 5,
+          problems: 5,
+          studyType: 'problems',
+          type: 'book-goal',
+          completed: false
+        }
+      ],
+      [todayStr]: [
+        {
+          id: 'test-today-1',
+          bookTitle: '物理基礎',
+          startPage: 20,
+          endPage: 30,
+          pages: 11,
+          type: 'book-goal',
+          completed: false
+        }
+      ]
+    }
+  })
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [dailyTaskPool, setDailyTaskPool] = useState([])
   

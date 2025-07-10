@@ -17,8 +17,10 @@ export const getCurrentTime = () => {
  */
 export const isPastDate = (date) => {
   const today = new Date()
-  const todayStr = today.toISOString().split('T')[0]
-  const dateStr = date.toISOString().split('T')[0]
+  
+  // ローカル時間ベースで日付文字列を作成（時差の問題を回避）
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+  const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
   
   // 今日より前の日付（昨日以前）を判定
   return dateStr < todayStr
@@ -40,8 +42,10 @@ export const isOneDayOverdue = (date) => {
  */
 export const isToday = (date) => {
   const today = new Date()
-  const todayStr = today.toISOString().split('T')[0]
-  const dateStr = date.toISOString().split('T')[0]
+  
+  // ローカル時間ベースで日付文字列を作成（時差の問題を回避）
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+  const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
   
   return dateStr === todayStr
 }
@@ -54,7 +58,9 @@ export const isToday = (date) => {
  * @returns {boolean} タスク終了から1時間経過したかどうか
  */
 export const isTimeOverdue = (timeSlot, taskDate, duration = 1) => {
-  if (!isToday(taskDate)) return false
+  if (!isToday(taskDate)) {
+    return false
+  }
   
   const now = new Date()
   const [hour, minute] = timeSlot.split(':').map(Number)
@@ -84,7 +90,7 @@ export const detectOverdueTasks = (studyPlans, completedTasks = {}) => {
     const planDate = new Date(dateKey + 'T00:00:00')
     const dayPlans = studyPlans[dateKey] || []
     
-    dayPlans.forEach(plan => {
+    dayPlans.forEach((plan) => {
       const isCompleted = completedTasks[plan.id] || plan.completed
       
       if (isCompleted) return // 完了済みはスキップ
