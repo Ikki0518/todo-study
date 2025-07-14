@@ -1440,6 +1440,11 @@ function App() {
                   localStorage.removeItem('currentUser')
                   localStorage.removeItem('authToken')
                   localStorage.removeItem('allTasksHistory')
+                  localStorage.removeItem('paymentStatus')
+                  localStorage.removeItem('isPaid')
+                  localStorage.removeItem('selectedPlan')
+                  localStorage.removeItem('userInfo')
+                  localStorage.removeItem('userKnowledge')
                   
                   // 状態をリセット
                   setIsLoggedIn(false)
@@ -1455,8 +1460,19 @@ function App() {
                   setDailyTaskPool([])
                   setAllTasksHistory({})
                   setUserKnowledge(null)
+                  setHasValidSubscription(false)
+                  setShowPricing(true)
+                  setShowRegistrationFlow(false)
+                  setShowLoginScreen(false)
+                  
+                  console.log('✅ ログアウト完了');
                 } catch (error) {
                   console.error('Logout error:', error);
+                  // エラーが発生してもログアウトを継続
+                  setIsLoggedIn(false)
+                  setCurrentUser(null)
+                  setHasValidSubscription(false)
+                  setShowPricing(true)
                 }
               }}
               className="p-2 rounded-lg text-gray-600 hover:bg-red-50 hover:text-red-600 transition-colors"

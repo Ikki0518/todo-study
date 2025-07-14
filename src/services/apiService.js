@@ -132,6 +132,20 @@ class ApiService {
     localStorage.removeItem('authToken');
   }
 
+  // ログアウト
+  async logout() {
+    try {
+      // バックエンドにログアウト要求を送信（もしエンドポイントが存在すれば）
+      await this.post('/auth/logout');
+    } catch (error) {
+      // バックエンドのログアウトエンドポイントが存在しない場合は無視
+      console.warn('Backend logout endpoint not available:', error.message);
+    }
+    
+    // ローカルの認証トークンをクリア
+    this.clearAuthToken();
+  }
+
   // ヘルスチェック
   async healthCheck() {
     return this.get('/health');
