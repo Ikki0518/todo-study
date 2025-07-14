@@ -1,392 +1,306 @@
-import { useState, useEffect } from 'react';
-import authService from '../services/authService';
+import React, { useState } from 'react';
 
-export const ProfileSettings = ({ currentUser, onUserUpdate }) => {
+export function ProfileSettings({ currentUser, onUpdateUser, onClose }) {
   const [formData, setFormData] = useState({
-    name: '',
-    currentPassword: '',
-    newPassword: '',
-    confirmNewPassword: ''
+    name: currentUser?.name || '',
+    email: currentUser?.email || '',
+    phoneNumber: currentUser?.phoneNumber || '',
+    password: '',
+    confirmPassword: ''
   });
-  const [errors, setErrors] = useState({});
-  const [isLoading, setIsLoading] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
-  const [showPasswordChange, setShowPasswordChange] = useState(false);
+  const [message, setMessage] = useState({ type: '', text: '' });
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
-  useEffect(() => {
-    if (currentUser) {
-      setFormData(prev => ({
-        ...prev,
-        name: currentUser.name
-      }));
-    }
-  }, [currentUser]);
-
-  const handleInputChange = (e) => {
+  const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
       [name]: value
     }));
-    
-    // エラーをクリア
-    if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }));
-    }
-    
-    // 成功メッセージをクリア
-    if (successMessage) {
-      setSuccessMessage('');
-    }
   };
 
-  const validateProfileForm = () => {
-    const newErrors = {};
-
-    if (!formData.name.trim()) {
-      newErrors.name = '名前を入力してください';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const validatePasswordForm = () => {
-    const newErrors = {};
-
-    if (!formData.currentPassword) {
-      newErrors.currentPassword = '現在のパスワードを入力してください';
-    }
-
-    if (!formData.newPassword) {
-      newErrors.newPassword = '新しいパスワードを入力してください';
-    } else if (formData.newPassword.length < 6) {
-      newErrors.newPassword = '新しいパスワードは6文字以上で入力してください';
-    }
-
-    if (!formData.confirmNewPassword) {
-      newErrors.confirmNewPassword = 'パスワード確認を入力してください';
-    } else if (formData.newPassword !== formData.confirmNewPassword) {
-      newErrors.confirmNewPassword = 'パスワードが一致しません';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleProfileUpdate = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     
-    if (!validateProfileForm()) {
-      return;
-    }
-
-    setIsLoading(true);
-    setErrors({});
-
-    try {
-      const result = await authService.updateProfile({
-        name: formData.name.trim()
-      });
-
-      if (result.success) {
-        setSuccessMessage('プロフィールを更新しました');
-        onUserUpdate(result.user);
-      } else {
-        setErrors({ general: result.error });
+    // パスワード変更の場合、確認用パスワードをチェック
+    if (formData.password) {
+      if (formData.password !== formData.confirmPassword) {
+        setMessage({ type: 'error', text: 'パスワードが一致しません' });
+        return;
       }
-    } catch (error) {
-      console.error('プロフィール更新エラー:', error);
-      setErrors({ general: 'プロフィールの更新に失敗しました' });
-    } finally {
-      setIsLoading(false);
+      if (formData.password.length < 6) {
+        setMessage({ type: 'error', text: 'パスワードは6文字以上で入力してください' });
+        return;
+      }
     }
-  };
 
-  const handlePasswordChange = async (e) => {
-    e.preventDefault();
+    // ユーザー情報の更新
+    const updatedUser = {
+      ...currentUser,
+      name: formData.name,
+      email: formData.email,
+      phoneNumber: formData.phoneNumber
+    };
+
+    // ローカルストレージに保存
+    localStorage.setItem('currentUser', JSON.stringify(updatedUser));
     
-    if (!validatePasswordForm()) {
-      return;
-    }
-
-    setIsLoading(true);
-    setErrors({});
-
-    try {
-      const result = await authService.changePassword(
-        formData.currentPassword,
-        formData.newPassword
-      );
-
-      if (result.success) {
-        setSuccessMessage('パスワードを変更しました');
-        setFormData(prev => ({
-          ...prev,
-          currentPassword: '',
-          newPassword: '',
-          confirmNewPassword: ''
-        }));
-        setShowPasswordChange(false);
-      } else {
-        setErrors({ general: result.error });
-      }
-    } catch (error) {
-      console.error('パスワード変更エラー:', error);
-      setErrors({ general: 'パスワードの変更に失敗しました' });
-    } finally {
-      setIsLoading(false);
-    }
+    // 親コンポーネントに通知
+    onUpdateUser(updatedUser);
+    
+    setMessage({ type: 'success', text: '設定を更新しました' });
+    
+    // 3秒後にメッセージをクリア
+    setTimeout(() => {
+      setMessage({ type: '', text: '' });
+    }, 3000);
   };
 
-  const handleExportData = async () => {
-    try {
-      const result = await authService.exportData();
-      if (result.success) {
-        const dataStr = JSON.stringify(result.data, null, 2);
-        const dataBlob = new Blob([dataStr], { type: 'application/json' });
-        const url = URL.createObjectURL(dataBlob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `ai_learning_planner_data_${new Date().toISOString().split('T')[0]}.json`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-        setSuccessMessage('データをエクスポートしました');
-      } else {
-        setErrors({ general: result.error });
-      }
-    } catch (error) {
-      console.error('データエクスポートエラー:', error);
-      setErrors({ general: 'データのエクスポートに失敗しました' });
-    }
-  };
+  // 解約処理
+  const handleCancelSubscription = () => {
+    // ユーザー情報を更新してサブスクリプションを無効にする
+    const updatedUser = {
+      ...currentUser,
+      subscriptionActive: false,
+      cancelledAt: new Date().toISOString()
+    };
 
-  if (!currentUser) {
-    return (
-      <div className="text-center py-8">
-        <p className="text-gray-500">ユーザー情報を読み込み中...</p>
-      </div>
-    );
-  }
+    // localStorageから決済関連データを削除
+    localStorage.removeItem('paymentStatus');
+    localStorage.removeItem('isPaid');
+    localStorage.removeItem('selectedPlan');
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('currentUser');
+    localStorage.removeItem('userInfo');
+
+    // 更新されたユーザー情報を保存（解約済みとして）
+    localStorage.setItem('cancelledUser', JSON.stringify(updatedUser));
+
+    // 親コンポーネントに通知
+    onUpdateUser(null);
+    
+    setMessage({ type: 'success', text: 'サブスクリプションを解約しました。システムからログアウトします。' });
+    
+    // 3秒後にページをリロードしてログイン画面に戻す
+    setTimeout(() => {
+      window.location.reload();
+    }, 3000);
+  };
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">プロフィール設定</h1>
-
-      {/* 成功メッセージ */}
-      {successMessage && (
-        <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded">
-          {successMessage}
-        </div>
-      )}
-
-      {/* エラーメッセージ */}
-      {errors.general && (
-        <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-          {errors.general}
-        </div>
-      )}
-
-      <div className="space-y-6">
-        {/* 基本情報 */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">基本情報</h2>
-          
-          <form onSubmit={handleProfileUpdate} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                メールアドレス
-              </label>
-              <input
-                type="email"
-                value={currentUser.email}
-                disabled
-                className="w-full p-3 border border-gray-300 rounded-md bg-gray-50 text-gray-500"
-              />
-              <p className="mt-1 text-xs text-gray-500">メールアドレスは変更できません</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                名前 <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                name="name"
-                value={formData.name}
-                onChange={handleInputChange}
-                className={`w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                  errors.name ? 'border-red-500' : 'border-gray-300'
-                }`}
-                disabled={isLoading}
-              />
-              {errors.name && (
-                <p className="mt-1 text-sm text-red-600">{errors.name}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                ユーザー種別
-              </label>
-              <input
-                type="text"
-                value={currentUser.role === 'STUDENT' ? '生徒' : '講師'}
-                disabled
-                className="w-full p-3 border border-gray-300 rounded-md bg-gray-50 text-gray-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                最終ログイン
-              </label>
-              <input
-                type="text"
-                value={currentUser.last_sign_in_at ? new Date(currentUser.last_sign_in_at).toLocaleString('ja-JP') : '未記録'}
-                disabled
-                className="w-full p-3 border border-gray-300 rounded-md bg-gray-50 text-gray-500"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className={`w-full py-2 px-4 rounded-md text-white font-medium ${
-                isLoading
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-blue-600 hover:bg-blue-700 focus:ring-2 focus:ring-blue-500'
-              } transition-colors`}
-            >
-              {isLoading ? '更新中...' : 'プロフィールを更新'}
-            </button>
-          </form>
+      <div className="bg-white rounded-lg shadow-lg p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-gray-900">プロフィール設定</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
-        {/* パスワード変更 */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">パスワード変更</h2>
-            <button
-              onClick={() => setShowPasswordChange(!showPasswordChange)}
-              className="text-blue-600 hover:text-blue-700 text-sm font-medium"
-            >
-              {showPasswordChange ? 'キャンセル' : 'パスワードを変更'}
-            </button>
+        {message.text && (
+          <div className={`mb-4 p-3 rounded-lg ${
+            message.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
+          }`}>
+            {message.text}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              名前
+            </label>
+            <input
+              type="text"
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
           </div>
 
-          {showPasswordChange && (
-            <form onSubmit={handlePasswordChange} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              メールアドレス
+            </label>
+            <input
+              type="email"
+              name="email"
+              value={formData.email}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              電話番号
+            </label>
+            <input
+              type="tel"
+              name="phoneNumber"
+              value={formData.phoneNumber}
+              onChange={handleChange}
+              pattern="\d{3}-\d{4}-\d{4}"
+              placeholder="000-0000-0000"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="mt-1 text-sm text-gray-500">000-0000-0000の形式で入力してください</p>
+          </div>
+
+          <div className="border-t pt-6">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">パスワード変更</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              パスワードを変更する場合のみ入力してください
+            </p>
+            
+            <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  現在のパスワード <span className="text-red-500">*</span>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  新しいパスワード
                 </label>
                 <input
                   type="password"
-                  name="currentPassword"
-                  value={formData.currentPassword}
-                  onChange={handleInputChange}
-                  className={`w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    errors.currentPassword ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                  disabled={isLoading}
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="6文字以上で入力"
                 />
-                {errors.currentPassword && (
-                  <p className="mt-1 text-sm text-red-600">{errors.currentPassword}</p>
-                )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  新しいパスワード <span className="text-red-500">*</span>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  新しいパスワード（確認）
                 </label>
                 <input
                   type="password"
-                  name="newPassword"
-                  value={formData.newPassword}
-                  onChange={handleInputChange}
-                  className={`w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    errors.newPassword ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                  placeholder="6文字以上"
-                  disabled={isLoading}
+                  name="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="もう一度入力"
                 />
-                {errors.newPassword && (
-                  <p className="mt-1 text-sm text-red-600">{errors.newPassword}</p>
-                )}
               </div>
+            </div>
+          </div>
 
+          <div className="flex items-center justify-between pt-6">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+            >
+              キャンセル
+            </button>
+            <button
+              type="submit"
+              className="px-6 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              設定を保存
+            </button>
+          </div>
+        </form>
+
+        {/* サブスクリプション管理セクション */}
+        <div className="border-t pt-6 mt-6">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">サブスクリプション管理</h3>
+          
+          {/* 現在のプラン情報 */}
+          <div className="bg-gray-50 rounded-lg p-4 mb-4">
+            <div className="flex items-center justify-between">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  新しいパスワード確認 <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="password"
-                  name="confirmNewPassword"
-                  value={formData.confirmNewPassword}
-                  onChange={handleInputChange}
-                  className={`w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    errors.confirmNewPassword ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                  placeholder="新しいパスワードを再入力"
-                  disabled={isLoading}
-                />
-                {errors.confirmNewPassword && (
-                  <p className="mt-1 text-sm text-red-600">{errors.confirmNewPassword}</p>
-                )}
+                <p className="text-sm font-medium text-gray-900">現在のプラン</p>
+                <p className="text-sm text-gray-600">
+                  {currentUser?.selectedPlan?.name || 'ベーシックプラン'}
+                </p>
+                <p className="text-xs text-gray-500">
+                  登録日: {currentUser?.registeredAt ? new Date(currentUser.registeredAt).toLocaleDateString('ja-JP') : 'N/A'}
+                </p>
               </div>
+              <div className="text-right">
+                <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                  currentUser?.subscriptionActive !== false
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-red-100 text-red-800'
+                }`}>
+                  {currentUser?.subscriptionActive !== false ? 'アクティブ' : '解約済み'}
+                </span>
+              </div>
+            </div>
+          </div>
 
-              <button
-                type="submit"
-                disabled={isLoading}
-                className={`w-full py-2 px-4 rounded-md text-white font-medium ${
-                  isLoading
-                    ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-red-600 hover:bg-red-700 focus:ring-2 focus:ring-red-500'
-                } transition-colors`}
-              >
-                {isLoading ? '変更中...' : 'パスワードを変更'}
-              </button>
-            </form>
+          {/* 解約ボタン */}
+          {currentUser?.subscriptionActive !== false && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3 flex-1">
+                  <h4 className="text-sm font-medium text-red-800">
+                    サブスクリプションの解約
+                  </h4>
+                  <p className="mt-1 text-sm text-red-700">
+                    解約すると、すぐにシステムにアクセスできなくなります。この操作は取り消せません。
+                  </p>
+                  <div className="mt-4">
+                    <button
+                      type="button"
+                      onClick={() => setShowCancelModal(true)}
+                      className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+                    >
+                      サブスクリプションを解約
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
         </div>
 
-        {/* データ管理 */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">データ管理</h2>
-          
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-sm font-medium text-gray-700 mb-2">データエクスポート</h3>
-              <p className="text-sm text-gray-500 mb-3">
-                あなたのアカウント情報をJSONファイルとしてダウンロードできます。
+        {/* 解約確認モーダル */}
+        {showCancelModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+              <div className="flex items-center mb-4">
+                <svg className="h-6 w-6 text-red-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+                <h3 className="text-lg font-medium text-gray-900">解約の確認</h3>
+              </div>
+              <p className="text-sm text-gray-600 mb-6">
+                本当にサブスクリプションを解約しますか？解約すると、すぐにシステムにアクセスできなくなり、この操作は取り消せません。
               </p>
-              <button
-                onClick={handleExportData}
-                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:ring-2 focus:ring-green-500 transition-colors"
-              >
-                データをエクスポート
-              </button>
-            </div>
-
-            <div className="pt-4 border-t border-gray-200">
-              <h3 className="text-sm font-medium text-gray-700 mb-2">アカウント情報</h3>
-              <div className="text-sm text-gray-500 space-y-1">
-                <p>アカウント作成日: {new Date(currentUser.created_at).toLocaleString('ja-JP')}</p>
-                <p>ユーザーID: {currentUser.id}</p>
-                <p className="text-xs text-blue-600 mt-2">
-                  ✓ Supabaseで安全に管理されています
-                </p>
+              <div className="flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setShowCancelModal(false)}
+                  className="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCancelSubscription}
+                  className="px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  解約する
+                </button>
               </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
-};
+}

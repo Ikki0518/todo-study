@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { PersonalizeMode } from './components/PersonalizeMode';
 import { CompanionMode } from './components/CompanionMode';
 import { LoginScreen } from './components/LoginScreen';
-import InstructorDailyPlanner from './components/InstructorView';
+import InstructorDashboard from './components/InstructorView';
 import { MonthlyCalendar } from './components/MonthlyCalendar';
 import { StudyBookManager } from './components/StudyBookManager';
 import { DailyTaskPool } from './components/DailyTaskPool';
@@ -28,9 +28,9 @@ function App() {
   })
   const [userRole, setUserRole] = useState(() => {
     try {
-      return localStorage.getItem('userRole') || 'STUDENT'
+      return localStorage.getItem('userRole') || 'INSTRUCTOR'
     } catch {
-      return 'STUDENT'
+      return 'INSTRUCTOR'
     }
   })
   const [currentUser, setCurrentUser] = useState(() => {
@@ -1624,7 +1624,7 @@ function App() {
         )}
 
         {userRole === 'INSTRUCTOR' && currentView === 'dashboard' && (
-          <InstructorDailyPlanner />
+          <InstructorDashboard />
         )}
 
         {currentView === 'profile' && (

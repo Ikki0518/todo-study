@@ -5,9 +5,9 @@ export function DailyTaskPool({
   onTasksUpdate,
   onTaskDragStart,
   selectedDate,
-  // タッチイベント用
-  onTouchStart,
-  onTouchMove
+  overdueTasks = [],
+  draggingOverCalendar = false,
+  draggingTaskId = null
 }) {
   const [showAddForm, setShowAddForm] = useState(false)
 
@@ -177,6 +177,45 @@ export function DailyTaskPool({
 
   return (
     <div className="bg-white rounded-lg shadow p-3 sm:p-4 lg:p-6">
+      {/* 未達成タスクプール */}
+      {overdueTasks.length > 0 && (
+        <div className="mb-4 p-3 bg-red-50 border-2 border-red-200 rounded-lg">
+          <h3 className="font-semibold text-red-700 mb-2 flex items-center">
+            ⚠️ 未達成タスクプール ({overdueTasks.length}件)
+          </h3>
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            {overdueTasks.filter(task => task.id !== draggingTaskId).map((task) => (
+              <div
+                key={task.id}
+                className={`p-2 bg-white rounded-md border border-red-300 cursor-move hover:shadow-md transition-all duration-300 ${
+                  draggingOverCalendar ? 'animate-drag-shrink' : ''
+                }`}
+                draggable
+                onDragStart={(e) => {
+                  console.log('🔍 Debug - 未達成タスクのドラッグ開始:', task)
+                  if (onTaskDragStart) {
+                    onTaskDragStart(e, task)
+                    e.dataTransfer.setData('fromLocation', 'overdueTasks')
+                  }
+                }}
+              >
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs">{getPriorityIcon(task.priority)}</span>
+                  <h4 className="font-medium text-sm flex-1">{task.title}</h4>
+                  <span className="text-xs text-red-600">
+                    {task.originalDate && new Date(task.originalDate).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}
+                  </span>
+                </div>
+                {task.description && (
+                  <p className="text-xs text-gray-600 mt-1 line-clamp-1">{task.description}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 本日のタスクプール */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-2">
         <h2 className="font-semibold text-base sm:text-lg lg:text-xl">
           📋 {formatDate(selectedDate)}のタスクプール
@@ -213,18 +252,130 @@ export function DailyTaskPool({
 
       {/* タスクリスト */}
       <div className="space-y-2 sm:space-y-3 lg:space-y-4 max-h-80 sm:max-h-96 lg:max-h-[500px] overflow-y-auto">
-        {sortedTasks.map((task) => (
+        {sortedTasks.filter(task => task.id !== draggingTaskId).map((task) => (
           <div
             key={task.id}
-            className={`p-2 sm:p-3 lg:p-4 rounded-md border-2 cursor-move hover:shadow-md transition-shadow ${
+            className={`p-2 sm:p-3 lg:p-4 rounded-md border-2 cursor-move hover:shadow-md transition-all duration-300 ${
+              draggingOverCalendar && !task.completed ? 'animate-drag-shrink' : ''
+            } ${
               task.completed
                 ? 'bg-gray-100 border-gray-300 opacity-75'
                 : getPriorityColor(task.priority)
             }`}
             draggable={!task.completed}
-            onDragStart={(e) => !task.completed && onTaskDragStart && onTaskDragStart(e, task)}
-            onTouchStart={(e) => !task.completed && onTouchStart && onTouchStart(e, task, 'pool')}
-            onTouchMove={onTouchMove}
+            onDragStart={(e) => {
+              if (!task.completed) {
+                console.log('🔍 Debug - タスクプールからのドラッグ開始:', task)
+                if (onTaskDragStart) {
+                  onTaskDragStart(e, task)
+                  e.dataTransfer.setData('fromLocation', 'taskPool')
+                }
+              }
+            }}
+            onTouchStart={!task.completed ? (e) => {
+              e.preventDefault()
+              console.log('🔍 Debug - タスクプール タッチ開始:', task)
+              
+              const touch = e.touches[0]
+              window.taskPoolTouch = {
+                startTime: Date.now(),
+                startX: touch.clientX,
+                startY: touch.clientY,
+                hasMoved: false,
+                isDragging: false,
+                task: task,
+                element: e.currentTarget
+              }
+              
+              // 視覚フィードバック
+              e.currentTarget.style.opacity = '0.9'
+              e.currentTarget.style.transform = 'scale(1.02)'
+              
+              // 長押し検出（100ms）- さらに短くして反応を向上
+              window.taskPoolTouch.longPressTimer = setTimeout(() => {
+                console.log('🔍 Debug - タスクプール 長押し検出、ドラッグモード開始')
+                window.taskPoolTouch.isDragging = true
+                
+                // ドラッグ開始の視覚効果
+                e.currentTarget.style.opacity = '0.8'
+                e.currentTarget.style.transform = 'scale(1.05)'
+                e.currentTarget.style.zIndex = '50'
+                
+                if (onTaskDragStart) {
+                  // 疑似的なドラッグイベントを作成
+                  const fakeEvent = {
+                    dataTransfer: {
+                      setData: (type, data) => {
+                        window.taskPoolDragData = { type, data }
+                      }
+                    }
+                  }
+                  onTaskDragStart(fakeEvent, task)
+                  fakeEvent.dataTransfer.setData('fromLocation', 'taskPool')
+                }
+                
+                // バイブレーション
+                if (navigator.vibrate) {
+                  navigator.vibrate([150, 50, 150])
+                }
+              }, 100)
+            } : undefined}
+            onTouchMove={!task.completed ? (e) => {
+              if (!e.touches[0] || !window.taskPoolTouch) return
+              
+              const touch = e.touches[0]
+              const deltaX = Math.abs(touch.clientX - window.taskPoolTouch.startX)
+              const deltaY = Math.abs(touch.clientY - window.taskPoolTouch.startY)
+              
+              // 移動距離が25px以上の場合、移動フラグを設定
+              if (deltaX > 25 || deltaY > 25) {
+                window.taskPoolTouch.hasMoved = true
+                
+                // 長押しタイマーをクリア
+                if (window.taskPoolTouch.longPressTimer) {
+                  clearTimeout(window.taskPoolTouch.longPressTimer)
+                  window.taskPoolTouch.longPressTimer = null
+                }
+              }
+              
+              // ドラッグ中の場合、ドラッグ状態を維持
+              if (window.taskPoolTouch.isDragging) {
+                e.preventDefault()
+                console.log('🔍 Debug - タスクプール ドラッグ移動中')
+              }
+            } : undefined}
+            onTouchEnd={!task.completed ? (e) => {
+              if (!window.taskPoolTouch) return
+              
+              // 長押しタイマーをクリア
+              if (window.taskPoolTouch.longPressTimer) {
+                clearTimeout(window.taskPoolTouch.longPressTimer)
+                window.taskPoolTouch.longPressTimer = null
+              }
+              
+              const touchDuration = Date.now() - window.taskPoolTouch.startTime
+              const hasMoved = window.taskPoolTouch.hasMoved
+              const isDragging = window.taskPoolTouch.isDragging
+              
+              console.log('🔍 Debug - タスクプール タッチ終了:', {
+                touchDuration,
+                hasMoved,
+                isDragging
+              })
+              
+              // スタイルをリセット
+              e.currentTarget.style.opacity = '1'
+              e.currentTarget.style.transform = 'scale(1)'
+              e.currentTarget.style.zIndex = '10'
+              
+              // ドラッグモードの場合は何もしない（カレンダー側で処理）
+              if (isDragging) {
+                console.log('🔍 Debug - タスクプール ドラッグ終了')
+              }
+              
+              // グローバル状態をリセット
+              window.taskPoolTouch = null
+            } : undefined}
           >
             <div className="flex items-start space-x-2 sm:space-x-3 lg:space-x-4">
               <input
@@ -259,11 +410,7 @@ export function DailyTaskPool({
                 )}
                 {task.bookTitle && (
                   <div className="text-xs sm:text-sm lg:text-base text-blue-600 mt-1">
-                    {task.studyType === 'problems' ? (
-                      <>🧮 {task.bookTitle}: {task.startProblem}-{task.endProblem}問</>
-                    ) : (
-                      <>📚 {task.bookTitle}: {task.startPage}-{task.endPage}ページ</>
-                    )}
+                    📚 {task.bookTitle}: {task.startPage}-{task.endPage}ページ
                   </div>
                 )}
               </div>

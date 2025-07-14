@@ -6,44 +6,15 @@
  * @returns {Object} 日付をキーとした学習計画オブジェクト
  */
 export function generateStudyPlan(studyBooks) {
-  console.log('📊 学習プラン生成開始:', studyBooks)
   const studyPlan = {}
   
   studyBooks.forEach(book => {
-    const isProblems = book.studyType === 'problems'
-    const dailyTarget = isProblems ? book.dailyProblems : book.dailyPages
-    const currentProgress = isProblems ? (book.currentProblem || 0) : (book.currentPage || 0)
-    const totalUnits = isProblems ? book.totalProblems : book.totalPages
+    if (!book.dailyPages || book.dailyPages <= 0) return
     
-    // デバッグログ：参考書の詳細情報
-    console.log(`📖 参考書詳細 - ${book.title}:`, {
-      studyType: book.studyType,
-      isProblems,
-      dailyTarget,
-      currentProgress,
-      totalUnits,
-      remainingUnits: totalUnits - currentProgress,
-      rawData: {
-        dailyPages: book.dailyPages,
-        dailyProblems: book.dailyProblems,
-        currentPage: book.currentPage,
-        currentProblem: book.currentProblem,
-        totalPages: book.totalPages,
-        totalProblems: book.totalProblems
-      }
-    })
+    const currentPage = book.currentPage || 0
+    const remainingPages = book.totalPages - currentPage
     
-    if (!dailyTarget || dailyTarget <= 0) {
-      console.log(`⚠️ スキップ: dailyTarget が無効 (${dailyTarget})`)
-      return
-    }
-    
-    const remainingUnits = totalUnits - currentProgress
-    
-    if (remainingUnits <= 0) {
-      console.log(`⚠️ スキップ: 残り単位が0以下 (${remainingUnits})`)
-      return
-    }
+    if (remainingPages <= 0) return
     
     // 除外する曜日を取得（デフォルトは土曜日のみ）
     const excludeDays = book.excludeDays || [6] // 0=日曜日, 1=月曜日, ..., 6=土曜日
@@ -52,97 +23,54 @@ export function generateStudyPlan(studyBooks) {
     let currentDate
     if (book.startDate) {
       // 日付文字列を正確にパース（YYYY-MM-DD形式）
-      // UTC時間で作成して時差問題を回避
       const [year, month, day] = book.startDate.split('-').map(Number)
-      currentDate = new Date(Date.UTC(year, month - 1, day)) // UTC時間で作成
-      
-      console.log(`📅 開始日設定: ${book.startDate} → ${currentDate.toISOString().split('T')[0]} (曜日: ${currentDate.getDay()})`)
+      currentDate = new Date(year, month - 1, day) // 月は0ベース
+      currentDate.setHours(0, 0, 0, 0)
     } else {
-      // 今日の日付を正確に設定（UTC時間で統一）
-      const now = new Date()
-      currentDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()))
-      
-      console.log(`📅 開始日設定（今日）: ${currentDate.toISOString().split('T')[0]} (曜日: ${currentDate.getDay()})`)
+      // 今日の日付を正確に設定（時刻を00:00:00にリセット）
+      currentDate = new Date()
+      currentDate.setHours(0, 0, 0, 0)
     }
-    let unitsLeft = remainingUnits
-    let unitStart = currentProgress + 1
+    let pagesLeft = remainingPages
+    let pageStart = currentPage + 1
     
-    // デバッグログを追加：開始位置の確認
-    console.log(`📚 学習プラン生成 - ${book.title}: currentProgress=${currentProgress}, unitStart=${unitStart}, totalUnits=${totalUnits}, remainingUnits=${remainingUnits}`)
+    // 開始日が除外日の場合、最初の学習可能日まで進める
+    while (excludeDays.includes(currentDate.getDay())) {
+      currentDate.setDate(currentDate.getDate() + 1)
+    }
     
-    // 指定された開始日から正確に開始（除外日処理は学習日のスキップのみ）
-    const originalStartDate = new Date(currentDate)
-    console.log(`📅 学習開始日: ${originalStartDate.toISOString().split('T')[0]} (曜日: ${originalStartDate.getDay()})`)
-    
-    // 除外日の場合でも開始日は変更しない
-    // 除外日は単純にスキップするだけ
-    
-    while (unitsLeft > 0) {
+    while (pagesLeft > 0) {
       const dayOfWeek = currentDate.getDay()
-      const dateKey = currentDate.toISOString().split('T')[0]
+      // ローカルタイムゾーンベースで日付キーを生成
+      const year = currentDate.getFullYear()
+      const month = String(currentDate.getMonth() + 1).padStart(2, '0')
+      const day = String(currentDate.getDate()).padStart(2, '0')
+      const dateKey = `${year}-${month}-${day}`
       
       // 除外する曜日でない場合のみ学習計画を追加
       if (!excludeDays.includes(dayOfWeek)) {
-        // その日に学習する単位数を決定
-        const unitsToStudy = Math.min(dailyTarget, unitsLeft)
-        const unitEnd = unitStart + unitsToStudy - 1
-        
-        console.log(`📅 学習日 ${dateKey}: ${unitStart}-${unitEnd} (${unitsToStudy}単位, 残り${unitsLeft}単位)`)
+        // その日に学習するページ数を決定
+        const pagesToStudy = Math.min(book.dailyPages, pagesLeft)
+        const pageEnd = pageStart + pagesToStudy - 1
         
         // 学習計画を追加
         if (!studyPlan[dateKey]) {
           studyPlan[dateKey] = []
         }
         
-        const planData = {
+        studyPlan[dateKey].push({
           id: `${book.id}-${dateKey}`,
           bookId: book.id,
           bookTitle: book.title,
+          startPage: pageStart,
+          endPage: pageEnd,
           category: book.category,
-          priority: getPriorityByCategory(book.category),
-          studyType: book.studyType
-        }
+          priority: getPriorityByCategory(book.category)
+        })
         
-        // ページベースか問題ベースかで分岐
-        if (isProblems) {
-          planData.startProblem = unitStart
-          planData.endProblem = unitEnd
-          planData.problems = unitsToStudy
-          
-          // デバッグログ：問題範囲の確認
-          console.log(`🧮 問題ベース学習プラン生成 [${dateKey}]:`, {
-            bookTitle: book.title,
-            unitStart,
-            unitEnd,
-            unitsToStudy,
-            unitsLeft,
-            currentProgress,
-            startProblem: unitStart,
-            endProblem: unitEnd
-          })
-        } else {
-          planData.startPage = unitStart
-          planData.endPage = unitEnd
-          planData.pages = unitsToStudy
-          
-          // デバッグログ：ページ範囲の確認
-          console.log(`📚 ページベース学習プラン生成 [${dateKey}]:`, {
-            bookTitle: book.title,
-            unitStart,
-            unitEnd,
-            unitsToStudy,
-            unitsLeft,
-            currentProgress,
-            startPage: unitStart,
-            endPage: unitEnd
-          })
-        }
-        
-        studyPlan[dateKey].push(planData)
-        
-        // 単位数を更新
-        unitsLeft -= unitsToStudy
-        unitStart = unitEnd + 1
+        // ページ数を更新
+        pagesLeft -= pagesToStudy
+        pageStart = pageEnd + 1
       }
       
       // 次の日に進む
@@ -198,60 +126,22 @@ function getPriorityByCategory(category) {
  * @returns {Array} タスク配列
  */
 export function convertPlansToTasks(dayPlans) {
-  console.log('🔄 convertPlansToTasks 開始 - 入力データ:', dayPlans)
-  
-  return dayPlans.map((plan, index) => {
-    const isProblems = plan.studyType === 'problems'
-    
-    console.log(`📋 タスク変換 [${index}]:`, {
-      bookTitle: plan.bookTitle,
-      studyType: plan.studyType,
-      startProblem: plan.startProblem,
-      endProblem: plan.endProblem,
-      startPage: plan.startPage,
-      endPage: plan.endPage,
-      problems: plan.problems,
-      pages: plan.pages
-    })
-    
-    // タイトルと説明を学習タイプに応じて生成
-    let title, description
-    if (isProblems) {
-      title = `${plan.bookTitle} (${plan.startProblem}-${plan.endProblem}問)`
-      description = `${plan.bookTitle}の${plan.startProblem}問から${plan.endProblem}問までを学習${plan.type === 'book-goal' ? ' (目標)' : ''}`
-    } else {
-      title = `${plan.bookTitle} (${plan.startPage}-${plan.endPage}ページ)`
-      description = `${plan.bookTitle}の${plan.startPage}ページから${plan.endPage}ページまでを学習${plan.type === 'book-goal' ? ' (目標)' : ''}`
-    }
-    
-    const baseTask = {
-      id: `task-${plan.id}`,
-      title,
-      description,
-      priority: plan.priority || 'medium',
-      completed: false,
-      source: 'calendar',
-      bookId: plan.bookId,
-      bookTitle: plan.bookTitle,
-      category: plan.category || 'study',
-      type: plan.type, // 参考書目標かどうかの識別
-      studyType: plan.studyType,
-      createdAt: new Date().toISOString()
-    }
-    
-    // 学習タイプに応じて追加フィールドを設定
-    if (isProblems) {
-      baseTask.startProblem = plan.startProblem
-      baseTask.endProblem = plan.endProblem
-      baseTask.problems = plan.problems
-    } else {
-      baseTask.startPage = plan.startPage
-      baseTask.endPage = plan.endPage
-      baseTask.pages = plan.pages
-    }
-    
-    return baseTask
-  })
+  return dayPlans.map(plan => ({
+    id: `task-${plan.id}`,
+    title: `${plan.bookTitle} (${plan.startPage}-${plan.endPage}ページ)`,
+    description: `${plan.bookTitle}の${plan.startPage}ページから${plan.endPage}ページまでを学習${plan.type === 'book-goal' ? ' (目標)' : ''}`,
+    priority: plan.priority || 'medium',
+    completed: false,
+    source: 'calendar',
+    bookId: plan.bookId,
+    bookTitle: plan.bookTitle,
+    startPage: plan.startPage,
+    endPage: plan.endPage,
+    pages: plan.pages,
+    category: plan.category || 'study',
+    type: plan.type, // 参考書目標かどうかの識別
+    createdAt: new Date().toISOString()
+  }))
 }
 
 /**
@@ -277,8 +167,6 @@ export function calculateStudyPlanStats(studyPlan, studyBooks) {
       title: book.title,
       totalMinutes: 0,
       totalPages: 0,
-      totalProblems: 0,
-      studyType: book.studyType,
       completionDate: null
     }
   })
@@ -287,22 +175,11 @@ export function calculateStudyPlanStats(studyPlan, studyBooks) {
   allDates.forEach(dateKey => {
     const dayPlans = studyPlan[dateKey]
     dayPlans.forEach(plan => {
-      // 推定学習時間を計算（仮に1ページ=5分、1問=3分と仮定）
-      const estimatedMinutes = plan.studyType === 'problems'
-        ? (plan.problems || 0) * 3
-        : (plan.pages || 0) * 5
-      
-      stats.totalHours += estimatedMinutes
+      stats.totalHours += plan.estimatedMinutes
       
       if (stats.bookStats[plan.bookId]) {
-        stats.bookStats[plan.bookId].totalMinutes += estimatedMinutes
-        
-        // 学習タイプに応じて統計を更新
-        if (plan.studyType === 'problems') {
-          stats.bookStats[plan.bookId].totalProblems += (plan.endProblem - plan.startProblem + 1)
-        } else {
-          stats.bookStats[plan.bookId].totalPages += (plan.endPage - plan.startPage + 1)
-        }
+        stats.bookStats[plan.bookId].totalMinutes += plan.estimatedMinutes
+        stats.bookStats[plan.bookId].totalPages += (plan.endPage - plan.startPage + 1)
         
         // 完了日を更新
         if (!stats.bookStats[plan.bookId].completionDate || dateKey > stats.bookStats[plan.bookId].completionDate) {

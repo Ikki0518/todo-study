@@ -1,255 +1,298 @@
--- AI Study Planner Database Schema for Supabase
-
--- Enable Row Level Security
--- ALTER DATABASE postgres SET "app.settings.jwt_secret" TO 'your-jwt-secret';
-
--- Users table (基本ユーザー情報)
-CREATE TABLE IF NOT EXISTS users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    email VARCHAR(255) UNIQUE NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    role VARCHAR(50) NOT NULL CHECK (role IN ('STUDENT', 'INSTRUCTOR', 'ADMIN')),
-    avatar_url TEXT,
-    timezone VARCHAR(100) DEFAULT 'Asia/Tokyo',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+-- ユーザープロファイルテーブル（新システム）
+CREATE TABLE IF NOT EXISTS profiles (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  auth_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id VARCHAR(10) UNIQUE NOT NULL, -- PM-0001 形式のユーザーID
+  email VARCHAR(255) NOT NULL,
+  name VARCHAR(100) NOT NULL,
+  phone_number VARCHAR(20),
+  role VARCHAR(20) NOT NULL CHECK (role IN ('TEACHER', 'STUDENT')),
+  tenant_code VARCHAR(10) NOT NULL, -- 塾コード (PM, TM など)
+  avatar_url TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Students table (受講生情報)
-CREATE TABLE IF NOT EXISTS students (
-    id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-    instructor_id UUID REFERENCES users(id) ON DELETE SET NULL,
-    grade_level VARCHAR(50),
-    subjects TEXT[],
-    learning_goals TEXT,
-    weekly_study_hours INTEGER DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+-- インデックス作成
+CREATE INDEX IF NOT EXISTS idx_profiles_user_id ON profiles(user_id);
+CREATE INDEX IF NOT EXISTS idx_profiles_auth_id ON profiles(auth_id);
+CREATE INDEX IF NOT EXISTS idx_profiles_tenant_code ON profiles(tenant_code);
+CREATE INDEX IF NOT EXISTS idx_profiles_role ON profiles(role);
+CREATE INDEX IF NOT EXISTS idx_profiles_tenant_role ON profiles(tenant_code, role);
+
+-- テナント情報テーブル
+CREATE TABLE IF NOT EXISTS tenants (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  code VARCHAR(10) UNIQUE NOT NULL, -- PM, TM など
+  name VARCHAR(100) NOT NULL, -- 塾名
+  description TEXT,
+  settings JSONB DEFAULT '{}',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Instructors table (講師情報)
-CREATE TABLE IF NOT EXISTS instructors (
-    id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-    specialties TEXT[],
-    experience_years INTEGER DEFAULT 0,
-    max_students INTEGER DEFAULT 50,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+-- デフォルトテナントを挿入
+INSERT INTO tenants (code, name, description) VALUES 
+('PM', 'プライムメソッド', 'プライムメソッド学習塾'),
+('TM', 'トップメソッド', 'トップメソッド学習塾')
+ON CONFLICT (code) DO NOTHING;
+
+-- 課題テーブル
+CREATE TABLE IF NOT EXISTS assignments (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  tenant_code VARCHAR(10) NOT NULL REFERENCES tenants(code),
+  teacher_user_id VARCHAR(10) NOT NULL, -- 作成した講師のユーザーID
+  title VARCHAR(200) NOT NULL,
+  description TEXT,
+  due_date TIMESTAMP WITH TIME ZONE,
+  status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'archived', 'draft')),
+  settings JSONB DEFAULT '{}',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Goals table (学習目標)
-CREATE TABLE IF NOT EXISTS goals (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
-    title VARCHAR(255) NOT NULL,
-    description TEXT,
-    target_date DATE,
-    priority VARCHAR(20) DEFAULT 'MEDIUM' CHECK (priority IN ('LOW', 'MEDIUM', 'HIGH')),
-    status VARCHAR(20) DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'COMPLETED', 'PAUSED')),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+-- 課題提出テーブル
+CREATE TABLE IF NOT EXISTS assignment_submissions (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  assignment_id UUID NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+  student_user_id VARCHAR(10) NOT NULL, -- 提出した生徒のユーザーID
+  content TEXT,
+  files JSONB DEFAULT '[]', -- ファイル情報の配列
+  status VARCHAR(20) DEFAULT 'submitted' CHECK (status IN ('draft', 'submitted', 'graded')),
+  score INTEGER,
+  feedback TEXT,
+  submitted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  graded_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Study Materials table (学習教材)
-CREATE TABLE IF NOT EXISTS study_materials (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    title VARCHAR(255) NOT NULL,
-    description TEXT,
-    type VARCHAR(50) DEFAULT 'TEXTBOOK' CHECK (type IN ('TEXTBOOK', 'WORKBOOK', 'ONLINE', 'VIDEO', 'OTHER')),
-    subject VARCHAR(100),
-    difficulty_level VARCHAR(20) DEFAULT 'MEDIUM' CHECK (difficulty_level IN ('BEGINNER', 'MEDIUM', 'ADVANCED')),
-    url TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+-- 学習記録テーブル
+CREATE TABLE IF NOT EXISTS study_records (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  student_user_id VARCHAR(10) NOT NULL, -- 学習した生徒のユーザーID
+  tenant_code VARCHAR(10) NOT NULL,
+  subject VARCHAR(50),
+  topic VARCHAR(100),
+  duration_minutes INTEGER NOT NULL,
+  score INTEGER,
+  notes TEXT,
+  study_date DATE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Tasks table (タスク情報)
-CREATE TABLE IF NOT EXISTS tasks (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
-    goal_id UUID NOT NULL REFERENCES goals(id) ON DELETE CASCADE,
-    material_id UUID REFERENCES study_materials(id) ON DELETE SET NULL,
-    title VARCHAR(255) NOT NULL,
-    description TEXT,
-    type VARCHAR(20) DEFAULT 'MANUAL' CHECK (type IN ('AI_GENERATED', 'MANUAL')),
-    status VARCHAR(20) DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'IN_PROGRESS', 'COMPLETED', 'OVERDUE')),
-    estimated_minutes INTEGER DEFAULT 60,
-    actual_minutes INTEGER,
-    scheduled_date DATE NOT NULL,
-    scheduled_start_time TIME,
-    scheduled_end_time TIME,
-    completed_at TIMESTAMP WITH TIME ZONE,
-    is_overdue BOOLEAN DEFAULT FALSE,
-    google_calendar_event_id VARCHAR(255),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+-- メッセージテーブル
+CREATE TABLE IF NOT EXISTS messages (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  tenant_code VARCHAR(10) NOT NULL,
+  sender_user_id VARCHAR(10) NOT NULL, -- 送信者のユーザーID
+  recipient_user_id VARCHAR(10), -- 受信者のユーザーID（NULLの場合は全体メッセージ）
+  subject VARCHAR(200),
+  content TEXT NOT NULL,
+  is_read BOOLEAN DEFAULT FALSE,
+  message_type VARCHAR(20) DEFAULT 'direct' CHECK (message_type IN ('direct', 'broadcast', 'system')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Comments table (コメント情報)
-CREATE TABLE IF NOT EXISTS comments (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-    instructor_id UUID NOT NULL REFERENCES instructors(id) ON DELETE CASCADE,
-    student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
-    content TEXT NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+-- インデックス作成
+CREATE INDEX IF NOT EXISTS idx_assignments_tenant_code ON assignments(tenant_code);
+CREATE INDEX IF NOT EXISTS idx_assignments_teacher ON assignments(teacher_user_id);
+CREATE INDEX IF NOT EXISTS idx_assignment_submissions_assignment ON assignment_submissions(assignment_id);
+CREATE INDEX IF NOT EXISTS idx_assignment_submissions_student ON assignment_submissions(student_user_id);
+CREATE INDEX IF NOT EXISTS idx_study_records_student ON study_records(student_user_id);
+CREATE INDEX IF NOT EXISTS idx_study_records_date ON study_records(study_date);
+CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_user_id);
+CREATE INDEX IF NOT EXISTS idx_messages_recipient ON messages(recipient_user_id);
+CREATE INDEX IF NOT EXISTS idx_messages_tenant ON messages(tenant_code);
 
--- Create indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_students_instructor_id ON students(instructor_id);
-CREATE INDEX IF NOT EXISTS idx_goals_student_id ON goals(student_id);
-CREATE INDEX IF NOT EXISTS idx_tasks_student_id ON tasks(student_id);
-CREATE INDEX IF NOT EXISTS idx_tasks_scheduled_date ON tasks(scheduled_date);
-CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
-CREATE INDEX IF NOT EXISTS idx_comments_task_id ON comments(task_id);
-CREATE INDEX IF NOT EXISTS idx_comments_instructor_id ON comments(instructor_id);
-CREATE INDEX IF NOT EXISTS idx_comments_student_id ON comments(student_id);
+-- RLS (Row Level Security) ポリシー設定
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE assignments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE assignment_submissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE study_records ENABLE ROW LEVEL SECURITY;
+ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 
--- Enable Row Level Security (RLS)
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE students ENABLE ROW LEVEL SECURITY;
-ALTER TABLE instructors ENABLE ROW LEVEL SECURITY;
-ALTER TABLE goals ENABLE ROW LEVEL SECURITY;
-ALTER TABLE study_materials ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
-ALTER TABLE comments ENABLE ROW LEVEL SECURITY;
+-- プロファイルのRLSポリシー
+CREATE POLICY "Users can view profiles in same tenant" ON profiles
+  FOR SELECT USING (
+    tenant_code = (
+      SELECT tenant_code FROM profiles 
+      WHERE auth_id = auth.uid()
+    )
+  );
 
--- Basic RLS Policies (例として - 本番環境では適切に設定してください)
--- Users can view their own data
-CREATE POLICY "Users can view own data" ON users
-    FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Users can update own profile" ON profiles
+  FOR UPDATE USING (auth_id = auth.uid());
 
--- Students can view their own data
-CREATE POLICY "Students can view own data" ON students
-    FOR SELECT USING (auth.uid() = id);
+-- 課題のRLSポリシー
+CREATE POLICY "Teachers can manage assignments in their tenant" ON assignments
+  FOR ALL USING (
+    tenant_code = (
+      SELECT tenant_code FROM profiles 
+      WHERE auth_id = auth.uid() AND role = 'TEACHER'
+    )
+  );
 
--- Instructors can view their assigned students
-CREATE POLICY "Instructors can view assigned students" ON students
-    FOR SELECT USING (
-        EXISTS (
-            SELECT 1 FROM instructors 
-            WHERE id = auth.uid() AND instructors.id = students.instructor_id
-        )
-    );
+CREATE POLICY "Students can view assignments in their tenant" ON assignments
+  FOR SELECT USING (
+    tenant_code = (
+      SELECT tenant_code FROM profiles 
+      WHERE auth_id = auth.uid()
+    )
+  );
 
--- Sample data insertion (Optional - テスト用)
--- INSERT INTO users (id, email, name, role) VALUES 
---     ('550e8400-e29b-41d4-a716-446655440000', 'instructor@example.com', '山田太郎', 'INSTRUCTOR'),
---     ('550e8400-e29b-41d4-a716-446655440001', 'student@example.com', '田中花子', 'STUDENT');
+-- 課題提出のRLSポリシー
+CREATE POLICY "Students can manage own submissions" ON assignment_submissions
+  FOR ALL USING (
+    student_user_id = (
+      SELECT user_id FROM profiles 
+      WHERE auth_id = auth.uid()
+    )
+  );
 
--- Triggers for updated_at
+CREATE POLICY "Teachers can view submissions in their tenant" ON assignment_submissions
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM assignments a
+      JOIN profiles p ON p.auth_id = auth.uid()
+      WHERE a.id = assignment_submissions.assignment_id
+      AND a.tenant_code = p.tenant_code
+      AND p.role = 'TEACHER'
+    )
+  );
+
+-- 学習記録のRLSポリシー
+CREATE POLICY "Students can manage own study records" ON study_records
+  FOR ALL USING (
+    student_user_id = (
+      SELECT user_id FROM profiles 
+      WHERE auth_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Teachers can view study records in their tenant" ON study_records
+  FOR SELECT USING (
+    tenant_code = (
+      SELECT tenant_code FROM profiles 
+      WHERE auth_id = auth.uid() AND role = 'TEACHER'
+    )
+  );
+
+-- メッセージのRLSポリシー
+CREATE POLICY "Users can view messages in their tenant" ON messages
+  FOR SELECT USING (
+    tenant_code = (
+      SELECT tenant_code FROM profiles 
+      WHERE auth_id = auth.uid()
+    )
+    AND (
+      recipient_user_id = (
+        SELECT user_id FROM profiles 
+        WHERE auth_id = auth.uid()
+      )
+      OR recipient_user_id IS NULL -- 全体メッセージ
+      OR sender_user_id = (
+        SELECT user_id FROM profiles 
+        WHERE auth_id = auth.uid()
+      )
+    )
+  );
+
+CREATE POLICY "Users can send messages in their tenant" ON messages
+  FOR INSERT WITH CHECK (
+    tenant_code = (
+      SELECT tenant_code FROM profiles 
+      WHERE auth_id = auth.uid()
+    )
+    AND sender_user_id = (
+      SELECT user_id FROM profiles 
+      WHERE auth_id = auth.uid()
+    )
+  );
+
+-- 関数: ユーザーIDからロールを取得
+CREATE OR REPLACE FUNCTION get_role_from_user_id(user_id_param VARCHAR(10))
+RETURNS VARCHAR(20) AS $$
+DECLARE
+  id_number INTEGER;
+BEGIN
+  -- ユーザーIDから番号部分を抽出 (例: PM-0042 -> 42)
+  id_number := CAST(SUBSTRING(user_id_param FROM '\-(\d{4})$') AS INTEGER);
+  
+  -- 番号に基づいてロールを判定
+  IF id_number >= 1 AND id_number <= 99 THEN
+    RETURN 'TEACHER';
+  ELSE
+    RETURN 'STUDENT';
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 関数: テナントコードをユーザーIDから抽出
+CREATE OR REPLACE FUNCTION get_tenant_code_from_user_id(user_id_param VARCHAR(10))
+RETURNS VARCHAR(10) AS $$
+BEGIN
+  -- ユーザーIDからテナントコード部分を抽出 (例: PM-0042 -> PM)
+  RETURN SUBSTRING(user_id_param FROM '^([A-Z]+)\-');
+END;
+$$ LANGUAGE plpgsql;
+
+-- 関数: 次に利用可能なユーザーID番号を取得
+CREATE OR REPLACE FUNCTION get_next_user_id_number(tenant_code_param VARCHAR(10), role_param VARCHAR(20))
+RETURNS INTEGER AS $$
+DECLARE
+  min_id INTEGER;
+  max_id INTEGER;
+  next_id INTEGER;
+BEGIN
+  -- ロールに基づいて範囲を設定
+  IF role_param = 'TEACHER' THEN
+    min_id := 1;
+    max_id := 99;
+  ELSE
+    min_id := 100;
+    max_id := 9999;
+  END IF;
+  
+  -- 既存のIDから次に利用可能な番号を見つける
+  SELECT COALESCE(MIN(t.id), min_id) INTO next_id
+  FROM (
+    SELECT generate_series(min_id, max_id) AS id
+    EXCEPT
+    SELECT CAST(SUBSTRING(user_id FROM '\-(\d{4})$') AS INTEGER)
+    FROM profiles
+    WHERE tenant_code = tenant_code_param
+    AND user_id ~ ('^' || tenant_code_param || '\-\d{4}$')
+    AND CAST(SUBSTRING(user_id FROM '\-(\d{4})$') AS INTEGER) BETWEEN min_id AND max_id
+  ) t;
+  
+  RETURN next_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- トリガー関数: プロファイル更新時にupdated_atを自動更新
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
+  NEW.updated_at = NOW();
+  RETURN NEW;
 END;
-$$ language 'plpgsql';
+$$ LANGUAGE plpgsql;
 
-CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+-- トリガー作成
+CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON profiles
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_students_updated_at BEFORE UPDATE ON students
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_assignments_updated_at BEFORE UPDATE ON assignments
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_instructors_updated_at BEFORE UPDATE ON instructors
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_assignment_submissions_updated_at BEFORE UPDATE ON assignment_submissions
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_goals_updated_at BEFORE UPDATE ON goals
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_study_records_updated_at BEFORE UPDATE ON study_records
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_study_materials_updated_at BEFORE UPDATE ON study_materials
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_tasks_updated_at BEFORE UPDATE ON tasks
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_comments_updated_at BEFORE UPDATE ON comments
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- Invitations table (招待システム)
-CREATE TABLE IF NOT EXISTS invitations (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    email VARCHAR(255) NOT NULL,
-    role VARCHAR(50) NOT NULL CHECK (role IN ('STUDENT', 'INSTRUCTOR')),
-    invited_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    instructor_id UUID REFERENCES users(id) ON DELETE SET NULL, -- 学生の場合の担当講師
-    token VARCHAR(255) UNIQUE NOT NULL,
-    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    used_at TIMESTAMP WITH TIME ZONE,
-    is_used BOOLEAN DEFAULT FALSE,
-    metadata JSONB DEFAULT '{}', -- 追加情報（学年、科目など）
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- User sessions table (セッション管理)
-CREATE TABLE IF NOT EXISTS user_sessions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    token VARCHAR(255) UNIQUE NOT NULL,
-    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    is_active BOOLEAN DEFAULT TRUE,
-    ip_address INET,
-    user_agent TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Password reset tokens table (パスワードリセット)
-CREATE TABLE IF NOT EXISTS password_reset_tokens (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    token VARCHAR(255) UNIQUE NOT NULL,
-    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    is_used BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Add password field to users table
-ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255);
-ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE;
-ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP WITH TIME ZONE;
-
--- Create indexes for new tables
-CREATE INDEX IF NOT EXISTS idx_invitations_email ON invitations(email);
-CREATE INDEX IF NOT EXISTS idx_invitations_token ON invitations(token);
-CREATE INDEX IF NOT EXISTS idx_invitations_expires_at ON invitations(expires_at);
-CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);
-CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(token);
-CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_tokens(user_id);
-CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token ON password_reset_tokens(token);
-
--- Enable RLS for new tables
-ALTER TABLE invitations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE user_sessions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE password_reset_tokens ENABLE ROW LEVEL SECURITY;
-
--- RLS Policies for invitations
-CREATE POLICY "Admins and instructors can view invitations" ON invitations
-    FOR SELECT USING (
-        EXISTS (
-            SELECT 1 FROM users
-            WHERE id = auth.uid() AND role IN ('ADMIN', 'INSTRUCTOR')
-        )
-    );
-
-CREATE POLICY "Admins and instructors can create invitations" ON invitations
-    FOR INSERT WITH CHECK (
-        EXISTS (
-            SELECT 1 FROM users
-            WHERE id = auth.uid() AND role IN ('ADMIN', 'INSTRUCTOR')
-        )
-    );
-
--- RLS Policies for user sessions
-CREATE POLICY "Users can view own sessions" ON user_sessions
-    FOR SELECT USING (auth.uid() = user_id);
-
--- Add triggers for new tables
-CREATE TRIGGER update_invitations_updated_at BEFORE UPDATE ON invitations
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_user_sessions_updated_at BEFORE UPDATE ON user_sessions
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_messages_updated_at BEFORE UPDATE ON messages
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

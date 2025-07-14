@@ -142,15 +142,15 @@ class OpenAIService {
 以下の情報を基に、個人に最適化されたサポートを提供してください：
 
 **基本情報:**
-- 目標: ${userKnowledge.goal || '未設定'}
-- 期限: ${userKnowledge.deadline || '未設定'}
-- 現在のレベル: ${userKnowledge.currentStatus || '未設定'}
+- 目標: ${userKnowledge?.goal || '未設定'}
+- 期限: ${userKnowledge?.deadline || '未設定'}
+- 現在のレベル: ${userKnowledge?.currentStatus || '未設定'}
 
 **学習環境:**
-- 教材: ${userKnowledge.materials?.join(', ') || '未設定'}
-- 学習時間: ${userKnowledge.studyHours || '未設定'}
-- 学習頻度: ${userKnowledge.studyDays || '未設定'}
-- 苦手分野: ${userKnowledge.weakSubjects?.join(', ') || 'なし'}
+- 教材: ${userKnowledge?.materials?.join(', ') || '未設定'}
+- 学習時間: ${userKnowledge?.studyHours || '未設定'}
+- 学習頻度: ${userKnowledge?.studyDays || '未設定'}
+- 苦手分野: ${userKnowledge?.weakSubjects?.join(', ') || 'なし'}
 
 #### # 主要機能
 1. **日々のタスク提案**: 学習計画に基づいた具体的で実行可能な今日のタスクを提案

@@ -152,3 +152,151 @@ code {
 .overflow-y-auto::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
 }
+
+/* モバイルドラッグ&ドロップ用アニメーション */
+@keyframes mobile-drag-pulse {
+  0% {
+    transform: scale(1) rotate(0deg);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+  50% {
+    transform: scale(1.05) rotate(1deg);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+  }
+  100% {
+    transform: scale(1.02) rotate(2deg);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+  }
+}
+
+@keyframes drop-zone-highlight {
+  0% {
+    background-color: rgba(34, 197, 94, 0.1);
+    border-color: rgba(34, 197, 94, 0.3);
+  }
+  50% {
+    background-color: rgba(34, 197, 94, 0.2);
+    border-color: rgba(34, 197, 94, 0.5);
+  }
+  100% {
+    background-color: rgba(34, 197, 94, 0.15);
+    border-color: rgba(34, 197, 94, 0.4);
+  }
+}
+
+@keyframes resize-feedback {
+  0% {
+    background: linear-gradient(to bottom, transparent 0%, rgba(59, 130, 246, 0.4) 30%, rgba(59, 130, 246, 0.7) 70%, rgba(59, 130, 246, 0.9) 100%);
+  }
+  50% {
+    background: linear-gradient(to bottom, transparent 0%, rgba(59, 130, 246, 0.6) 30%, rgba(59, 130, 246, 0.8) 70%, rgba(59, 130, 246, 1) 100%);
+  }
+  100% {
+    background: linear-gradient(to bottom, transparent 0%, rgba(59, 130, 246, 0.5) 30%, rgba(59, 130, 246, 0.75) 70%, rgba(59, 130, 246, 0.95) 100%);
+  }
+}
+
+.mobile-drag-active {
+  animation: mobile-drag-pulse 0.6s ease-in-out infinite alternate;
+  z-index: 50 !important;
+}
+
+.drop-zone-active {
+  animation: drop-zone-highlight 1s ease-in-out infinite alternate;
+}
+
+.resize-handle-active {
+  animation: resize-feedback 0.8s ease-in-out infinite alternate;
+}
+
+/* タッチ操作の改善 */
+.touch-action-none {
+  touch-action: none;
+}
+
+.touch-action-manipulation {
+  touch-action: manipulation;
+}
+
+/* モバイル専用のドロップインジケーター */
+.mobile-drop-indicator {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(34, 197, 94, 0.9);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);
+  animation: pulse 1s ease-in-out infinite;
+  z-index: 30;
+}
+
+.mobile-occupied-indicator {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(239, 68, 68, 0.9);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+  z-index: 30;
+}
+
+/* モバイルドラッグ&ドロップ改善用スタイル */
+@media (max-width: 768px) {
+  /* モバイルドラッグ中のタスクスタイル */
+  .mobile-drag-active {
+    touch-action: none !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+  }
+  
+  /* タッチフィードバック */
+  .touch-feedback {
+    transition: all 0.2s ease;
+  }
+  
+  /* ドロップゾーンのハイライト */
+  [data-cell-info].bg-green-100 {
+    background-color: rgba(34, 197, 94, 0.1) !important;
+    border-color: rgba(34, 197, 94, 0.5) !important;
+  }
+  
+  [data-cell-info].bg-red-100 {
+    background-color: rgba(239, 68, 68, 0.1) !important;
+    border-color: rgba(239, 68, 68, 0.5) !important;
+  }
+  
+  /* タスクの見やすさ改善 */
+  .absolute.rounded {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  
+  /* リサイズハンドルの改善 */
+  .resize-handle {
+    touch-action: none;
+  }
+}
+
+/* スムーズなトランジション */
+.smooth-transform {
+  transition: transform 0.2s ease-out, box-shadow 0.2s ease-out, background-color 0.2s ease-out;
+}
+
+/* モバイルでのタッチフィードバック */
+.touch-feedback {
+  transition: all 0.1s ease-out;
+}
+
+.touch-feedback:active {
+  transform: scale(0.98);
+  opacity: 0.9;
+}
