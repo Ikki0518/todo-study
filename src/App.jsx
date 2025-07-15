@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { SunaLogo } from './components/SunaLogo';
 import { PersonalizeMode } from './components/PersonalizeMode';
 import { CompanionMode } from './components/CompanionMode';
 import { LoginScreen } from './components/LoginScreen';
@@ -20,9 +21,6 @@ import { generateStudyPlan, convertPlansToTasks, calculateStudyPlanStats } from 
 import apiService from './services/apiService';
 
 function App() {
-  const [currentView, setCurrentView] = useState('planner')
-  const [currentStreak] = useState(15)
-  
   // Cookie管理ユーティリティ（App.jsx用）
   const cookieUtils = {
     getCookie: (name) => {
@@ -178,19 +176,23 @@ function App() {
   // 同期的に認証状態を初期化
   const initialAuthState = initializeAuthSync();
   
+  const [currentView, setCurrentView] = useState(initialAuthState.currentView || 'planner')
+  const [currentStreak] = useState(15)
+  
   // 決済状態の管理
   const [isPaid, setIsPaid] = useState(false)
   const [paymentStatus, setPaymentStatus] = useState(null) // null, 'pending', 'completed', 'failed'
   const [selectedPlan, setSelectedPlan] = useState(null)
-  const [showPricing, setShowPricing] = useState(true)
+  const [showPricing, setShowPricing] = useState(!initialAuthState.isLoggedIn)
   const [showRegistrationFlow, setShowRegistrationFlow] = useState(false)
   const [showLoginScreen, setShowLoginScreen] = useState(false)
   
-  const [isLoggedIn, setIsLoggedIn] = useState(false) // 決済完了後にログイン可能
+  // 認証状態を初期化時に復元
+  const [isLoggedIn, setIsLoggedIn] = useState(initialAuthState.isLoggedIn)
   const [authInitialized, setAuthInitialized] = useState(true)
-  const [userRole, setUserRole] = useState(null)
-  const [currentUser, setCurrentUser] = useState(null)
-  const [hasValidSubscription, setHasValidSubscription] = useState(false)
+  const [userRole, setUserRole] = useState(initialAuthState.userRole)
+  const [currentUser, setCurrentUser] = useState(initialAuthState.currentUser)
+  const [hasValidSubscription, setHasValidSubscription] = useState(initialAuthState.isLoggedIn)
   const [goals, setGoals] = useState([
     {
       id: 'goal-1',
@@ -458,20 +460,82 @@ function App() {
           }
         }
       } else {
-        // 未決済
+        // 初期化時のログイン状態を優先し、既にログイン済みの場合は状態を維持
+        if (initialAuthState.isLoggedIn) {
+          console.log('✅ 初期化時のログイン状態を維持:', initialAuthState.currentUser)
+          // 既にログイン済みの場合は状態を変更しない
+          return
+        }
+        
+        // 未決済の場合でも、既存のログイン状態を確認
+        const authToken = localStorage.getItem('authToken')
+        const savedUser = localStorage.getItem('currentUser')
+        
+        if (authToken && savedUser) {
+          // 既存のログイン状態を維持
+          try {
+            const userData = JSON.parse(savedUser)
+            setIsLoggedIn(true)
+            setCurrentUser(userData)
+            setUserRole(userData.userRole || 'STUDENT')
+            setHasValidSubscription(true)
+            setShowPricing(false)
+            console.log('✅ 既存のログイン状態を維持:', userData)
+          } catch (error) {
+            console.error('🚨 既存ユーザーデータの復元に失敗:', error)
+            // 破損データの場合はログアウト状態に
+            setIsLoggedIn(false)
+            setCurrentUser(null)
+            setUserRole(null)
+            setHasValidSubscription(false)
+            setShowPricing(true)
+          }
+        } else {
+          // 認証情報がない場合のみログアウト状態に
+          setIsLoggedIn(false)
+          setCurrentUser(null)
+          setUserRole(null)
+          setHasValidSubscription(false)
+          setShowPricing(true)
+          console.log('ℹ️ 認証情報なし - 料金プランを表示')
+        }
+        
+        // 決済状態は常に未決済として設定
         setPaymentStatus(null)
         setIsPaid(false)
-        setShowPricing(true)
-        setIsLoggedIn(false)
-        setCurrentUser(null)
-        setUserRole(null)
-        setHasValidSubscription(false)
-        console.log('ℹ️ 未決済状態 - 料金プランを表示')
       }
     }
     
     checkPaymentStatus()
   }, [])
+
+  // ログイン状態を定期的に更新（セッション維持）
+  useEffect(() => {
+    if (isLoggedIn && currentUser) {
+      const updateSessionActivity = () => {
+        const timestamp = new Date().toISOString();
+        const sessionData = {
+          user: currentUser,
+          token: localStorage.getItem('authToken'),
+          loginTime: localStorage.getItem('loginTime') || timestamp,
+          lastActiveTime: timestamp
+        };
+        
+        // セッションデータを更新
+        localStorage.setItem('auth_data', JSON.stringify(sessionData));
+        localStorage.setItem('pm_0001_session', JSON.stringify(sessionData));
+        localStorage.setItem('lastActiveTime', timestamp);
+      };
+      
+      // 初回更新
+      updateSessionActivity();
+      
+      // 5分ごとに更新
+      const interval = setInterval(updateSessionActivity, 5 * 60 * 1000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [isLoggedIn, currentUser])
 
   // ウィンドウサイズ変更の監視
   useEffect(() => {
@@ -1250,7 +1314,7 @@ function App() {
                 {selectedPlan ? `${selectedPlan.name}にご登録いただきありがとうございます。` : 'ご利用いただきありがとうございます。'}
               </p>
               <p className="text-sm text-gray-500 mb-6">
-                続いて、アカウントを作成してAI学習プランナーを始めましょう。
+                続いて、アカウントを作成してSunaを始めましょう。
               </p>
             </div>
           </div>
@@ -1263,16 +1327,49 @@ function App() {
                 // localStorage からユーザーデータを読み取り
                 try {
                   const savedUser = localStorage.getItem('currentUser');
+                  const authToken = localStorage.getItem('authToken');
+                  
                   if (savedUser) {
                     const userData = JSON.parse(savedUser);
                     console.log('🔍 ログイン時ユーザーデータ設定:', userData);
+                    
+                    // 状態を設定
                     setCurrentUser(userData);
+                    setUserRole(userData.userRole || 'STUDENT');
+                    setIsLoggedIn(true);
+                    setHasValidSubscription(true);
+                    setShowPricing(false);
+                    
+                    // 現在のビューを設定
+                    if (userData.userRole === 'INSTRUCTOR') {
+                      setCurrentView('dashboard');
+                    } else {
+                      setCurrentView('goals');
+                    }
+                    
+                    // 追加の永続化処理
+                    const timestamp = new Date().toISOString();
+                    const sessionData = {
+                      user: userData,
+                      token: authToken,
+                      loginTime: timestamp,
+                      lastActiveTime: timestamp
+                    };
+                    
+                    // 複数の場所に保存して冗長性を確保
+                    localStorage.setItem('auth_data', JSON.stringify(sessionData));
+                    localStorage.setItem('pm_0001_session', JSON.stringify(sessionData));
+                    sessionStorage.setItem('currentUser', JSON.stringify(userData));
+                    sessionStorage.setItem('authToken', authToken);
+                    
+                    console.log('✅ ログイン状態を永続化しました');
                   }
                 } catch (error) {
-                  console.error('ログイン時ユーザーデータ読み取りエラー:', error);
+                  console.error('🚨 ログイン時ユーザーデータ読み取りエラー:', error);
                 }
+              } else {
+                setIsLoggedIn(false);
               }
-              setIsLoggedIn(loginStatus);
             }}
             onRoleChange={(role) => {
               setUserRole(role);
@@ -1313,7 +1410,7 @@ function App() {
               <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-lg">AI</span>
               </div>
-              <h1 className="text-xl font-bold text-gray-900">AI学習プランナー</h1>
+              <SunaLogo width={80} height={40} />
             </div>
           </div>
           {currentUser && (
@@ -1498,7 +1595,7 @@ function App() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <h1 className="text-lg font-semibold text-gray-900">AI学習プランナー</h1>
+          <SunaLogo width={80} height={40} />
           <div className="w-10"></div> {/* スペーサー */}
         </div>
 
@@ -2254,7 +2351,7 @@ function App() {
                   className="px-3 py-2 text-sm bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center space-x-2"
                 >
                   <span>🤖</span>
-                  <span>AI学習プランナー</span>
+                  <span>Suna</span>
                 </button>
               </div>
               <button

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import SunaLogo from './SunaLogo';
 import authService from '../services/authService';
 
 export const OTPVerification = ({ email, onVerificationSuccess, onBack }) => {
@@ -105,13 +106,13 @@ export const OTPVerification = ({ email, onVerificationSuccess, onBack }) => {
       <div className="max-w-md w-full space-y-8">
         <div>
           <div className="mt-6 flex justify-center">
-            {/* AI学習プランナーロゴ */}
+            {/* Sunaロゴ */}
             <div className="flex items-center space-x-4">
               <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-xl">
                 <span className="text-white font-bold text-2xl">AI</span>
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">AI学習プランナー</h1>
+                <SunaLogo width={130} height={65} />
                 <div className="w-12 h-1.5 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full mt-1"></div>
               </div>
             </div>

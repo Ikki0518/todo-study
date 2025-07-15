@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { SunaLogo } from './SunaLogo'
 
 export const PricingPage = ({ onPlanSelect, onStartRegistration }) => {
   const [selectedPlan, setSelectedPlan] = useState(null)
@@ -68,9 +69,9 @@ export const PricingPage = ({ onPlanSelect, onStartRegistration }) => {
       <div className="max-w-6xl mx-auto">
         {/* ヘッダー */}
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            AI学習プランナー
-          </h1>
+          <div className="mb-6 flex justify-center">
+            <SunaLogo width={180} height={85} />
+          </div>
           <p className="text-xl text-gray-600 mb-2">
             あなたの学習を効率的にサポートします
           </p>

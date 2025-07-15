@@ -1,9 +1,11 @@
 import { useState } from 'react'
+import { SunaLogo } from './SunaLogo'
 
 export const RegistrationFlow = ({ onComplete, onBack, selectedPlan, onLoginClick }) => {
   const [currentStep, setCurrentStep] = useState(1)
   const [formData, setFormData] = useState({
-    username: '',
+    lastName: '',
+    firstName: '',
     email: '',
     password: '',
     termsAccepted: false
@@ -12,13 +14,6 @@ export const RegistrationFlow = ({ onComplete, onBack, selectedPlan, onLoginClic
   // プラン選択のローカル状態を移動
   const savedPlan = JSON.parse(localStorage.getItem('selectedPlan') || '{}')
   const [localSelectedPlan, setLocalSelectedPlan] = useState(savedPlan.id || 'basic')
-
-  const steps = [
-    { number: 1, title: 'システム概要' },
-    { number: 2, title: 'アカウント作成' },
-    { number: 3, title: 'プラン選択・決済' },
-    { number: 4, title: '登録完了' }
-  ]
 
   const handleFormChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }))
@@ -30,7 +25,7 @@ export const RegistrationFlow = ({ onComplete, onBack, selectedPlan, onLoginClic
       setCurrentStep(2)
     } else if (currentStep === 2) {
       // アカウント作成の検証
-      if (!formData.username || !formData.email || !formData.password || !formData.termsAccepted) {
+      if (!formData.lastName || !formData.firstName || !formData.email || !formData.password || !formData.termsAccepted) {
         alert('すべての項目を入力してください')
         return
       }
@@ -44,7 +39,9 @@ export const RegistrationFlow = ({ onComplete, onBack, selectedPlan, onLoginClic
   const processPlanRegistration = () => {
     // ユーザー情報を保存
     const userInfo = {
-      username: formData.username,
+      lastName: formData.lastName,
+      firstName: formData.firstName,
+      fullName: `${formData.lastName} ${formData.firstName}`,
       email: formData.email,
       registeredAt: new Date().toISOString(),
       userId: `user_${Date.now()}`, // ユニークなユーザーID生成
@@ -69,126 +66,198 @@ export const RegistrationFlow = ({ onComplete, onBack, selectedPlan, onLoginClic
     }
   }
 
-  const renderStepIndicator = () => (
-    <div className="flex justify-center mb-8">
-      {steps.map((step, index) => (
-        <div key={step.number} className="flex items-center">
-          <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
-            currentStep >= step.number 
-              ? 'bg-blue-500 border-blue-500 text-white' 
-              : 'border-gray-300 text-gray-400'
-          }`}>
-            {step.number}
-          </div>
-          {index < steps.length - 1 && (
-            <div className={`w-20 h-0.5 mx-4 ${
-              currentStep > step.number ? 'bg-blue-500' : 'bg-gray-300'
-            }`} />
-          )}
-        </div>
-      ))}
-    </div>
-  )
-
-  const renderStepTitles = () => (
-    <div className="flex justify-center mb-12">
-      {steps.map((step, index) => (
-        <div key={step.number} className="flex items-center">
-          <div className="text-center">
-            <p className={`text-sm ${
-              currentStep >= step.number ? 'text-blue-600 font-semibold' : 'text-gray-400'
-            }`}>
-              {step.title}
-            </p>
-          </div>
-          {index < steps.length - 1 && <div className="w-20" />}
-        </div>
-      ))}
-    </div>
-  )
 
   const renderSystemIntroduction = () => (
-    <div className="max-w-4xl mx-auto">
-      {/* 背景にシステム画面を薄く表示 */}
-      <div className="relative bg-white rounded-2xl shadow-xl overflow-hidden">
-        {/* 背景画像（システム使用画面のイメージ） */}
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-indigo-100 opacity-50"></div>
-        <div className="absolute inset-0 bg-white/80"></div>
+    <div className="min-h-screen relative overflow-hidden">
+      {/* 背景にブラーされたシステムインターフェース要素 */}
+      <div className="absolute inset-0">
+        {/* ベース背景グラデーション */}
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-100/60"></div>
         
-        {/* メインコンテンツ */}
-        <div className="relative z-10 p-12 text-center">
-          <div className="mb-8">
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">
-              AI学習プランナー
-            </h1>
-            <p className="text-xl text-gray-600 mb-8">
-              あなたの学習を効率的にサポートする次世代学習管理システム
-            </p>
-          </div>
-
-          {/* 機能紹介 */}
-          <div className="grid md:grid-cols-3 gap-8 mb-12">
-            <div className="bg-white/60 backdrop-blur-sm rounded-lg p-6 border border-blue-100">
-              <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center mx-auto mb-4">
-                <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                </svg>
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                スマートな学習計画
-              </h3>
-              <p className="text-gray-600 text-sm">
-                AIがあなたの学習スタイルに合わせて最適な学習計画を自動生成
-              </p>
+        {/* ブラーされたシステム要素 - ダッシュボード */}
+        <div className="absolute top-10 left-10 w-80 h-60 bg-white/30 rounded-2xl blur-sm transform rotate-3">
+          <div className="p-6 space-y-4">
+            <div className="h-4 bg-blue-200/60 rounded w-3/4"></div>
+            <div className="space-y-2">
+              <div className="h-2 bg-gray-300/50 rounded w-full"></div>
+              <div className="h-2 bg-gray-300/50 rounded w-2/3"></div>
+              <div className="h-2 bg-gray-300/50 rounded w-5/6"></div>
             </div>
-
-            <div className="bg-white/60 backdrop-blur-sm rounded-lg p-6 border border-blue-100">
-              <div className="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center mx-auto mb-4">
-                <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-                </svg>
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                進捗可視化
-              </h3>
-              <p className="text-gray-600 text-sm">
-                学習の進捗状況をリアルタイムで確認し、モチベーションを維持
-              </p>
-            </div>
-
-            <div className="bg-white/60 backdrop-blur-sm rounded-lg p-6 border border-blue-100">
-              <div className="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center mx-auto mb-4">
-                <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z"/>
-                </svg>
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                パーソナライズ
-              </h3>
-              <p className="text-gray-600 text-sm">
-                個人の学習パターンを分析し、最適化された学習体験を提供
-              </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="h-8 bg-green-200/40 rounded"></div>
+              <div className="h-8 bg-purple-200/40 rounded"></div>
             </div>
           </div>
-
-          {/* システム画面のプレビュー */}
-          <div className="mb-8">
-            <div className="bg-gray-100 rounded-lg p-8 border-2 border-dashed border-gray-300">
-              <p className="text-gray-500 text-lg">
-                📊 システム使用画面のプレビュー
-              </p>
-              <p className="text-gray-400 text-sm mt-2">
-                実際のカレンダー、タスク管理、進捗表示画面
-              </p>
+        </div>
+        
+        {/* ブラーされたカレンダー要素 */}
+        <div className="absolute top-20 right-16 w-72 h-48 bg-white/25 rounded-xl blur-sm transform -rotate-2">
+          <div className="p-4">
+            <div className="grid grid-cols-7 gap-1 mb-3">
+              {Array.from({length: 7}).map((_, i) => (
+                <div key={i} className="h-3 bg-blue-300/40 rounded-sm"></div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-1">
+              {Array.from({length: 21}).map((_, i) => (
+                <div key={i} className="h-6 bg-gray-200/30 rounded-sm"></div>
+              ))}
             </div>
           </div>
+        </div>
+        
+        {/* ブラーされたタスクリスト */}
+        <div className="absolute bottom-20 left-20 w-64 h-52 bg-white/20 rounded-2xl blur-sm transform rotate-1">
+          <div className="p-5 space-y-3">
+            <div className="h-3 bg-emerald-200/50 rounded w-1/2"></div>
+            {Array.from({length: 6}).map((_, i) => (
+              <div key={i} className="flex items-center space-x-3">
+                <div className="w-3 h-3 bg-green-400/40 rounded-full"></div>
+                <div className="h-2 bg-gray-300/40 rounded flex-1"></div>
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        {/* ブラーされたチャート要素 */}
+        <div className="absolute bottom-16 right-12 w-56 h-44 bg-white/15 rounded-xl blur-sm transform -rotate-1">
+          <div className="p-4">
+            <div className="h-3 bg-purple-300/40 rounded w-2/3 mb-4"></div>
+            <div className="flex items-end justify-between h-20">
+              {Array.from({length: 8}).map((_, i) => (
+                <div
+                  key={i}
+                  className="bg-indigo-300/40 rounded-t w-4"
+                  style={{height: `${Math.random() * 60 + 20}%`}}
+                ></div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* フロストグラス効果のメインコンテナ */}
+      <div className="relative z-10 min-h-screen flex items-center">
+        <div className="w-full max-w-6xl mx-auto px-6 py-16 sm:px-8 lg:px-12">
+          
+          {/* フロストグラス効果のメインコンテンツカード */}
+          <div className="relative backdrop-blur-xl bg-white/70 rounded-3xl shadow-2xl border border-white/30 overflow-hidden">
+            
+            {/* サブルなグラデーションオーバーレイ */}
+            <div className="absolute inset-0 bg-gradient-to-br from-white/50 via-white/30 to-blue-50/20 pointer-events-none"></div>
+            
+            <div className="relative z-10 p-8 sm:p-12 lg:p-16">
+              
+              {/* ヘッダーセクション */}
+              <div className="text-center mb-16 space-y-8">
+                <div className="animate-fade-in-up">
+                  <div className="mb-8 flex justify-center">
+                    <div className="relative">
+                      <SunaLogo width={220} height={105} />
+                      {/* ロゴ周りのサブルな光の効果 */}
+                      <div className="absolute -inset-4 bg-gradient-radial from-blue-200/20 via-transparent to-transparent rounded-full blur-xl"></div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="animate-fade-in-up delay-300">
+                  <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 mb-6 leading-tight">
+                    次世代の学習管理
+                    <br />
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600">
+                      システム
+                    </span>
+                  </h1>
+                  <p className="text-xl sm:text-2xl text-gray-700 max-w-4xl mx-auto leading-relaxed">
+                    AIと直感的なデザインが融合した、
+                    <br className="hidden sm:block" />
+                    効率的で美しい学習プラットフォーム
+                  </p>
+                </div>
+              </div>
 
-          <button
-            onClick={handleNextStep}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-12 rounded-xl text-xl transition-all duration-200 transform hover:scale-105 shadow-lg"
-          >
-            始める
-          </button>
+              {/* 機能紹介セクション - フロストグラス効果 */}
+              <div className="grid md:grid-cols-3 gap-8 mb-16">
+                {[
+                  {
+                    icon: (
+                      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                      </svg>
+                    ),
+                    title: "スマート学習計画",
+                    description: "AIがあなたの学習パターンを分析し、最適な学習計画を自動で作成します",
+                    gradient: "from-blue-500 to-blue-600"
+                  },
+                  {
+                    icon: (
+                      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      </svg>
+                    ),
+                    title: "進捗の可視化",
+                    description: "学習の進捗状況を分かりやすいグラフで表示し、モチベーションをサポートします",
+                    gradient: "from-emerald-500 to-teal-600"
+                  },
+                  {
+                    icon: (
+                      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                    ),
+                    title: "個人最適化",
+                    description: "あなたの学習スタイルに合わせて、インターフェースと機能をカスタマイズできます",
+                    gradient: "from-purple-500 to-pink-600"
+                  }
+                ].map((feature, index) => (
+                  <div key={index} className={`group animate-fade-in-up delay-${400 + index * 200}`}>
+                    <div className="relative backdrop-blur-lg bg-white/60 rounded-2xl p-8 border border-white/40 shadow-xl hover:shadow-2xl hover:bg-white/70 transition-all duration-500 transform hover:-translate-y-2">
+                      {/* カードの内部グラデーション */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-blue-50/10 rounded-2xl pointer-events-none"></div>
+                      
+                      <div className="relative z-10">
+                        <div className={`w-16 h-16 bg-gradient-to-r ${feature.gradient} rounded-xl flex items-center justify-center mx-auto mb-6 text-white shadow-lg backdrop-blur-sm`}>
+                          {feature.icon}
+                        </div>
+                        <h3 className="text-xl font-semibold text-gray-900 mb-4 text-center">
+                          {feature.title}
+                        </h3>
+                        <p className="text-gray-700 text-sm leading-relaxed text-center">
+                          {feature.description}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+
+              {/* CTAセクション - フロストグラス効果 */}
+              <div className="text-center animate-fade-in-up delay-1200">
+                <div className="relative">
+                  <button
+                    onClick={handleNextStep}
+                    className="relative group inline-flex items-center justify-center px-12 py-5 text-xl font-semibold text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-2xl shadow-2xl hover:shadow-3xl transition-all duration-500 transform hover:-translate-y-2 hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-300/50 backdrop-blur-sm"
+                  >
+                    {/* ボタンの内部光効果 */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-blue-400/20 via-indigo-400/20 to-purple-400/20 rounded-2xl blur-xl group-hover:blur-2xl transition-all duration-500"></div>
+                    
+                    <span className="relative flex items-center">
+                      学習を始める
+                      <svg className="w-6 h-6 ml-3 group-hover:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                      </svg>
+                    </span>
+                  </button>
+                  
+                  <p className="text-gray-600 text-sm mt-6">
+                    ✨ 直感的なセットアップ • 🔒 エンタープライズグレードのセキュリティ
+                  </p>
+                </div>
+              </div>
+              
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -197,22 +266,38 @@ export const RegistrationFlow = ({ onComplete, onBack, selectedPlan, onLoginClic
   const renderAccountCreation = () => (
     <div className="max-w-md mx-auto bg-white rounded-lg shadow-lg p-8">
       <div className="text-center mb-8">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Dラボ</h2>
-        <p className="text-gray-600">サービスのお申し込み</p>
+        <div className="mb-4 flex justify-center">
+          <SunaLogo width={90} height={45} />
+        </div>
+        <p className="text-gray-600">アカウントにログイン</p>
       </div>
 
       <div className="space-y-6">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            ユーザ名
-          </label>
-          <input
-            type="text"
-            value={formData.username}
-            onChange={(e) => handleFormChange('username', e.target.value)}
-            placeholder="ユーザ名"
-            className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              姓
+            </label>
+            <input
+              type="text"
+              value={formData.lastName}
+              onChange={(e) => handleFormChange('lastName', e.target.value)}
+              placeholder="姓"
+              className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              名
+            </label>
+            <input
+              type="text"
+              value={formData.firstName}
+              onChange={(e) => handleFormChange('firstName', e.target.value)}
+              placeholder="名"
+              className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
         </div>
 
         <div>
@@ -277,7 +362,7 @@ export const RegistrationFlow = ({ onComplete, onBack, selectedPlan, onLoginClic
         </button>
 
         <button
-          onClick={onBack}
+          onClick={onLoginClick}
           className="w-full bg-gray-800 hover:bg-gray-900 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
         >
           アカウントをお持ちの方はこちら
@@ -420,7 +505,7 @@ export const RegistrationFlow = ({ onComplete, onBack, selectedPlan, onLoginClic
       <header className="bg-gray-800 text-white py-4 px-6 mb-12">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <div className="text-2xl font-bold">AI学習プランナー</div>
+            <SunaLogo width={90} height={45} textColor="light" />
             <div className="text-sm text-gray-300">効率的な学習をサポート</div>
           </div>
           <button
@@ -433,9 +518,7 @@ export const RegistrationFlow = ({ onComplete, onBack, selectedPlan, onLoginClic
       </header>
 
       <div className="max-w-4xl mx-auto">
-        {renderStepIndicator()}
-        {renderStepTitles()}
-        
+
         {currentStep === 1 && renderSystemIntroduction()}
         {currentStep === 2 && renderAccountCreation()}
         {currentStep === 3 && renderPlanRegistration()}
@@ -448,7 +531,7 @@ export const RegistrationFlow = ({ onComplete, onBack, selectedPlan, onLoginClic
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">登録完了！</h2>
             <p className="text-gray-600 mb-6">
-              AI学習プランナーへの登録が完了しました。<br />
+              Sunaへの登録が完了しました。<br />
               学習を始めましょう！
             </p>
             <button
