@@ -5,6 +5,7 @@ import { CompanionMode } from './components/CompanionMode';
 import { LoginScreen } from './components/LoginScreen';
 import { PricingPage } from './components/PricingPage';
 import { RegistrationFlow } from './components/RegistrationFlow';
+import { SystemOverview } from './components/SystemOverview';
 import InstructorDashboard from './components/InstructorView';
 import { MonthlyCalendar } from './components/MonthlyCalendar';
 import { StudyBookManager } from './components/StudyBookManager';
@@ -1384,6 +1385,34 @@ function App() {
 
   // 新フロー: 料金プラン → 新規登録 → 決済 → アプリ利用
   
+  // 0. 認証チェック - 未認証の場合はシステム概要ページを表示
+  if (!isLoggedIn && !showLoginScreen && !showPricing && !showRegistrationFlow) {
+    return (
+      <SystemOverview
+        onGetStarted={() => {
+          setShowPricing(true);
+        }}
+      />
+    );
+  
+  // 料金プラン表示
+  if (showPricing) {
+    return (
+      <PricingPage
+        onSelectPlan={(plan) => {
+          setSelectedPlan(plan);
+          setShowPricing(false);
+          setShowRegistrationFlow(true);
+        }}
+        onLoginClick={() => {
+          setShowPricing(false);
+          setShowLoginScreen(true);
+        }}
+      />
+    );
+  }
+  }
+  
   // 1. 料金プラン表示（最初の画面）
   // 1. ログイン画面の表示
   if (showLoginScreen) {
@@ -1749,6 +1778,9 @@ function App() {
                   // APIでログアウト
                   await apiService.logout();
                   
+                  // セッションサービスでセッションをクリア
+                  sessionService.clearSession();
+                  
                   // ローカルデータをクリア
                   localStorage.removeItem('currentUser')
                   localStorage.removeItem('authToken')
@@ -1758,6 +1790,9 @@ function App() {
                   localStorage.removeItem('selectedPlan')
                   localStorage.removeItem('userInfo')
                   localStorage.removeItem('userKnowledge')
+                  
+                  // セッションストレージもクリア
+                  sessionStorage.clear();
                   
                   // 状態をリセット
                   setIsLoggedIn(false)
@@ -1779,13 +1814,21 @@ function App() {
                   setShowLoginScreen(false)
                   
                   console.log('✅ ログアウト完了');
+                  
+                  // システム概要ページへリダイレクト
+                  window.location.href = '/';
                 } catch (error) {
                   console.error('Logout error:', error);
                   // エラーが発生してもログアウトを継続
+                  sessionService.clearSession();
+                  sessionStorage.clear();
                   setIsLoggedIn(false)
                   setCurrentUser(null)
                   setHasValidSubscription(false)
                   setShowPricing(true)
+                  
+                  // エラーが発生してもリダイレクト
+                  window.location.href = '/';
                 }
               }}
               className="p-2 rounded-lg text-gray-600 hover:bg-red-50 hover:text-red-600 transition-colors"
