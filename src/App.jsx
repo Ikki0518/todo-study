@@ -19,6 +19,7 @@ import FloatingActionButton from './components/FloatingActionButton';
 import { MobileTaskPopup } from './components/MobileTaskPopup';
 import { ExamDateSettings } from './components/ExamDateSettings';
 import { MobileWeeklyPlannerDemo } from './components/MobileWeeklyPlannerDemo';
+import TaskPoolManager from './components/TaskPoolManager';
 import { generateStudyPlan, convertPlansToTasks, calculateStudyPlanStats } from './utils/studyPlanGenerator';
 import apiService from './services/apiService';
 import sessionService from './services/sessionService';
@@ -44,6 +45,20 @@ function App() {
       console.log('🔍 ===== 同期認証初期化開始 =====');
       console.log('🍪 Cookie復元処理開始');
       console.log('  - 利用可能Cookie:', document.cookie);
+    }
+    
+    // デモモード用の一時的な設定
+    if (window.location.search.includes('demo=true')) {
+      return {
+        isAuthenticated: true,
+        currentUser: {
+          id: 'PM-0001',
+          name: '山田太郎',
+          role: 'STUDENT',
+          email: 'demo@example.com'
+        },
+        authToken: 'demo-token'
+      };
     }
     
     // セッションサービスから状態を復元
@@ -233,7 +248,7 @@ function App() {
   
   const sessionState = restoreSessionState();
   
-  const [currentView, setCurrentView] = useState(sessionState.currentView)
+  const [currentView, setCurrentView] = useState('planner') // デモモード用に固定
   const [currentStreak] = useState(15)
   
   // セッションサービスと連携したビュー更新関数
@@ -244,19 +259,25 @@ function App() {
   };
   
   // 決済状態の管理（セッションから復元）
-  const [isPaid, setIsPaid] = useState(sessionState.isPaid)
-  const [paymentStatus, setPaymentStatus] = useState(sessionState.paymentStatus)
-  const [selectedPlan, setSelectedPlan] = useState(sessionState.selectedPlan)
-  const [showPricing, setShowPricing] = useState(sessionState.showPricing)
-  const [showRegistrationFlow, setShowRegistrationFlow] = useState(sessionState.showRegistrationFlow)
-  const [showLoginScreen, setShowLoginScreen] = useState(sessionState.showLoginScreen)
+  const [isPaid, setIsPaid] = useState(true) // デモモード
+  const [paymentStatus, setPaymentStatus] = useState('paid') // デモモード
+  const [selectedPlan, setSelectedPlan] = useState({ name: 'デモプラン' }) // デモモード
+  const [showPricing, setShowPricing] = useState(false) // デモモード
+  const [showRegistrationFlow, setShowRegistrationFlow] = useState(false) // デモモード
+  const [showLoginScreen, setShowLoginScreen] = useState(false) // デモモード
   
   // 認証状態を初期化時に復元（セッションサービス統合版）
-  const [isLoggedIn, setIsLoggedIn] = useState(sessionState.isLoggedIn)
+  // デモモード用の一時的な設定
+  const [isLoggedIn, setIsLoggedIn] = useState(true) // デモモード
   const [authInitialized, setAuthInitialized] = useState(true)
-  const [userRole, setUserRole] = useState(sessionState.userRole)
-  const [currentUser, setCurrentUser] = useState(sessionState.currentUser)
-  const [hasValidSubscription, setHasValidSubscription] = useState(sessionState.hasValidSubscription)
+  const [userRole, setUserRole] = useState('STUDENT') // デモモード
+  const [currentUser, setCurrentUser] = useState({
+    id: 'PM-0001',
+    name: '山田太郎',
+    role: 'STUDENT',
+    email: 'demo@example.com'
+  }) // デモモード
+  const [hasValidSubscription, setHasValidSubscription] = useState(true) // デモモード
   const [goals, setGoals] = useState([
     {
       id: 'goal-1',
@@ -267,7 +288,30 @@ function App() {
       userId: 'test-user-001'
     }
   ])
-  const [todayTasks, setTodayTasks] = useState([])
+  const [todayTasks, setTodayTasks] = useState([
+    {
+      id: 'today-task-1',
+      title: '物理の実験レポート',
+      description: '振り子の実験結果をまとめる',
+      priority: 'high',
+      subject: '物理',
+      dueDate: '2025-07-16',
+      estimatedTime: 90,
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    },
+    {
+      id: 'today-task-2',
+      title: '化学の予習',
+      description: '次回の授業範囲を読む',
+      priority: 'medium',
+      subject: '化学',
+      dueDate: '2025-07-16',
+      estimatedTime: 45,
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    }
+  ])
   const [scheduledTasks, setScheduledTasks] = useState({
     '2025-07-14-10': {
       id: 'scheduled-task-1',
@@ -967,7 +1011,7 @@ function App() {
     // 通常のドラッグ&ドロップの場合
     if (e.dataTransfer && e.dataTransfer.getData('task')) {
       task = JSON.parse(e.dataTransfer.getData('task'))
-      fromLocation = e.dataTransfer.getData('fromLocation')
+      fromLocation = e.dataTransfer.getData('fromLocation') || 'taskPool'
     }
     // タスクプールからのタッチドラッグの場合
     else if (window.taskPoolTouch && window.taskPoolTouch.isDragging) {
@@ -992,23 +1036,71 @@ function App() {
     // アニメーション開始
     setAnimatingTasks(prev => new Set([...prev, key]))
     
-    // タスクプールからの移動
+    // タスクプールからの移動の場合、元のリストから削除
     if (fromLocation === 'taskPool') {
-      if (dailyTaskPool.length > 0) {
-        setDailyTaskPool(dailyTaskPool.filter(t => t.id !== task.id))
-      } else {
+      // todayTasksとdailyTaskPoolの両方をチェック
+      const isInTodayTasks = todayTasks.some(t => t.id === task.id)
+      const isInDailyTaskPool = dailyTaskPool.some(t => t.id === task.id)
+      
+      if (isInTodayTasks) {
         setTodayTasks(todayTasks.filter(t => t.id !== task.id))
       }
+      if (isInDailyTaskPool) {
+        setDailyTaskPool(dailyTaskPool.filter(t => t.id !== task.id))
+      }
+      
+      // 移行履歴のログを記録
+      console.log('📋 タスク移行ログ:', {
+        action: 'task_moved_to_calendar',
+        taskId: task.id,
+        taskTitle: task.title,
+        from: 'taskPool',
+        to: { date: dateKey, hour },
+        taskDetails: {
+          priority: task.priority,
+          subject: task.subject,
+          description: task.description,
+          estimatedTime: task.estimatedTime,
+          dueDate: task.dueDate
+        },
+        timestamp: new Date().toISOString(),
+        userId: currentUser?.id
+      })
     }
     // スケジュール間での移動
     else if (fromLocation.startsWith('scheduled-')) {
       const oldKey = fromLocation.replace('scheduled-', '')
       delete newScheduledTasks[oldKey]
+      
+      // 移動履歴のログを記録
+      console.log('📋 タスク移動ログ:', {
+        action: 'task_rescheduled',
+        taskId: task.id,
+        taskTitle: task.title,
+        from: oldKey,
+        to: { date: dateKey, hour },
+        timestamp: new Date().toISOString(),
+        userId: currentUser?.id
+      })
     }
     
+    // カレンダーイベントとして変換（詳細情報を保持）
     newScheduledTasks[key] = {
       ...task,
-      duration: task.duration || 1 // 既存のdurationを保持、なければ1時間
+      scheduledDate: dateKey,
+      scheduledHour: hour,
+      duration: task.duration || task.estimatedTime ? Math.ceil(task.estimatedTime / 60) : 1,
+      // 元のタスク情報を保持
+      originalTaskData: {
+        id: task.id,
+        title: task.title,
+        subject: task.subject,
+        description: task.description,
+        priority: task.priority,
+        dueDate: task.dueDate,
+        estimatedTime: task.estimatedTime,
+        color: task.color
+      }
     }
     setScheduledTasks(newScheduledTasks)
     
@@ -1317,7 +1409,8 @@ function App() {
   }
 
   // 2. 決済状態チェック - 未決済の場合
-  if (!isPaid || !hasValidSubscription) {
+  // デモモードではスキップ
+  if (false && (!isPaid || !hasValidSubscription)) {
     // 最初は常にRegistrationFlowのシステム説明画面から始まる
     return (
       <RegistrationFlow
@@ -1386,7 +1479,8 @@ function App() {
   }
   
   // 3. システム入場時の決済チェック
-  if (isLoggedIn && (!isPaid || !hasValidSubscription)) {
+  // デモモードではスキップ
+  if (false && isLoggedIn && (!isPaid || !hasValidSubscription)) {
     // 決済状態が無効な場合はログアウト
     setIsLoggedIn(false)
     setCurrentUser(null)
@@ -1721,7 +1815,7 @@ function App() {
           <div className="w-10"></div> {/* スペーサー */}
         </div>
 
-        <div className="p-4 lg:p-6">
+        <div className="p-4 lg:p-6 h-full">
           {userRole === 'STUDENT' && currentView === 'planner' && (
           <div>
             <div className="mb-6">
@@ -1789,7 +1883,36 @@ function App() {
               </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow overflow-hidden">
+            {/* PC版: タスクプールとカレンダーを横並びに配置 */}
+            <div className={`${!isMobile ? 'flex gap-4' : ''}`}>
+              {/* PC版: 左側にタスクプール */}
+              {!isMobile && (
+                <div className="bg-white rounded-lg shadow" style={{ width: '350px', minWidth: '350px' }}>
+                  <div className="h-full" style={{ maxHeight: '75vh', overflow: 'hidden' }}>
+                    <TaskPoolManager
+                      tasks={[...todayTasks, ...dailyTaskPool]}
+                      onTaskSelect={(task) => {
+                        console.log('タスク選択:', task);
+                      }}
+                      onTaskUpdate={(taskId, updates) => {
+                        console.log('タスク更新:', taskId, updates);
+                        // タスク更新処理
+                        const updateTaskInList = (taskList) =>
+                          taskList.map(task =>
+                            task.id === taskId ? { ...task, ...updates } : task
+                          );
+                        
+                        setTodayTasks(updateTaskInList);
+                        setDailyTaskPool(updateTaskInList);
+                      }}
+                      isMobile={false}
+                    />
+                  </div>
+                </div>
+              )}
+              
+              {/* 週間カレンダー */}
+              <div className={`bg-white rounded-lg shadow overflow-hidden ${!isMobile ? 'flex-1' : ''}`}>
                 <div className="overflow-x-auto overflow-y-auto" style={{
                   height: isMobile ? 'calc(100vh - 200px)' : '600px',
                   maxHeight: isMobile ? 'calc(100vh - 200px)' : '75vh',
@@ -2404,7 +2527,9 @@ function App() {
                   </div>
                 </div>
               </div>
+
             </div>
+          </div>
           )}
 
         {userRole === 'STUDENT' && currentView === 'monthly-calendar' && (
