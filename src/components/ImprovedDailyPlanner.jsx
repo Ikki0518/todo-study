@@ -339,12 +339,67 @@ export const ImprovedDailyPlanner = ({
                                 left: '4px',
                                 top: '2px'
                               }}
-                              draggable={!completedTasks[taskKey]}
-                              onDragStart={(e) => !completedTasks[taskKey] && handleDragStart(e, scheduledTask, `scheduled-${taskKey}`)}
-                              onTouchStart={(e) => !completedTasks[taskKey] && handleTouchStart(e, scheduledTask, `scheduled-${taskKey}`)}
-                              onTouchMove={handleTouchMove}
+                              ref={(el) => {
+                                if (el && !completedTasks[taskKey]) {
+                                  // タスクドラッグの初期化
+                                  const cleanup = initializeTaskDrag(el, {
+                                    onDragStart: (coords, e) => {
+                                      // ドラッグ開始時の処理
+                                      handleDragStart(e, scheduledTask, `scheduled-${taskKey}`)
+                                    },
+                                    onDragMove: (coords, e) => {
+                                      // ドラッグ中の処理
+                                      if (handleTouchMove) {
+                                        handleTouchMove(e)
+                                      }
+                                    },
+                                    onDragEnd: (coords, e) => {
+                                      // ドラッグ終了時の処理
+                                      // 必要に応じて追加処理
+                                    },
+                                    onResizeStart: (coords, e) => {
+                                      // リサイズ開始時の処理
+                                      const startY = coords.y
+                                      const startDuration = scheduledTask.duration || 1
+                                      
+                                      // リサイズ中の状態を保存
+                                      el.dataset.resizeStartY = startY
+                                      el.dataset.resizeStartDuration = startDuration
+                                    },
+                                    onResizeMove: (coords, e) => {
+                                      // リサイズ中の処理
+                                      const startY = parseFloat(el.dataset.resizeStartY)
+                                      const startDuration = parseInt(el.dataset.resizeStartDuration)
+                                      const deltaY = coords.y - startY
+                                      const hourChange = Math.round(deltaY / 50)
+                                      const newDuration = Math.max(1, Math.min(6, startDuration + hourChange))
+                                      
+                                      setScheduledTasks(prev => ({
+                                        ...prev,
+                                        [taskKey]: {
+                                          ...scheduledTask,
+                                          duration: newDuration
+                                        }
+                                      }))
+                                    },
+                                    onResizeEnd: (coords, e) => {
+                                      // リサイズ終了時の処理
+                                      delete el.dataset.resizeStartY
+                                      delete el.dataset.resizeStartDuration
+                                      
+                                      // バイブレーション
+                                      if (navigator.vibrate) {
+                                        navigator.vibrate(50)
+                                      }
+                                    }
+                                  })
+                                  
+                                  // クリーンアップ関数を保存
+                                  el._dragCleanup = cleanup
+                                }
+                              }}
                               onClick={(e) => {
-                                // チェックボックスやリサイズハンドルのクリックでない場合のみタスクプールに戻す
+                                // クリック処理（チェックボックスとリサイズハンドル以外）
                                 if (!e.target.closest('input') && !e.target.closest('.resize-handle')) {
                                   handleTaskClick(scheduledTask, taskKey)
                                 }
@@ -372,7 +427,7 @@ export const ImprovedDailyPlanner = ({
                               
                               {/* リサイズハンドル */}
                               <div
-                                className="resize-handle absolute bottom-0 right-0 w-3 h-3 bg-white bg-opacity-30 cursor-se-resize"
+                                className={`resize-handle absolute bottom-0 right-0 ${isMobile ? 'w-6 h-6' : 'w-3 h-3'} bg-white bg-opacity-30 cursor-se-resize rounded-tl-md`}
                                 onMouseDown={(e) => {
                                   e.preventDefault()
                                   e.stopPropagation()

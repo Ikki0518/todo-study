@@ -2,6 +2,138 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Mobile Weekly Planner Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.animate-slideUp {
+  animation: slideUp 0.3s ease-out;
+}
+
+/* Touch optimization */
+.touch-target {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Smooth transitions for task resizing */
+.task-resize-transition {
+  transition: height 0.2s ease-out;
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  /* Larger touch targets on mobile */
+  .touch-target {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  
+  /* Prevent horizontal scroll */
+  .mobile-planner-container {
+    overflow-x: hidden;
+  }
+  
+  /* Optimize grid for mobile */
+  .mobile-weekly-grid {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+}
+
+/* Task priority colors with hover states */
+.task-priority-high {
+  @apply bg-red-500 hover:bg-red-600;
+}
+
+.task-priority-medium {
+  @apply bg-yellow-500 hover:bg-yellow-600;
+}
+
+.task-priority-low {
+  @apply bg-green-500 hover:bg-green-600;
+}
+
+/* Resize handle styling */
+.resize-handle {
+  cursor: ns-resize;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.task-block:hover .resize-handle {
+  opacity: 1;
+}
+
+/* Drag handles for tasks */
+.task-drag-handle {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.task-block:hover .task-drag-handle,
+.task-block:active .task-drag-handle {
+  opacity: 1;
+}
+
+/* Visual feedback during drag */
+.task-dragging {
+  opacity: 0.8;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+}
+
+/* Cursor styles for different drag modes */
+.cursor-move {
+  cursor: move;
+}
+
+.cursor-ns-resize {
+  cursor: ns-resize;
+}
+
+/* Smooth transitions for task position and size */
+.task-transition {
+  transition: top 0.2s ease-out, height 0.2s ease-out;
+}
+
+/* Time indicator animation */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.time-indicator {
+  animation: pulse 2s ease-in-out infinite;
+}
+
 /* カスタムスタイル */
 @layer utilities {
   /* 青色の薄いバックグラウンド */
@@ -56,6 +188,47 @@
     
     .mobile-grid-cell {
       min-width: 80px; /* モバイルでの最小セル幅 */
+    }
+    
+    /* モバイルドラッグ中のハイライト（シンプル化のため削除） */
+    
+    /* モバイルリサイズハンドル */
+    .mobile-resize-handle {
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .mobile-resize-handle::before {
+      content: '';
+      position: absolute;
+      bottom: 2px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 40px;
+      height: 4px;
+      background-color: rgba(255, 255, 255, 0.8);
+      border-radius: 2px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    }
+    
+    /* タスクドラッグ中のアニメーション */
+    .task-dragging {
+      animation: pulse 1s infinite;
+    }
+    
+    @keyframes pulse {
+      0% {
+        transform: scale(1.05);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+      }
+      50% {
+        transform: scale(1.08);
+        box-shadow: 0 15px 30px rgba(0, 0, 0, 0.4);
+      }
+      100% {
+        transform: scale(1.05);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+      }
     }
   }
   

@@ -10,6 +10,7 @@ import { MonthlyCalendar } from './components/MonthlyCalendar';
 import { StudyBookManager } from './components/StudyBookManager';
 import { DailyTaskPool } from './components/DailyTaskPool';
 import { CalendarWithSchedule } from './components/CalendarWithSchedule';
+import { getEventCoordinates, startDrag } from './utils/dragUtils';
 import { ProfileSettings } from './components/ProfileSettings';
 import { InviteManager } from './components/InviteManager';
 import StudentMessages from './components/StudentMessages';
@@ -17,8 +18,10 @@ import InstructorMessages from './components/InstructorMessages';
 import FloatingActionButton from './components/FloatingActionButton';
 import { MobileTaskPopup } from './components/MobileTaskPopup';
 import { ExamDateSettings } from './components/ExamDateSettings';
+import { MobileWeeklyPlannerDemo } from './components/MobileWeeklyPlannerDemo';
 import { generateStudyPlan, convertPlansToTasks, calculateStudyPlanStats } from './utils/studyPlanGenerator';
 import apiService from './services/apiService';
+import sessionService from './services/sessionService';
 
 function App() {
   // Cookie管理ユーティリティ（App.jsx用）
@@ -35,13 +38,29 @@ function App() {
     }
   };
 
-  // 認証状態の初期化を同期的に行う（Cookie対応版）
+  // 認証状態の初期化を同期的に行う（セッションサービス統合版）
   const initializeAuthSync = () => {
-    console.log('🔍 ===== 同期認証初期化開始 =====');
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔍 ===== 同期認証初期化開始 =====');
+      console.log('🍪 Cookie復元処理開始');
+      console.log('  - 利用可能Cookie:', document.cookie);
+    }
     
-    // 複数のソースから認証データを取得（Cookie追加・デバッグ強化）
-    console.log('🍪 Cookie復元処理開始');
-    console.log('  - 利用可能Cookie:', document.cookie);
+    // セッションサービスから状態を復元
+    const restoredSession = sessionService.restoreSession();
+    if (restoredSession) {
+      console.log('✅ セッションサービスから状態復元:', restoredSession);
+      
+      // セッションから認証状態を復元できる場合
+      if (restoredSession.authState && restoredSession.authState.isLoggedIn) {
+        return {
+          isLoggedIn: restoredSession.authState.isLoggedIn,
+          userRole: restoredSession.authState.userRole,
+          currentUser: restoredSession.authState.currentUser,
+          currentView: restoredSession.currentView || 'goals'
+        };
+      }
+    }
     
     let authToken = localStorage.getItem('authToken');
     let savedUser = localStorage.getItem('currentUser');
@@ -173,26 +192,71 @@ function App() {
     };
   };
   
-  // 同期的に認証状態を初期化
+  // 同期的に認証状態を初期化（セッションサービス統合版）
   const initialAuthState = initializeAuthSync();
   
-  const [currentView, setCurrentView] = useState(initialAuthState.currentView || 'planner')
+  // セッションサービスから追加の状態を復元
+  const restoreSessionState = () => {
+    const restoredSession = sessionService.restoreSession();
+    if (restoredSession) {
+      console.log('🔄 セッションから追加状態を復元:', restoredSession);
+      
+      return {
+        currentView: restoredSession.currentView || initialAuthState.currentView || 'planner',
+        isPaid: restoredSession.paymentState?.isPaid || false,
+        paymentStatus: restoredSession.paymentState?.paymentStatus || null,
+        selectedPlan: restoredSession.paymentState?.selectedPlan || null,
+        showPricing: !restoredSession.authState?.isLoggedIn,
+        showRegistrationFlow: false,
+        showLoginScreen: false,
+        isLoggedIn: restoredSession.authState?.isLoggedIn || initialAuthState.isLoggedIn,
+        userRole: restoredSession.authState?.userRole || initialAuthState.userRole,
+        currentUser: restoredSession.authState?.currentUser || initialAuthState.currentUser,
+        hasValidSubscription: restoredSession.authState?.hasValidSubscription || initialAuthState.isLoggedIn
+      };
+    }
+    
+    return {
+      currentView: initialAuthState.currentView || 'planner',
+      isPaid: false,
+      paymentStatus: null,
+      selectedPlan: null,
+      showPricing: !initialAuthState.isLoggedIn,
+      showRegistrationFlow: false,
+      showLoginScreen: false,
+      isLoggedIn: initialAuthState.isLoggedIn,
+      userRole: initialAuthState.userRole,
+      currentUser: initialAuthState.currentUser,
+      hasValidSubscription: initialAuthState.isLoggedIn
+    };
+  };
+  
+  const sessionState = restoreSessionState();
+  
+  const [currentView, setCurrentView] = useState(sessionState.currentView)
   const [currentStreak] = useState(15)
   
-  // 決済状態の管理
-  const [isPaid, setIsPaid] = useState(false)
-  const [paymentStatus, setPaymentStatus] = useState(null) // null, 'pending', 'completed', 'failed'
-  const [selectedPlan, setSelectedPlan] = useState(null)
-  const [showPricing, setShowPricing] = useState(!initialAuthState.isLoggedIn)
-  const [showRegistrationFlow, setShowRegistrationFlow] = useState(false)
-  const [showLoginScreen, setShowLoginScreen] = useState(false)
+  // セッションサービスと連携したビュー更新関数
+  const updateCurrentView = (newView) => {
+    setCurrentView(newView);
+    sessionService.updateCurrentView(newView);
+    sessionService.updateSessionActivity();
+  };
   
-  // 認証状態を初期化時に復元
-  const [isLoggedIn, setIsLoggedIn] = useState(initialAuthState.isLoggedIn)
+  // 決済状態の管理（セッションから復元）
+  const [isPaid, setIsPaid] = useState(sessionState.isPaid)
+  const [paymentStatus, setPaymentStatus] = useState(sessionState.paymentStatus)
+  const [selectedPlan, setSelectedPlan] = useState(sessionState.selectedPlan)
+  const [showPricing, setShowPricing] = useState(sessionState.showPricing)
+  const [showRegistrationFlow, setShowRegistrationFlow] = useState(sessionState.showRegistrationFlow)
+  const [showLoginScreen, setShowLoginScreen] = useState(sessionState.showLoginScreen)
+  
+  // 認証状態を初期化時に復元（セッションサービス統合版）
+  const [isLoggedIn, setIsLoggedIn] = useState(sessionState.isLoggedIn)
   const [authInitialized, setAuthInitialized] = useState(true)
-  const [userRole, setUserRole] = useState(initialAuthState.userRole)
-  const [currentUser, setCurrentUser] = useState(initialAuthState.currentUser)
-  const [hasValidSubscription, setHasValidSubscription] = useState(initialAuthState.isLoggedIn)
+  const [userRole, setUserRole] = useState(sessionState.userRole)
+  const [currentUser, setCurrentUser] = useState(sessionState.currentUser)
+  const [hasValidSubscription, setHasValidSubscription] = useState(sessionState.hasValidSubscription)
   const [goals, setGoals] = useState([
     {
       id: 'goal-1',
@@ -344,9 +408,16 @@ function App() {
     }
   }, [])
 
-  // 決済状態のチェック
+  // 決済状態のチェック（セッションサービス統合版）
   useEffect(() => {
     const checkPaymentStatus = () => {
+      // セッションサービスから状態を確認
+      const restoredSession = sessionService.restoreSession()
+      if (restoredSession && restoredSession.authState && restoredSession.authState.isLoggedIn) {
+        console.log('✅ セッションサービスから認証状態を復元 - 決済チェックをスキップ')
+        return // セッションサービスが有効な場合は従来のチェックをスキップ
+      }
+      
       // URLパラメータから決済成功をチェック
       const urlParams = new URLSearchParams(window.location.search)
       const paymentSuccess = urlParams.get('payment_success')
@@ -397,6 +468,19 @@ function App() {
             setUserRole('STUDENT')
             setHasValidSubscription(true)
             
+            // セッションサービスにも状態を記録
+            sessionService.recordCheckpoint(sessionService.CHECKPOINTS.PAYMENT_COMPLETED, {
+              userId: updatedUserInfo.userId,
+              paymentStatus: 'completed',
+              subscriptionActive: true
+            })
+            
+            sessionService.recordCheckpoint(sessionService.CHECKPOINTS.LOGIN_COMPLETED, {
+              userId: updatedUserInfo.userId,
+              userRole: 'STUDENT',
+              hasValidSubscription: true
+            })
+            
             console.log('✅ 決済完了 - ユーザーをシステムにログイン:', updatedUserInfo)
           } catch (error) {
             console.error('🚨 ユーザーデータの処理に失敗:', error)
@@ -437,6 +521,13 @@ function App() {
               setUserRole('STUDENT')
               setHasValidSubscription(true)
               
+              // セッションサービスにも状態を記録
+              sessionService.recordCheckpoint(sessionService.CHECKPOINTS.LOGIN_COMPLETED, {
+                userId: userInfo.userId,
+                userRole: 'STUDENT',
+                hasValidSubscription: true
+              })
+              
               console.log('✅ 決済済み状態を復元 - システムにログイン:', userInfo)
             } else {
               console.log('⚠️ サブスクリプションが非アクティブ - ログイン不可')
@@ -460,14 +551,7 @@ function App() {
           }
         }
       } else {
-        // 初期化時のログイン状態を優先し、既にログイン済みの場合は状態を維持
-        if (initialAuthState.isLoggedIn) {
-          console.log('✅ 初期化時のログイン状態を維持:', initialAuthState.currentUser)
-          // 既にログイン済みの場合は状態を変更しない
-          return
-        }
-        
-        // 未決済の場合でも、既存のログイン状態を確認
+        // セッションサービスが無効で、決済情報もない場合のみログアウト状態に
         const authToken = localStorage.getItem('authToken')
         const savedUser = localStorage.getItem('currentUser')
         
@@ -492,11 +576,6 @@ function App() {
           }
         } else {
           // 認証情報がない場合のみログアウト状態に
-          setIsLoggedIn(false)
-          setCurrentUser(null)
-          setUserRole(null)
-          setHasValidSubscription(false)
-          setShowPricing(true)
           console.log('ℹ️ 認証情報なし - 料金プランを表示')
         }
         
@@ -677,7 +756,7 @@ function App() {
       setTodayTasks([])
     }
     
-    setCurrentView('planner')
+    updateCurrentView('planner')
   }
 
   // 参考書学習計画生成関数
@@ -932,6 +1011,17 @@ function App() {
       duration: task.duration || 1 // 既存のdurationを保持、なければ1時間
     }
     setScheduledTasks(newScheduledTasks)
+    
+    // チェックポイント: 初回タスクスケジュール
+    if (Object.keys(scheduledTasks).length === 0 && Object.keys(newScheduledTasks).length > 0) {
+      sessionService.recordCheckpoint(sessionService.CHECKPOINTS.FIRST_TASK_SCHEDULED, {
+        taskId: draggingTaskId,
+        scheduledDate: dateKey,
+        scheduledHour: hour,
+        userId: currentUser?.id,
+        timestamp: new Date().toISOString()
+      })
+    }
     
     // タッチ状態をクリーンアップ
     if (window.taskPoolTouch) {
@@ -1194,6 +1284,12 @@ function App() {
 
   // 認証初期化が同期的に行われるため、ローディング画面は不要
 
+  // デモページのチェック
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('demo') === 'mobile-weekly-planner') {
+    return <MobileWeeklyPlannerDemo />;
+  }
+
   // 新フロー: 料金プラン → 新規登録 → 決済 → アプリ利用
   
   // 1. 料金プラン表示（最初の画面）
@@ -1229,6 +1325,18 @@ function App() {
         onComplete={() => {
           setShowRegistrationFlow(false)
           setIsPaid(true)
+          
+          // チェックポイント: ユーザー登録完了
+          const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}')
+          sessionService.recordCheckpoint(sessionService.CHECKPOINTS.USER_REGISTRATION_COMPLETED, {
+            userId: userInfo.userId,
+            username: userInfo.username,
+            email: userInfo.email,
+            timestamp: new Date().toISOString()
+          })
+          
+          // 現在のビューを更新
+          sessionService.updateCurrentView(sessionService.VIEWS.DASHBOARD)
         }}
         onBack={() => {
           // 戻るボタンは不要だが、念のため
@@ -1247,15 +1355,34 @@ function App() {
     // 決済完了後は直接アプリを利用可能にする
     setIsLoggedIn(true)
     const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}')
-    setCurrentUser({
+    const currentUser = {
       id: userInfo.userId || 'user-' + Date.now(),
       name: userInfo.username || 'ユーザー',
       email: userInfo.email || '',
       userRole: 'STUDENT',
       subscriptionActive: true,
       paymentStatus: 'completed'
-    })
+    }
+    setCurrentUser(currentUser)
     setUserRole('STUDENT')
+    
+    // チェックポイント: 決済完了とログイン完了
+    sessionService.recordCheckpoint(sessionService.CHECKPOINTS.PAYMENT_COMPLETED, {
+      userId: currentUser.id,
+      paymentStatus: 'completed',
+      subscriptionActive: true,
+      timestamp: new Date().toISOString()
+    })
+    
+    sessionService.recordCheckpoint(sessionService.CHECKPOINTS.LOGIN_COMPLETED, {
+      userId: currentUser.id,
+      userRole: 'STUDENT',
+      hasValidSubscription: true,
+      timestamp: new Date().toISOString()
+    })
+    
+    // 現在のビューを更新
+    sessionService.updateCurrentView(sessionService.VIEWS.DASHBOARD)
   }
   
   // 3. システム入場時の決済チェック
@@ -1342,9 +1469,9 @@ function App() {
                     
                     // 現在のビューを設定
                     if (userData.userRole === 'INSTRUCTOR') {
-                      setCurrentView('dashboard');
+                      updateCurrentView('dashboard');
                     } else {
-                      setCurrentView('goals');
+                      updateCurrentView('goals');
                     }
                     
                     // 追加の永続化処理
@@ -1375,9 +1502,9 @@ function App() {
               setUserRole(role);
               // 役割変更時にcurrentViewを設定
               if (role === 'INSTRUCTOR') {
-                setCurrentView('dashboard');
+                updateCurrentView('dashboard');
               } else {
-                setCurrentView('goals');
+                updateCurrentView('goals');
               }
             }}
             showPaymentSuccess={true}
@@ -1426,7 +1553,7 @@ function App() {
           {userRole === 'STUDENT' ? (
             <div>
               <button
-                onClick={() => setCurrentView('planner')}
+                onClick={() => updateCurrentView('planner')}
                 className={`w-full text-left px-4 py-2 rounded-md mb-2 ${
                   currentView === 'planner' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100'
                 }`}
@@ -1434,7 +1561,7 @@ function App() {
                 📅 週間プランナー
               </button>
               <button
-                onClick={() => setCurrentView('monthly-calendar')}
+                onClick={() => updateCurrentView('monthly-calendar')}
                 className={`w-full text-left px-4 py-2 rounded-md mb-2 ${
                   currentView === 'monthly-calendar' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100'
                 }`}
@@ -1442,7 +1569,7 @@ function App() {
                 📆 月間カレンダー
               </button>
               <button
-                onClick={() => setCurrentView('study-books')}
+                onClick={() => updateCurrentView('study-books')}
                 className={`w-full text-left px-4 py-2 rounded-md mb-2 ${
                   currentView === 'study-books' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100'
                 }`}
@@ -1450,7 +1577,7 @@ function App() {
                 📚 参考書管理
               </button>
               <button
-                onClick={() => setCurrentView('goals')}
+                onClick={() => updateCurrentView('goals')}
                 className={`w-full text-left px-4 py-2 rounded-md mb-2 ${
                   currentView === 'goals' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100'
                 }`}
@@ -1461,7 +1588,7 @@ function App() {
           ) : (
             <div>
               <button
-                onClick={() => setCurrentView('dashboard')}
+                onClick={() => updateCurrentView('dashboard')}
                 className={`w-full text-left px-4 py-2 rounded-md mb-2 ${
                   currentView === 'dashboard' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100'
                 }`}
@@ -1469,7 +1596,7 @@ function App() {
                 📊 講師ダッシュボード
               </button>
               <button
-                onClick={() => setCurrentView('students')}
+                onClick={() => updateCurrentView('students')}
                 className={`w-full text-left px-4 py-2 rounded-md mb-2 ${
                   currentView === 'students' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100'
                 }`}
@@ -1477,7 +1604,7 @@ function App() {
                 👥 生徒管理
               </button>
               <button
-                onClick={() => setCurrentView('assignments')}
+                onClick={() => updateCurrentView('assignments')}
                 className={`w-full text-left px-4 py-2 rounded-md mb-2 ${
                   currentView === 'assignments' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100'
                 }`}
@@ -1485,7 +1612,7 @@ function App() {
                 📝 課題管理
               </button>
               <button
-                onClick={() => setCurrentView('analytics')}
+                onClick={() => updateCurrentView('analytics')}
                 className={`w-full text-left px-4 py-2 rounded-md mb-2 ${
                   currentView === 'analytics' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100'
                 }`}
@@ -1493,7 +1620,7 @@ function App() {
                 📈 分析
               </button>
               <button
-                onClick={() => setCurrentView('messages')}
+                onClick={() => updateCurrentView('messages')}
                 className={`w-full text-left px-4 py-2 rounded-md mb-2 ${
                   currentView === 'messages' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100'
                 }`}
@@ -1501,7 +1628,7 @@ function App() {
                 💬 メッセージ
               </button>
               <button
-                onClick={() => setCurrentView('invites')}
+                onClick={() => updateCurrentView('invites')}
                 className={`w-full text-left px-4 py-2 rounded-md mb-2 ${
                   currentView === 'invites' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100'
                 }`}
@@ -1516,7 +1643,7 @@ function App() {
         <div className="border-t border-gray-200 p-4">
           <div className="flex items-center justify-center space-x-4">
             <button
-              onClick={() => setCurrentView('settings')}
+              onClick={() => updateCurrentView('settings')}
               className={`p-2 rounded-lg transition-colors ${
                 currentView === 'settings' ? 'bg-gray-200 text-gray-900' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
               }`}
@@ -1547,7 +1674,7 @@ function App() {
                   setIsLoggedIn(false)
                   setCurrentUser(null)
                   setUserRole('STUDENT')
-                  setCurrentView('goals')
+                  updateCurrentView('goals')
                   setGoals([])
                   setTodayTasks([])
                   setScheduledTasks({})
@@ -1817,14 +1944,6 @@ function App() {
                                 }
                               } : undefined}
                             >
-                              {/* ドロップゾーンインジケーター - モバイルのみ */}
-                              {draggingOverCalendar && currentDragTask && !isOccupied && isMobile && (
-                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                  <div className="text-xs text-green-600 font-medium bg-white bg-opacity-80 px-2 py-1 rounded shadow-sm">
-                                    📍
-                                  </div>
-                                </div>
-                              )}
                               {scheduledTask && (
                                 <div
                                   className={`absolute ${isMobile ? 'p-1 text-xs' : 'p-2 text-sm'} rounded cursor-pointer z-10 ${
@@ -1903,62 +2022,114 @@ function App() {
                                       }
                                     }
                                   }}
-                                  // モバイル向けタッチイベント（シンプル化）
-                                  onTouchStart={isMobile && !completedTasks[taskKey] ? (e) => {
-                                    // リサイズハンドルのタッチは除外
+                                  // タッチイベントとマウスイベントの統合処理
+                                  onMouseDown={!completedTasks[taskKey] ? (e) => {
+                                    // リサイズハンドルやチェックボックスの場合は除外
                                     if (e.target.closest('input') || e.target.closest('.resize-handle')) {
-                                      return
+                                      return;
                                     }
                                     
-                                    const touch = e.touches[0]
-                                    console.log('🔍 Debug - モバイル タスクタッチ開始:', { taskKey, scheduledTask })
+                                    e.preventDefault();
+                                    const coords = getEventCoordinates(e);
+                                    const elem = e.currentTarget;
                                     
-                                    // タッチ開始情報を記録
-                                    window.mobileTouch = {
-                                      startTime: Date.now(),
-                                      startX: touch.clientX,
-                                      startY: touch.clientY,
-                                      currentX: touch.clientX,
-                                      currentY: touch.clientY,
-                                      hasMoved: false,
-                                      isDragging: false,
-                                      taskKey: taskKey,
-                                      scheduledTask: scheduledTask,
-                                      element: e.currentTarget,
-                                      originalParent: e.currentTarget.parentElement
-                                    }
+                                    console.log('🔍 Debug - ドラッグ開始:', { taskKey, scheduledTask, coords });
                                     
-                                    // 視覚フィードバック
-                                    e.currentTarget.style.opacity = '0.9'
-                                    e.currentTarget.style.transform = 'scale(1.02)'
-                                    e.currentTarget.style.transition = 'all 0.2s ease'
+                                    // ドラッグ開始時の要素のサイズを取得
+                                    const originalWidth = elem.offsetWidth;
+                                    const originalHeight = elem.offsetHeight;
                                     
-                                    // 長押し検出（300ms）
-                                    window.mobileTouch.longPressTimer = setTimeout(() => {
-                                      if (!window.mobileTouch.hasMoved) {
-                                        console.log('🔍 Debug - モバイル 長押し検出、ドラッグモード開始')
-                                        window.mobileTouch.isDragging = true
+                                    console.log('🔍 Debug - ドラッグ開始時のサイズ:', { originalWidth, originalHeight });
+                                    
+                                    // ドラッグ開始処理
+                                    setCurrentDragTask(scheduledTask);
+                                    setDraggingTaskId(`scheduled-${taskKey}`);
+                                    setDraggingOverCalendar(true);
+                                    
+                                    // ドラッグ中の処理を設定
+                                    startDrag(elem, {
+                                      zIndex: 9999,
+                                      opacity: 0.8,
+                                      onMove: (moveCoords, moveEvent) => {
+                                        // タスクを指に追従させる
+                                        elem.style.position = 'fixed';
+                                        elem.style.width = `${originalWidth}px`;  // 元の幅を維持
+                                        elem.style.height = `${originalHeight}px`; // 元の高さを維持
+                                        elem.style.left = `${moveCoords.x - originalWidth / 2}px`;
+                                        elem.style.top = `${moveCoords.y - originalHeight / 2}px`;
                                         
-                                        // ドラッグ開始の視覚効果
-                                        const elem = window.mobileTouch.element
-                                        elem.style.position = 'fixed'
-                                        elem.style.zIndex = '9999'
-                                        elem.style.opacity = '0.8'
-                                        elem.style.boxShadow = '0 10px 30px rgba(0,0,0,0.3)'
-                                        elem.style.pointerEvents = 'none'
-                                        elem.style.left = `${window.mobileTouch.currentX - elem.offsetWidth / 2}px`
-                                        elem.style.top = `${window.mobileTouch.currentY - elem.offsetHeight / 2}px`
+                                        // ドロップ可能な場所をハイライト
+                                        elem.style.pointerEvents = 'none';
+                                        const elementBelow = document.elementFromPoint(moveCoords.x, moveCoords.y);
+                                        elem.style.pointerEvents = 'auto';
                                         
-                                        setCurrentDragTask(scheduledTask)
-                                        setDraggingTaskId(`scheduled-${taskKey}`)
-                                        setDraggingOverCalendar(true)
+                                        const cell = elementBelow?.closest('[data-cell-info]');
                                         
-                                        // バイブレーション
-                                        if (navigator.vibrate) {
-                                          navigator.vibrate(100)
+                                        // ハイライト表示を削除（シンプルなインターフェースのため）
+                                      },
+                                      onEnd: (endCoords, endEvent) => {
+                                        console.log('🔍 Debug - ドラッグ終了:', { endCoords });
+                                        
+                                        // ドロップ処理
+                                        elem.style.pointerEvents = 'none';
+                                        const elementBelow = document.elementFromPoint(endCoords.x, endCoords.y);
+                                        elem.style.pointerEvents = 'auto';
+                                        
+                                        const cell = elementBelow?.closest('[data-cell-info]');
+                                        
+                                        if (cell) {
+                                          const cellInfo = JSON.parse(cell.getAttribute('data-cell-info'));
+                                          const newTaskKey = `${cellInfo.dateKey}-${cellInfo.hour}`;
+                                          
+                                          // 異なる位置かつ空いている場合のみ移動
+                                          if (newTaskKey !== taskKey && !scheduledTasks[newTaskKey]) {
+                                            setScheduledTasks(prev => {
+                                              const newTasks = { ...prev };
+                                              delete newTasks[taskKey];
+                                              newTasks[newTaskKey] = {
+                                                ...scheduledTask,
+                                                id: scheduledTask.id
+                                              };
+                                              return newTasks;
+                                            });
+                                            
+                                            // バイブレーション（成功）
+                                            if (navigator.vibrate) {
+                                              navigator.vibrate(50);
+                                            }
+                                          }
                                         }
+                                        
+                                        // 状態をリセット
+                                        setCurrentDragTask(null);
+                                        setDraggingTaskId(null);
+                                        setDraggingOverCalendar(false);
+                                        
+                                        // スタイルをリセット
+                                        elem.style.position = '';
+                                        elem.style.width = '';
+                                        elem.style.height = '';
+                                        elem.style.left = '';
+                                        elem.style.top = '';
+                                        
+                                        // クリーンアップ処理のみ
                                       }
-                                    }, 300)
+                                    });
+                                  } : undefined}
+                                  onTouchStart={!completedTasks[taskKey] ? (e) => {
+                                    // リサイズハンドルやチェックボックスの場合は除外
+                                    if (e.target.closest('input') || e.target.closest('.resize-handle')) {
+                                      return;
+                                    }
+                                    
+                                    // マウスダウンイベントをトリガー（共通処理を使用）
+                                    const mouseDownEvent = new MouseEvent('mousedown', {
+                                      bubbles: true,
+                                      cancelable: true,
+                                      clientX: e.touches[0].clientX,
+                                      clientY: e.touches[0].clientY
+                                    });
+                                    e.currentTarget.dispatchEvent(mouseDownEvent);
                                   } : undefined}
                                   onTouchMove={isMobile && !completedTasks[taskKey] ? (e) => {
                                     if (!e.touches[0] || !window.mobileTouch) return
@@ -2142,36 +2313,38 @@ function App() {
                                   
                                   {/* 改善されたリサイズハンドル - PC/モバイル対応 */}
                                   <div
-                                    className={`resize-handle absolute bottom-0 left-0 right-0 ${isMobile ? 'h-4' : 'h-3'} ${isMobile ? 'cursor-ns-resize' : 'cursor-s-resize'} hover:bg-white hover:bg-opacity-40 transition-all duration-200 flex items-center justify-center group`}
+                                    className={`resize-handle absolute bottom-0 left-0 right-0 ${isMobile ? 'h-6' : 'h-4'} cursor-ns-resize hover:bg-white hover:bg-opacity-40 transition-all duration-200 flex items-center justify-center group`}
                                     style={{
-                                      background: isMobile
-                                        ? 'linear-gradient(to bottom, transparent 0%, rgba(255,255,255,0.4) 30%, rgba(255,255,255,0.7) 70%, rgba(255,255,255,0.9) 100%)'
-                                        : 'linear-gradient(to bottom, transparent 0%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0.6) 100%)',
-                                      borderRadius: '0 0 4px 4px',
-                                      borderTop: isMobile ? '1px solid rgba(255,255,255,0.5)' : 'none'
+                                      background: 'linear-gradient(to bottom, transparent 0%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0.6) 100%)',
+                                      borderRadius: '0 0 4px 4px'
                                     }}
-                                    onMouseDown={!isMobile ? (e) => {
-                                      e.preventDefault()
-                                      e.stopPropagation()
+                                    onMouseDown={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
                                       
-                                      console.log('🔍 Debug - PC リサイズハンドルクリック開始')
+                                      const coords = getEventCoordinates(e);
+                                      const startY = coords.y;
+                                      const startDuration = scheduledTask.duration || 1;
+                                      const elem = e.currentTarget;
+                                      const taskElem = e.currentTarget.parentElement;
                                       
-                                      const startY = e.clientY
-                                      const startDuration = scheduledTask.duration || 1
-                                      let lastDuration = startDuration
+                                      console.log('🔍 Debug - リサイズ開始:', { taskKey, startY, startDuration });
                                       
                                       // リサイズ中の視覚的フィードバック
-                                      e.currentTarget.style.background = 'rgba(59, 130, 246, 0.8)'
+                                      elem.style.background = 'rgba(59, 130, 246, 0.8)';
                                       
-                                      const handleMouseMove = (moveEvent) => {
-                                        const deltaY = moveEvent.clientY - startY
-                                        const cellHeight = 120
-                                        const hourChange = Math.round(deltaY / cellHeight)
-                                        const newDuration = Math.max(1, Math.min(12, startDuration + hourChange))
-                                        
-                                        if (newDuration !== lastDuration) {
-                                          console.log('🔍 Debug - PC リサイズ中:', { deltaY, hourChange, newDuration })
-                                          lastDuration = newDuration
+                                      // リサイズ処理を設定
+                                      startDrag(taskElem, {
+                                        zIndex: 1000,
+                                        opacity: 1,
+                                        cursor: 'ns-resize',
+                                        onMove: (moveCoords, moveEvent) => {
+                                          const deltaY = moveCoords.y - startY;
+                                          const cellHeight = isMobile ? 50 : 120;
+                                          const hourChange = Math.round(deltaY / cellHeight);
+                                          const newDuration = Math.max(1, Math.min(12, startDuration + hourChange));
+                                          
+                                          console.log('🔍 Debug - リサイズ中:', { deltaY, hourChange, newDuration });
                                           
                                           setScheduledTasks(prev => ({
                                             ...prev,
@@ -2179,97 +2352,31 @@ function App() {
                                               ...scheduledTask,
                                               duration: newDuration
                                             }
-                                          }))
-                                        }
-                                      }
-                                      
-                                      const handleMouseUp = () => {
-                                        console.log('🔍 Debug - PC リサイズ終了')
-                                        // 元のスタイルに戻す
-                                        e.currentTarget.style.background = 'linear-gradient(to bottom, transparent 0%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0.6) 100%)'
-                                        document.removeEventListener('mousemove', handleMouseMove)
-                                        document.removeEventListener('mouseup', handleMouseUp)
-                                      }
-                                      
-                                      document.addEventListener('mousemove', handleMouseMove)
-                                      document.addEventListener('mouseup', handleMouseUp)
-                                    } : undefined}
-                                    onTouchStart={isMobile ? (e) => {
-                                      e.preventDefault()
-                                      e.stopPropagation()
-                                      
-                                      console.log('🔍 Debug - モバイル リサイズハンドルタッチ開始')
-                                      
-                                      const startY = e.touches[0].clientY
-                                      const startDuration = scheduledTask.duration || 1
-                                      let isResizing = false
-                                      let lastDuration = startDuration
-                                      
-                                      // リサイズ開始の視覚的フィードバック
-                                      e.currentTarget.style.background = 'rgba(59, 130, 246, 0.8)'
-                                      e.currentTarget.style.transform = 'scaleY(1.2)'
-                                      
-                                      // バイブレーション（対応デバイスのみ）
-                                      if (navigator.vibrate) {
-                                        navigator.vibrate([30, 10, 30])
-                                      }
-                                      
-                                      const handleTouchMove = (moveEvent) => {
-                                        if (!moveEvent.touches[0]) return
-                                        
-                                        moveEvent.preventDefault()
-                                        moveEvent.stopPropagation()
-                                        isResizing = true
-                                        
-                                        const deltaY = moveEvent.touches[0].clientY - startY
-                                        const cellHeight = 50 // モバイル版のセル高さ（調整済み）
-                                        const hourChange = Math.round(deltaY / (cellHeight * 0.6)) // さらに敏感に
-                                        const newDuration = Math.max(1, Math.min(12, startDuration + hourChange))
-                                        
-                                        if (newDuration !== lastDuration) {
-                                          console.log('🔍 Debug - モバイル リサイズ中:', {
-                                            deltaY,
-                                            hourChange,
-                                            newDuration,
-                                            startDuration,
-                                            cellHeight
-                                          })
-                                          lastDuration = newDuration
+                                          }));
+                                        },
+                                        onEnd: (endCoords, endEvent) => {
+                                          console.log('🔍 Debug - リサイズ終了');
                                           
-                                          // 変更時にバイブレーション
+                                          // 元のスタイルに戻す
+                                          elem.style.background = 'linear-gradient(to bottom, transparent 0%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0.6) 100%)';
+                                          
+                                          // バイブレーション
                                           if (navigator.vibrate) {
-                                            navigator.vibrate(20)
+                                            navigator.vibrate(50);
                                           }
-                                          
-                                          setScheduledTasks(prev => ({
-                                            ...prev,
-                                            [taskKey]: {
-                                              ...scheduledTask,
-                                              duration: newDuration
-                                            }
-                                          }))
                                         }
-                                      }
-                                      
-                                      const handleTouchEnd = (endEvent) => {
-                                        console.log('🔍 Debug - モバイル リサイズ終了:', { isResizing })
-                                        
-                                        // 元のスタイルに戻す
-                                        e.currentTarget.style.background = 'linear-gradient(to bottom, transparent 0%, rgba(255,255,255,0.4) 30%, rgba(255,255,255,0.7) 70%, rgba(255,255,255,0.9) 100%)'
-                                        e.currentTarget.style.transform = 'scaleY(1)'
-                                        
-                                        document.removeEventListener('touchmove', handleTouchMove, { passive: false })
-                                        document.removeEventListener('touchend', handleTouchEnd)
-                                        
-                                        // リサイズ完了のバイブレーション
-                                        if (isResizing && navigator.vibrate) {
-                                          navigator.vibrate([50, 30, 50])
-                                        }
-                                      }
-                                      
-                                      document.addEventListener('touchmove', handleTouchMove, { passive: false })
-                                      document.addEventListener('touchend', handleTouchEnd)
-                                    } : undefined}
+                                      });
+                                    }}
+                                    onTouchStart={(e) => {
+                                      // マウスダウンイベントをトリガー（共通処理を使用）
+                                      const mouseDownEvent = new MouseEvent('mousedown', {
+                                        bubbles: true,
+                                        cancelable: true,
+                                        clientX: e.touches[0].clientX,
+                                        clientY: e.touches[0].clientY
+                                      });
+                                      e.currentTarget.dispatchEvent(mouseDownEvent);
+                                    }}
                                   >
                                     <div className="w-full h-full flex items-center justify-center">
                                       {isMobile ? (
@@ -2347,7 +2454,7 @@ function App() {
               <div className="flex items-center space-x-4">
                 <h1 className="text-3xl font-bold text-gray-900">目標管理</h1>
                 <button
-                  onClick={() => setCurrentView('ai-assistant')}
+                  onClick={() => updateCurrentView('ai-assistant')}
                   className="px-3 py-2 text-sm bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center space-x-2"
                 >
                   <span>🤖</span>
@@ -2370,6 +2477,16 @@ function App() {
                 setExamDates(prevExams => {
                   const updatedExams = [...prevExams, examData];
                   localStorage.setItem('examDates', JSON.stringify(updatedExams));
+                  
+                  // チェックポイント: 受験日設定
+                  sessionService.recordCheckpoint(sessionService.CHECKPOINTS.EXAM_DATE_SET, {
+                    examId: examData.id,
+                    examTitle: examData.title,
+                    examDate: examData.date,
+                    userId: currentUser?.id,
+                    timestamp: new Date().toISOString()
+                  });
+                  
                   return updatedExams;
                 });
               }}
@@ -2662,7 +2779,7 @@ function App() {
             }}
             onClose={() => {
               // 前の画面に戻る
-              setCurrentView(userRole === 'STUDENT' ? 'goals' : 'dashboard');
+              updateCurrentView(userRole === 'STUDENT' ? 'goals' : 'dashboard');
             }}
           />
         )}
@@ -2756,6 +2873,17 @@ function App() {
                 setGoals(goals.map(goal => goal.id === editingGoal.id ? newGoal : goal))
               } else {
                 setGoals([...goals, newGoal])
+                
+                // チェックポイント: 初回ゴール作成
+                if (goals.length === 0) {
+                  sessionService.recordCheckpoint(sessionService.CHECKPOINTS.FIRST_GOAL_CREATED, {
+                    goalId: newGoal.id,
+                    goalTitle: newGoal.title,
+                    goalType: goalType,
+                    userId: currentUser?.id,
+                    timestamp: new Date().toISOString()
+                  })
+                }
               }
               
               setShowGoalModal(false)
