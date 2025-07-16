@@ -107,14 +107,9 @@ export const OTPVerification = ({ email, onVerificationSuccess, onBack }) => {
         <div>
           <div className="mt-6 flex justify-center">
             {/* Sunaロゴ */}
-            <div className="flex items-center space-x-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-xl">
-                <span className="text-white font-bold text-2xl">AI</span>
-              </div>
-              <div>
-                <SunaLogo width={130} height={65} />
-                <div className="w-12 h-1.5 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full mt-1"></div>
-              </div>
+            <div className="flex flex-col items-center">
+              <SunaLogo width={130} height={65} />
+              <div className="w-12 h-1.5 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full mt-1"></div>
             </div>
           </div>
           <p className="mt-2 text-center text-sm text-gray-600">

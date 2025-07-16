@@ -428,35 +428,6 @@ export const ImprovedDailyPlanner = ({
                               {/* リサイズハンドル */}
                               <div
                                 className={`resize-handle absolute bottom-0 right-0 ${isMobile ? 'w-6 h-6' : 'w-3 h-3'} bg-white bg-opacity-30 cursor-se-resize rounded-tl-md`}
-                                onMouseDown={(e) => {
-                                  e.preventDefault()
-                                  e.stopPropagation()
-                                  
-                                  const startY = e.clientY
-                                  const startDuration = scheduledTask.duration || 1
-                                  
-                                  const handleMouseMove = (moveEvent) => {
-                                    const deltaY = moveEvent.clientY - startY
-                                    const hourChange = Math.round(deltaY / 50)
-                                    const newDuration = Math.max(1, Math.min(6, startDuration + hourChange))
-                                    
-                                    setScheduledTasks(prev => ({
-                                      ...prev,
-                                      [taskKey]: {
-                                        ...scheduledTask,
-                                        duration: newDuration
-                                      }
-                                    }))
-                                  }
-                                  
-                                  const handleMouseUp = () => {
-                                    document.removeEventListener('mousemove', handleMouseMove)
-                                    document.removeEventListener('mouseup', handleMouseUp)
-                                  }
-                                  
-                                  document.addEventListener('mousemove', handleMouseMove)
-                                  document.addEventListener('mouseup', handleMouseUp)
-                                }}
                               >
                                 <div className="w-full h-full flex items-end justify-end">
                                   <div className="w-2 h-2 border-r-2 border-b-2 border-white opacity-60"></div>

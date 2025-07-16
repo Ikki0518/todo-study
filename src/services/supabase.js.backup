@@ -1,0 +1,487 @@
+import { createClient } from '@supabase/supabase-js'
+import { userIdGenerator } from './userIdGenerator.js'
+
+// Supabaseの設定
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+// Supabase設定を有効化
+const isValidConfig = supabaseUrl && supabaseAnonKey
+
+console.log('Supabase認証を使用します:', { hasUrl: !!supabaseUrl, hasKey: !!supabaseAnonKey })
+
+// Supabaseクライアントの作成
+export const supabase = (() => {
+  console.log('Supabase設定確認:', {
+    url: supabaseUrl,
+    hasKey: !!supabaseAnonKey,
+    isValid: isValidConfig
+  })
+
+  if (!isValidConfig) {
+    console.error('Supabase設定が不完全です')
+    return null
+  }
+
+  try {
+    console.log('✅ 実際のSupabaseクライアントを作成中...')
+    const client = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: false
+      }
+    })
+    console.log('✅ Supabaseクライアント作成成功')
+    return client
+  } catch (error) {
+    console.error('❌ Supabaseクライアント作成エラー:', error)
+    return null
+  }
+})()
+
+// 認証関連の関数
+export const auth = {
+  // ユーザーIDでログイン（新システム）
+  async signInWithUserId(userId, password) {
+    console.log('ユーザーIDログイン開始:', userId)
+    
+    try {
+      // ユーザーIDの形式を検証
+      if (!userIdGenerator.validateUserIdFormat(userId)) {
+        return { success: false, error: '無効なユーザーID形式です' }
+      }
+
+      // プロファイルからメールアドレスを取得
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('email, role, name, tenant_code, phone_number, avatar_url')
+        .eq('user_id', userId)
+        .single()
+
+      if (profileError || !profile) {
+        console.error('プロファイル取得エラー:', profileError)
+        return { success: false, error: 'ユーザーが見つかりません' }
+      }
+
+      // Supabase認証でログイン
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: profile.email,
+        password
+      })
+      
+      if (error) {
+        console.error('Supabase認証エラー:', error)
+        return { success: false, error: 'ユーザーIDまたはパスワードが正しくありません' }
+      }
+
+      console.log('ユーザーIDログイン成功:', data)
+      
+      return {
+        success: true,
+        data: {
+          user: {
+            id: data.user.id,
+            userId: userId,
+            email: profile.email,
+            role: profile.role,
+            name: profile.name,
+            tenantCode: profile.tenant_code,
+            phoneNumber: profile.phone_number,
+            avatar_url: profile.avatar_url
+          },
+          token: data.session?.access_token
+        }
+      }
+    } catch (error) {
+      console.error('ユーザーIDログインエラー:', error)
+      return { success: false, error: error.message }
+    }
+  },
+
+  // メールアドレスでログイン（従来システム）
+  async signIn(email, password) {
+    console.log('ログイン開始（Supabase）:', email)
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    })
+    
+    if (error) {
+      console.error('Supabaseログインエラー:', error)
+      return { success: false, error: error.message }
+    }
+
+    console.log('Supabaseログイン成功:', data)
+    
+    // ユーザー情報を取得
+    const userProfile = await getUserProfile(data.user.id)
+    
+    return {
+      success: true,
+      data: {
+        user: {
+          id: data.user.id,
+          email: data.user.email,
+          role: userProfile?.role || 'STUDENT',
+          name: userProfile?.name || data.user.email,
+          phoneNumber: userProfile?.phone_number,
+          avatar_url: userProfile?.avatar_url
+        },
+        token: data.session?.access_token
+      }
+    }
+  },
+
+  // 新規登録（新システム）
+  async signUpWithTenant(email, password, userData = {}) {
+    console.log('新規登録開始:', { email, tenantCode: userData.tenantCode })
+    
+    try {
+      // 必須フィールドの検証
+      if (!userData.tenantCode) {
+        return { success: false, error: 'テナントコードは必須です' }
+      }
+
+      // まず生徒として仮のユーザーIDを生成
+      let idResult = await userIdGenerator.generateUserId(userData.tenantCode, 'STUDENT')
+      if (!idResult.success) {
+        // 生徒IDが満杯の場合、講師IDを試行
+        idResult = await userIdGenerator.generateUserId(userData.tenantCode, 'TEACHER')
+        if (!idResult.success) {
+          return { success: false, error: 'ユーザーIDの上限に達しました' }
+        }
+      }
+
+      // ユーザーIDから自動でロールを判定
+      const role = userIdGenerator.getRoleFromUserId(idResult.userId)
+
+      // Supabase認証でユーザー作成
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password
+      })
+      
+      if (error) {
+        console.error('Supabase登録エラー:', error)
+        return { success: false, error: error.message }
+      }
+
+      // プロファイルを作成
+      if (data.user) {
+        const profileResult = await createUserProfileWithId(data.user.id, {
+          user_id: idResult.userId,
+          email,
+          name: userData.name || email,
+          phone_number: userData.phoneNumber,
+          role: role, // 自動判定されたロール
+          tenant_code: userData.tenantCode
+        })
+
+        if (!profileResult.success) {
+          // プロファイル作成に失敗した場合、認証ユーザーも削除すべきだが、
+          // Supabaseの制限により困難なため、エラーログを出力
+          console.error('プロファイル作成失敗:', profileResult.error)
+          return { success: false, error: 'ユーザー登録に失敗しました' }
+        }
+
+        return {
+          success: true,
+          data: {
+            user: data.user,
+            userId: idResult.userId,
+            role: role,
+            profile: profileResult.data
+          }
+        }
+      }
+
+      return { success: true, data }
+    } catch (error) {
+      console.error('新規登録エラー:', error)
+      return { success: false, error: error.message }
+    }
+  },
+
+  // サインアップ（従来システム）
+  async signUp(email, password, userData = {}) {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password
+    })
+    
+    if (error) {
+      return { success: false, error: error.message }
+    }
+
+    // ユーザープロファイルを作成
+    if (data.user) {
+      await createUserProfile(data.user.id, {
+        email,
+        name: userData.name || email,
+        phone_number: userData.phoneNumber,
+        role: userData.role || 'STUDENT'
+      })
+    }
+
+    return { success: true, data }
+  },
+
+  // ログアウト
+  async signOut() {
+    const { error } = await supabase.auth.signOut()
+    return { error }
+  },
+
+  // 現在のユーザーを取得
+  getCurrentUser() {
+    return supabase.auth.getUser()
+  },
+
+  // 認証状態の変更を監視
+  onAuthStateChange(callback) {
+    return supabase.auth.onAuthStateChange(callback)
+  }
+}
+
+// データベース関連の関数
+export const database = {
+  // ユーザーIDでプロファイルを取得（新システム）
+  async getProfileByUserId(userId) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('user_id', userId)
+      .single()
+    
+    return { data, error }
+  },
+
+  // Auth IDでプロファイルを取得（従来システム）
+  async getUserProfile(authId) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('auth_id', authId)
+      .single()
+    
+    return { data, error }
+  },
+
+  // プロファイルを作成/更新（新システム）
+  async upsertProfile(profileData) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .upsert({
+        ...profileData,
+        updated_at: new Date().toISOString()
+      })
+      .select()
+    
+    return { data, error }
+  },
+
+  // ユーザープロファイルを作成/更新（従来システム）
+  async upsertUserProfile(authId, profileData) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .upsert({
+        auth_id: authId,
+        ...profileData,
+        updated_at: new Date().toISOString()
+      })
+      .select()
+    
+    return { data, error }
+  },
+
+  // テナント内のユーザー一覧を取得
+  async getTenantUsers(tenantCode, role = null) {
+    let query = supabase
+      .from('profiles')
+      .select('*')
+      .eq('tenant_code', tenantCode)
+      .order('user_id')
+
+    if (role) {
+      query = query.eq('role', role)
+    }
+
+    const { data, error } = await query
+    return { data, error }
+  },
+
+  // 講師の生徒一覧を取得（新システム）
+  async getTeacherStudents(teacherUserId) {
+    // まず講師のテナントコードを取得
+    const { data: teacher, error: teacherError } = await this.getProfileByUserId(teacherUserId)
+    if (teacherError || !teacher) {
+      return { data: [], error: teacherError }
+    }
+
+    // 同じテナントの生徒を取得
+    const { data, error } = await this.getTenantUsers(teacher.tenant_code, 'STUDENT')
+    return { data, error }
+  },
+
+  // 生徒の講師一覧を取得（新システム）
+  async getStudentTeachers(studentUserId) {
+    // まず生徒のテナントコードを取得
+    const { data: student, error: studentError } = await this.getProfileByUserId(studentUserId)
+    if (studentError || !student) {
+      return { data: [], error: studentError }
+    }
+
+    // 同じテナントの講師を取得
+    const { data, error } = await this.getTenantUsers(student.tenant_code, 'TEACHER')
+    return { data, error }
+  },
+
+  // 管理者用: テナント内のユーザー一覧取得
+  async getUsersByTenant(tenantCode) {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('tenant_code', tenantCode)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('ユーザー一覧取得エラー:', error);
+        return { success: false, error: error.message };
+      }
+
+      return { success: true, data };
+    } catch (error) {
+      console.error('ユーザー一覧取得エラー:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  // 管理者用: ユーザー削除
+  async deleteUser(userId) {
+    try {
+      // まずプロファイルからユーザーIDでユーザーを検索
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, email')
+        .eq('user_id', userId)
+        .single();
+
+      if (profileError) {
+        console.error('ユーザー検索エラー:', profileError);
+        return { success: false, error: 'ユーザーが見つかりません' };
+      }
+
+      // プロファイルを削除
+      const { error: deleteProfileError } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('user_id', userId);
+
+      if (deleteProfileError) {
+        console.error('プロファイル削除エラー:', deleteProfileError);
+        return { success: false, error: deleteProfileError.message };
+      }
+
+      // 注意: Supabaseの認証ユーザーの削除は管理者APIが必要
+      // 現在は実装していないため、プロファイルのみ削除
+
+      return { success: true };
+    } catch (error) {
+      console.error('ユーザー削除エラー:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  // 講師の生徒一覧を取得（従来システム）
+  async getInstructorStudents(instructorId) {
+    const { data, error } = await supabase
+      .from('instructors')
+      .select(`
+        *,
+        students (
+          id,
+          name,
+          email,
+          phone_number,
+          avatar_url
+        )
+      `)
+      .eq('id', instructorId)
+    
+    return { data, error }
+  },
+
+  // 生徒の講師を取得（従来システム）
+  async getStudentInstructor(studentId) {
+    const { data, error } = await supabase
+      .from('students')
+      .select(`
+        *,
+        instructors (
+          id,
+          name,
+          email,
+          phone_number,
+          avatar_url
+        )
+      `)
+      .eq('id', studentId)
+    
+    return { data, error }
+  },
+
+  // テナント統計を取得
+  async getTenantStats(tenantCode) {
+    return await userIdGenerator.getTenantStats(tenantCode)
+  }
+}
+
+// ヘルパー関数
+async function getUserProfile(authId) {
+  try {
+    const { data, error } = await database.getUserProfile(authId)
+    if (error) {
+      console.error('ユーザープロファイル取得エラー:', error)
+      return null
+    }
+    return data
+  } catch (error) {
+    console.error('ユーザープロファイル取得エラー:', error)
+    return null
+  }
+}
+
+async function createUserProfile(authId, profileData) {
+  try {
+    const { data, error } = await database.upsertUserProfile(authId, profileData)
+    if (error) {
+      console.error('ユーザープロファイル作成エラー:', error)
+      return { success: false, error: error.message }
+    }
+    return { success: true, data }
+  } catch (error) {
+    console.error('ユーザープロファイル作成エラー:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+async function createUserProfileWithId(authId, profileData) {
+  try {
+    const { data, error } = await database.upsertProfile({
+      auth_id: authId,
+      ...profileData
+    })
+    if (error) {
+      console.error('ユーザープロファイル作成エラー:', error)
+      return { success: false, error: error.message }
+    }
+    return { success: true, data }
+  } catch (error) {
+    console.error('ユーザープロファイル作成エラー:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+export default supabase

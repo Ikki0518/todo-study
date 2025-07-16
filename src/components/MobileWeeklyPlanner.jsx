@@ -169,9 +169,24 @@ export function MobileWeeklyPlanner({
 
   // ドラッグ終了
   const handleDragEnd = (e) => {
-    if (!draggedTask || !dragMode || touchStartY === null || !initialDragData) return
+    // イベントリスナーを削除
+    if (dragListenersRef.current.move && dragListenersRef.current.end) {
+      document.removeEventListener('touchmove', dragListenersRef.current.move)
+      document.removeEventListener('touchend', dragListenersRef.current.end)
+      document.removeEventListener('touchcancel', dragListenersRef.current.end)
+      dragListenersRef.current = { move: null, end: null }
+    }
 
-    const currentY = e.changedTouches[0].clientY
+    if (!draggedTask || !dragMode || touchStartY === null || !initialDragData) {
+      // 状態をリセット
+      setDraggedTask(null)
+      setDragMode(null)
+      setTouchStartY(null)
+      setInitialDragData(null)
+      return
+    }
+
+    const currentY = e.changedTouches ? e.changedTouches[0].clientY : e.touches[0].clientY
     const deltaY = currentY - initialDragData.startY
     const hoursDelta = Math.round(deltaY / HOUR_HEIGHT)
     
@@ -210,11 +225,24 @@ export function MobileWeeklyPlanner({
       }
     }
 
+    // 状態をリセット
     setDraggedTask(null)
     setDragMode(null)
     setTouchStartY(null)
     setInitialDragData(null)
   }
+
+  // コンポーネントのアンマウント時にクリーンアップ
+  useEffect(() => {
+    return () => {
+      // アンマウント時にイベントリスナーを削除
+      if (dragListenersRef.current.move && dragListenersRef.current.end) {
+        document.removeEventListener('touchmove', dragListenersRef.current.move)
+        document.removeEventListener('touchend', dragListenersRef.current.end)
+        document.removeEventListener('touchcancel', dragListenersRef.current.end)
+      }
+    }
+  }, [])
 
   // タスクをタップして詳細表示
   const handleTaskTap = (task) => {

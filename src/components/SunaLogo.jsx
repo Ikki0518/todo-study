@@ -16,33 +16,33 @@ export const SunaLogo = ({
     return "#1E293B";
   };
 
-  // フォントサイズの調整（幅に応じて最適化）
+  // フォントサイズの調整（幅に応じて最適化）- 1.5倍に拡大
   const getFontSize = () => {
-    if (width <= 80) return "20";
-    if (width <= 100) return "22";
-    if (width <= 120) return "24";
-    return "26";
+    if (width <= 80) return "30";
+    if (width <= 100) return "33";
+    if (width <= 120) return "36";
+    return "39";
   };
 
-  // レターリング間隔の調整
+  // レターリング間隔の調整（文字サイズ拡大に合わせて調整）
   const getLetterSpacing = () => {
-    if (width <= 80) return "-0.8px";
-    if (width <= 100) return "-1.0px";
-    return "-1.2px";
+    if (width <= 80) return "-1.2px";
+    if (width <= 100) return "-1.5px";
+    return "-1.8px";
   };
 
   return (
     <div className={`flex items-center relative ${className}`}>
       {/* Sunaロゴ - レスポンシブ対応でコントラスト調整済み */}
-      <svg width={width} height={height} viewBox="0 0 115 55" className="flex-shrink-0">
+      <svg width={width} height={height} viewBox="0 0 135 55" className="flex-shrink-0">
         {/* 大きな円（右上、明るいターコイズブルー） */}
-        <circle cx="90" cy="20" r="13" fill="#67E8F9" opacity="0.85"/>
+        <circle cx="110" cy="20" r="13" fill="#67E8F9" opacity="0.85"/>
 
         {/* 中くらいの円（左中央、濃いブルー） */}
-        <circle cx="73" cy="28" r="8" fill="#2563EB" opacity="0.9"/>
+        <circle cx="93" cy="28" r="8" fill="#2563EB" opacity="0.9"/>
 
         {/* 小さな円（右下、薄いターコイズ） */}
-        <circle cx="83" cy="35" r="5" fill="#A7F3D0" opacity="0.75"/>
+        <circle cx="103" cy="35" r="5" fill="#A7F3D0" opacity="0.75"/>
 
         {/* テキスト "suna" - レスポンシブサイジング、コントラスト最適化 */}
         <text 
