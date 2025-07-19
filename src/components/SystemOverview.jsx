@@ -1,6 +1,6 @@
 import React from 'react';
 
-export const SystemOverview = ({ onGetStarted }) => {
+export const SystemOverview = ({ onGetStarted, onTestLogin }) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       {/* ヘッダー */}
@@ -31,12 +31,25 @@ export const SystemOverview = ({ onGetStarted }) => {
             Suna Studyは、あなたの学習計画を最適化し、<br />
             日々の進捗を可視化する学習管理プラットフォームです。
           </p>
-          <button
-            onClick={onGetStarted}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-lg text-lg transition-colors shadow-lg"
-          >
-            無料で始める
-          </button>
+          <div className="space-y-4">
+            <button
+              onClick={onGetStarted}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-lg text-lg transition-colors shadow-lg"
+            >
+              アカウントを作成
+            </button>
+            {/* テスト用ログインボタン */}
+            {onTestLogin && (
+              <div>
+                <button
+                  onClick={onTestLogin}
+                  className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg text-sm transition-colors shadow-lg ml-4"
+                >
+                  テストログイン（開発用）
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </section>
 

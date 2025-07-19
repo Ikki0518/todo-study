@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { SunaLogo } from './SunaLogo'
 
-export const PricingPage = ({ onPlanSelect, onStartRegistration }) => {
+export const PricingPage = ({ onPlanSelect, onStartRegistration, onLoginClick }) => {
   const [selectedPlan, setSelectedPlan] = useState(null)
 
   const plans = [
@@ -163,6 +163,19 @@ export const PricingPage = ({ onPlanSelect, onStartRegistration }) => {
             </p>
           </div>
         )}
+
+        {/* ログインボタン */}
+        <div className="text-center mb-8">
+          <p className="text-gray-600 mb-4">
+            既にアカウントをお持ちの方
+          </p>
+          <button
+            onClick={onLoginClick}
+            className="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-3 px-8 rounded-lg transition-all duration-200"
+          >
+            ログイン
+          </button>
+        </div>
 
         {/* 安心・安全の表示 */}
         <div className="text-center">

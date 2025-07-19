@@ -3,6 +3,7 @@ import { SunaLogo } from './components/SunaLogo';
 import { PersonalizeMode } from './components/PersonalizeMode';
 import { CompanionMode } from './components/CompanionMode';
 import { LoginScreen } from './components/LoginScreen';
+import SignupScreen from './components/SignupScreen';
 import { PricingPage } from './components/PricingPage';
 import { RegistrationFlow } from './components/RegistrationFlow';
 import { SystemOverview } from './components/SystemOverview';
@@ -40,7 +41,7 @@ function App() {
     }
   };
 
-  // 認証状態の初期化を同期的に行う（セッションサービス統合版）
+  // 認証状態の初期化を同期的に行う（強化された認証チェック版）
   const initializeAuthSync = () => {
     if (process.env.NODE_ENV === 'development') {
       console.log('🔍 ===== 同期認証初期化開始 =====');
@@ -62,133 +63,29 @@ function App() {
       };
     }
     
-    // セッションサービスから状態を復元
-    const restoredSession = sessionService.restoreSession();
-    if (restoredSession) {
-      console.log('✅ セッションサービスから状態復元:', restoredSession);
-      
-      // セッションから認証状態を復元できる場合
-      if (restoredSession.authState && restoredSession.authState.isLoggedIn) {
-        return {
-          isLoggedIn: restoredSession.authState.isLoggedIn,
-          userRole: restoredSession.authState.userRole,
-          currentUser: restoredSession.authState.currentUser,
-          currentView: restoredSession.currentView || 'goals'
-        };
-      }
-    }
-    
+    // 基本的な認証データのチェック（厳格化）
     let authToken = localStorage.getItem('authToken');
     let savedUser = localStorage.getItem('currentUser');
     
-    // localStorage失敗時のフォールバック（段階的チェック）
-    if (!authToken) {
-      authToken = sessionStorage.getItem('authToken');
-      if (authToken) console.log('✅ sessionStorageからauthToken復元');
-    }
-    if (!authToken) {
-      authToken = localStorage.getItem('backup_authToken');
-      if (authToken) console.log('✅ backup_authTokenから復元');
-    }
-    if (!authToken) {
-      authToken = cookieUtils.getCookie('auth_token');
-      if (authToken) console.log('✅ CookieからauthToken復元:', authToken);
-    }
-    
-    if (!savedUser) {
-      savedUser = sessionStorage.getItem('currentUser');
-      if (savedUser) console.log('✅ sessionStorageからcurrentUser復元');
-    }
-    if (!savedUser) {
-      savedUser = localStorage.getItem('backup_currentUser');
-      if (savedUser) console.log('✅ backup_currentUserから復元');
-    }
-    if (!savedUser) {
-      savedUser = cookieUtils.getCookie('auth_user');
-      if (savedUser) console.log('✅ CookieからcurrentUser復元:', savedUser);
-    }
-    
-    // 強化された保存キーからも試行（Cookie対応版）
-    const authDataSources = [
-      'auth_data',
-      'backup_auth_data',
-      'pm_0001_session',
-      'user_PM-0001',
-      'last_login_user',
-      'auth_backup',
-      'session_PM-0001'
-    ];
-    
-    // 追加のソースから認証データを復元（Cookie対応）
+    // 認証データが存在しない場合は未認証として扱う
     if (!authToken || !savedUser) {
-      for (const source of authDataSources) {
-        try {
-          // localStorage, sessionStorage, Cookieの順で試行
-          const storageData = localStorage.getItem(source)
-            || sessionStorage.getItem(source)
-            || cookieUtils.getCookie(source);
-            
-          if (storageData) {
-            const parsed = JSON.parse(storageData);
-            console.log(`🔍 ${source}から認証データを発見:`, parsed);
-            
-            if (parsed.token && !authToken) {
-              authToken = parsed.token;
-              console.log(`✅ ${source}からauthToken復元:`, authToken);
-            }
-            
-            if (parsed.user && !savedUser) {
-              savedUser = JSON.stringify(parsed.user);
-              console.log(`✅ ${source}からsavedUser復元:`, savedUser);
-            }
-            
-            // 直接ユーザーデータが入っている場合
-            if (parsed.userId && !savedUser) {
-              savedUser = JSON.stringify(parsed);
-              console.log(`✅ ${source}から直接ユーザーデータ復元:`, savedUser);
-            }
-            
-            if (authToken && savedUser) {
-              console.log(`🎯 ${source}から完全な認証データを復元しました！`);
-              break;
-            }
-          }
-        } catch (error) {
-          console.warn(`❌ ${source}の解析エラー:`, error);
-        }
-      }
+      console.log('🔍 基本認証データが不足 - 未認証として処理');
+      return {
+        isLoggedIn: false,
+        userRole: null,
+        currentUser: null,
+        currentView: 'goals'
+      };
     }
     
-    console.log('🔍 同期認証初期化結果:', {
-      authToken: authToken ? '存在' : '不存在',
-      savedUser: savedUser ? '存在' : '不存在',
-      authTokenValue: authToken,
-      savedUserValue: savedUser ? savedUser.substring(0, 100) + '...' : null
-    });
-    
-    // デバッグ: localStorage の内容を詳細に確認
-    console.log('🔍 localStorage詳細確認:');
-    console.log('  - localStorage.getItem("authToken"):', localStorage.getItem('authToken'));
-    console.log('  - localStorage.getItem("currentUser"):', localStorage.getItem('currentUser'));
-    console.log('  - sessionStorage.getItem("authToken"):', sessionStorage.getItem('authToken'));
-    console.log('  - sessionStorage.getItem("currentUser"):', sessionStorage.getItem('currentUser'));
-    console.log('  - localStorage.getItem("pm_0001_session"):', localStorage.getItem('pm_0001_session'));
-    console.log('  - localStorage.getItem("auth_data"):', localStorage.getItem('auth_data'));
-    console.log('  - localStorage keys:', Object.keys(localStorage));
-    
-    if (authToken && savedUser) {
-      try {
-        const userData = JSON.parse(savedUser);
-        console.log('✅ 同期認証復元成功:', userData);
-        return {
-          isLoggedIn: true,
-          userRole: userData.userRole,
-          currentUser: userData,
-          currentView: userData.userRole === 'INSTRUCTOR' ? 'dashboard' : 'goals'
-        };
-      } catch (parseError) {
-        console.error('🚨 同期認証復元エラー:', parseError);
-        // 破損データをクリア
+    // ユーザーデータの妥当性チェック
+    try {
+      const userData = JSON.parse(savedUser);
+      
+      // 必須フィールドの存在確認
+      if (!userData.id || !userData.email || !userData.name) {
+        console.warn('🚨 ユーザーデータに必須フィールドが不足:', userData);
+        // 不完全なデータをクリア
         localStorage.removeItem('currentUser');
         localStorage.removeItem('authToken');
         return {
@@ -198,46 +95,109 @@ function App() {
           currentView: 'goals'
         };
       }
+      
+      // トークンの基本的な妥当性チェック
+      if (authToken.length < 10 || authToken === 'undefined' || authToken === 'null') {
+        console.warn('🚨 無効なトークン形式:', authToken);
+        localStorage.removeItem('currentUser');
+        localStorage.removeItem('authToken');
+        return {
+          isLoggedIn: false,
+          userRole: null,
+          currentUser: null,
+          currentView: 'goals'
+        };
+      }
+      
+      console.log('✅ 認証データの妥当性確認完了:', userData);
+      return {
+        isLoggedIn: true,
+        userRole: userData.userRole || 'STUDENT',
+        currentUser: userData,
+        currentView: userData.userRole === 'INSTRUCTOR' ? 'dashboard' : 'goals'
+      };
+      
+    } catch (parseError) {
+      console.error('🚨 ユーザーデータの解析エラー:', parseError);
+      // 破損データをクリア
+      localStorage.removeItem('currentUser');
+      localStorage.removeItem('authToken');
+      return {
+        isLoggedIn: false,
+        userRole: null,
+        currentUser: null,
+        currentView: 'goals'
+      };
     }
-    
-    return {
-      isLoggedIn: false,
-      userRole: null,
-      currentUser: null,
-      currentView: 'goals'
-    };
   };
   
   // 同期的に認証状態を初期化（セッションサービス統合版）
   const initialAuthState = initializeAuthSync();
   
-  // セッションサービスから追加の状態を復元
+  // セッションサービスから追加の状態を復元（認証状態を優先）
   const restoreSessionState = () => {
+    // 初期認証状態が未認証の場合は、セッション復元も行わない
+    if (!initialAuthState.isLoggedIn) {
+      console.log('🔍 初期認証状態が未認証のため、セッション復元をスキップ');
+      return {
+        currentView: 'goals',
+        isPaid: false,
+        paymentStatus: null,
+        selectedPlan: null,
+        showPricing: false,
+        showRegistrationFlow: false,
+        showLoginScreen: false,
+        isLoggedIn: false,
+        userRole: null,
+        currentUser: null,
+        hasValidSubscription: false
+      };
+    }
+    
     const restoredSession = sessionService.restoreSession();
-    if (restoredSession) {
+    if (restoredSession && restoredSession.authState?.isLoggedIn) {
       console.log('🔄 セッションから追加状態を復元:', restoredSession);
       
+      // セッションの認証状態も検証
+      const sessionUser = restoredSession.authState.currentUser;
+      if (!sessionUser || !sessionUser.id || !sessionUser.email) {
+        console.warn('🚨 セッション内のユーザーデータが不完全');
+        return {
+          currentView: initialAuthState.currentView || 'goals',
+          isPaid: false,
+          paymentStatus: null,
+          selectedPlan: null,
+          showPricing: false,
+          showRegistrationFlow: false,
+          showLoginScreen: false,
+          isLoggedIn: initialAuthState.isLoggedIn,
+          userRole: initialAuthState.userRole,
+          currentUser: initialAuthState.currentUser,
+          hasValidSubscription: initialAuthState.isLoggedIn
+        };
+      }
+      
       return {
-        currentView: restoredSession.currentView || initialAuthState.currentView || 'planner',
+        currentView: restoredSession.currentView || initialAuthState.currentView || 'goals',
         isPaid: restoredSession.paymentState?.isPaid || false,
         paymentStatus: restoredSession.paymentState?.paymentStatus || null,
         selectedPlan: restoredSession.paymentState?.selectedPlan || null,
-        showPricing: !restoredSession.authState?.isLoggedIn,
+        showPricing: false,
         showRegistrationFlow: false,
         showLoginScreen: false,
-        isLoggedIn: restoredSession.authState?.isLoggedIn || initialAuthState.isLoggedIn,
-        userRole: restoredSession.authState?.userRole || initialAuthState.userRole,
-        currentUser: restoredSession.authState?.currentUser || initialAuthState.currentUser,
-        hasValidSubscription: restoredSession.authState?.hasValidSubscription || initialAuthState.isLoggedIn
+        isLoggedIn: initialAuthState.isLoggedIn,
+        userRole: initialAuthState.userRole,
+        currentUser: initialAuthState.currentUser,
+        hasValidSubscription: initialAuthState.isLoggedIn
       };
     }
     
     return {
-      currentView: initialAuthState.currentView || 'planner',
+      currentView: initialAuthState.currentView || 'goals',
       isPaid: false,
       paymentStatus: null,
       selectedPlan: null,
-      showPricing: !initialAuthState.isLoggedIn,
+      showPricing: false,
       showRegistrationFlow: false,
       showLoginScreen: false,
       isLoggedIn: initialAuthState.isLoggedIn,
@@ -249,7 +209,7 @@ function App() {
   
   const sessionState = restoreSessionState();
   
-  const [currentView, setCurrentView] = useState('planner') // デモモード用に固定
+  const [currentView, setCurrentView] = useState(sessionState.currentView)
   const [currentStreak] = useState(15)
   
   // セッションサービスと連携したビュー更新関数
@@ -260,25 +220,20 @@ function App() {
   };
   
   // 決済状態の管理（セッションから復元）
-  const [isPaid, setIsPaid] = useState(true) // デモモード
-  const [paymentStatus, setPaymentStatus] = useState('paid') // デモモード
-  const [selectedPlan, setSelectedPlan] = useState({ name: 'デモプラン' }) // デモモード
-  const [showPricing, setShowPricing] = useState(false) // デモモード
-  const [showRegistrationFlow, setShowRegistrationFlow] = useState(false) // デモモード
-  const [showLoginScreen, setShowLoginScreen] = useState(false) // デモモード
+  const [isPaid, setIsPaid] = useState(sessionState.isPaid)
+  const [paymentStatus, setPaymentStatus] = useState(sessionState.paymentStatus)
+  const [selectedPlan, setSelectedPlan] = useState(sessionState.selectedPlan)
+  const [showPricing, setShowPricing] = useState(sessionState.showPricing)
+  const [showRegistrationFlow, setShowRegistrationFlow] = useState(sessionState.showRegistrationFlow)
+  const [showLoginScreen, setShowLoginScreen] = useState(sessionState.showLoginScreen)
+  const [showSignupScreen, setShowSignupScreen] = useState(false)
   
   // 認証状態を初期化時に復元（セッションサービス統合版）
-  // デモモード用の一時的な設定
-  const [isLoggedIn, setIsLoggedIn] = useState(true) // デモモード
+  const [isLoggedIn, setIsLoggedIn] = useState(sessionState.isLoggedIn)
   const [authInitialized, setAuthInitialized] = useState(true)
-  const [userRole, setUserRole] = useState('STUDENT') // デモモード
-  const [currentUser, setCurrentUser] = useState({
-    id: 'PM-0001',
-    name: '山田太郎',
-    role: 'STUDENT',
-    email: 'demo@example.com'
-  }) // デモモード
-  const [hasValidSubscription, setHasValidSubscription] = useState(true) // デモモード
+  const [userRole, setUserRole] = useState(sessionState.userRole)
+  const [currentUser, setCurrentUser] = useState(sessionState.currentUser)
+  const [hasValidSubscription, setHasValidSubscription] = useState(sessionState.hasValidSubscription)
   const [goals, setGoals] = useState([
     {
       id: 'goal-1',
@@ -617,7 +572,6 @@ function App() {
             setCurrentUser(null)
             setUserRole(null)
             setHasValidSubscription(false)
-            setShowPricing(true)
           }
         } else {
           // 認証情報がない場合のみログアウト状態に
@@ -1288,14 +1242,20 @@ function App() {
     const hours = currentTime.getHours()
     const minutes = currentTime.getMinutes()
     
-    // 24時間グリッドでの位置を計算
-    // 各時間行の高さを正確に計算（実際のグリッド行の高さに合わせる）
-    const hourHeight = isMobile ? 50 : 120
-    const headerHeight = isMobile ? 48 : 56 // ヘッダー行の実際の高さ
+    // ヘッダー行の高さを考慮（実際の測定値に基づく）
+    const headerHeight = isMobile ? 60 : 80
     
-    // 現在時刻の位置を計算（時間行の境界線上に配置）
-    const totalPosition = headerHeight + (hours * hourHeight) + (minutes * hourHeight / 60)
-    return totalPosition
+    // 各時間行の高さは50px（ImprovedDailyPlannerと同じ）
+    // 時間グリッドは0時から始まるので、現在時刻の行インデックスを計算
+    const hourIndex = hours
+    const minuteOffset = minutes / 60 // 0-1の範囲
+    
+    // 位置計算：ヘッダー高さ + 行インデックス * 50px + 分のオフセット * 50px
+    const position = headerHeight + (hourIndex * 50) + (minuteOffset * 50)
+    
+    // 24時間グリッドの範囲を超えないように制限
+    const maxPosition = headerHeight + (24 * 50) - 1
+    return Math.min(position, maxPosition)
   }
 
   const getCurrentTimeString = () => {
@@ -1388,14 +1348,36 @@ function App() {
   // 新フロー: 料金プラン → 新規登録 → 決済 → アプリ利用
   
   // 0. 認証チェック - 未認証の場合はシステム概要ページを表示
-  if (!isLoggedIn && !showLoginScreen && !showPricing && !showRegistrationFlow) {
+  if (!isLoggedIn && !showLoginScreen && !showPricing && !showRegistrationFlow && !showSignupScreen) {
     return (
       <SystemOverview
         onGetStarted={() => {
-          setShowPricing(true);
+          setShowSignupScreen(true);
+        }}
+        onTestLogin={() => {
+          // テスト用ログイン機能
+          const testUser = {
+            id: 'test-user-001',
+            name: 'テストユーザー',
+            email: 'test@example.com',
+            userRole: 'STUDENT'
+          };
+          
+          // ローカルストレージに保存
+          localStorage.setItem('currentUser', JSON.stringify(testUser));
+          localStorage.setItem('authToken', 'test-token-123');
+          
+          // 状態を更新
+          setCurrentUser(testUser);
+          setUserRole('STUDENT');
+          setIsLoggedIn(true);
+          setHasValidSubscription(true);
+          
+          console.log('✅ テストログイン完了:', testUser);
         }}
       />
     );
+  }
   
   // 料金プラン表示
   if (showPricing) {
@@ -1412,7 +1394,6 @@ function App() {
         }}
       />
     );
-  }
   }
   
   // 1. 料金プラン表示（最初の画面）
@@ -1435,8 +1416,44 @@ function App() {
         onRoleChange={(role) => {
           setUserRole(role)
         }}
+        onSignupClick={() => {
+          setShowLoginScreen(false)
+          setShowSignupScreen(true)
+        }}
       />
     )
+  }
+
+  // 新規登録画面の表示
+  if (showSignupScreen) {
+    return (
+      <SignupScreen
+        onSignup={async (newUser) => {
+          console.log('新規登録完了:', newUser);
+          
+          // ユーザー情報をlocalStorageに保存
+          localStorage.setItem('currentUser', JSON.stringify(newUser));
+          localStorage.setItem('authToken', 'local-test-token');
+          
+          // 認証状態を更新
+          setCurrentUser(newUser);
+          setUserRole(newUser.userRole);
+          setIsLoggedIn(true);
+          setShowSignupScreen(false);
+          
+          // 新規登録後は料金プラン選択画面に遷移
+          setShowPricing(true);
+        }}
+        onBackToLogin={() => {
+          setShowSignupScreen(false);
+          setShowLoginScreen(true);
+        }}
+        onError={(errorMessage) => {
+          console.error('新規登録エラー:', errorMessage);
+          alert(errorMessage);
+        }}
+      />
+    );
   }
 
   // 2. 決済状態チェック - 未決済の場合
@@ -1792,6 +1809,8 @@ function App() {
                   localStorage.removeItem('selectedPlan')
                   localStorage.removeItem('userInfo')
                   localStorage.removeItem('userKnowledge')
+                  localStorage.removeItem('pm_0001_session')
+                  localStorage.removeItem('auth_data')
                   
                   // セッションストレージもクリア
                   sessionStorage.clear();
@@ -1811,14 +1830,15 @@ function App() {
                   setAllTasksHistory({})
                   setUserKnowledge(null)
                   setHasValidSubscription(false)
-                  setShowPricing(true)
+                  setShowPricing(false)
                   setShowRegistrationFlow(false)
                   setShowLoginScreen(false)
+                  setShowSignupScreen(false)
                   
                   console.log('✅ ログアウト完了');
                   
-                  // システム概要ページへリダイレクト
-                  window.location.href = '/';
+                  // 強制的にコンポーネントを再レンダリング
+                  // ページリロードではなく状態リセットでSystemOverview画面を表示
                 } catch (error) {
                   console.error('Logout error:', error);
                   // エラーが発生してもログアウトを継続
@@ -1827,10 +1847,13 @@ function App() {
                   setIsLoggedIn(false)
                   setCurrentUser(null)
                   setHasValidSubscription(false)
-                  setShowPricing(true)
+                  setShowPricing(false)
+                  setShowRegistrationFlow(false)
+                  setShowLoginScreen(false)
+                  setShowSignupScreen(false)
                   
-                  // エラーが発生してもリダイレクト
-                  window.location.href = '/';
+                  // エラーが発生してもSystemOverview画面を表示
+                  console.log('✅ エラー時ログアウト完了');
                 }
               }}
               className="p-2 rounded-lg text-gray-600 hover:bg-red-50 hover:text-red-600 transition-colors"

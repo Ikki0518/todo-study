@@ -93,7 +93,7 @@ const secureAuthStore = {
   }
 };
 
-export const LoginScreen = ({ onLogin, onRoleChange }) => {
+export const LoginScreen = ({ onLogin, onRoleChange, onSignupClick }) => {
   const [formData, setFormData] = useState({
     loginField: '',
     password: ''
@@ -303,7 +303,7 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
           }
         } catch (error) {
           console.error('メール認証エラー:', error);
-          response = { success: false, error: error.message };
+          response = { success: false, error: error.message || 'ログイン処理中にエラーが発生しました' };
         }
       } else if (isUserId || formData.loginField === 'PM-0001' || formData.loginField === 'TC-0001') {
         // ユーザーIDでのローカルテストアカウント確認（直接判定も含む）
@@ -412,7 +412,7 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
       }
     } catch (error) {
       console.error('ログインエラー:', error);
-      setErrors({ general: 'ログイン処理中にエラーが発生しました' });
+      setErrors({ general: error.message || 'ログイン処理中にエラーが発生しました' });
     } finally {
       setIsLoading(false);
     }
@@ -479,6 +479,18 @@ export const LoginScreen = ({ onLogin, onRoleChange }) => {
             {isLoading ? '処理中...' : 'ログイン'}
           </button>
         </form>
+
+        <div className="mt-6 text-center">
+          <p className="text-sm text-gray-600 mb-4">
+            アカウントをお持ちでない方
+          </p>
+          <button
+            onClick={onSignupClick}
+            className="text-blue-600 hover:text-blue-700 font-medium text-sm"
+          >
+            新規登録はこちら
+          </button>
+        </div>
 
         <div className="mt-6 text-center">
           <p className="text-sm text-gray-500">Supabaseで安全に管理</p>
