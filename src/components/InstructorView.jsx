@@ -3,83 +3,126 @@ import StudentAnalytics from './StudentAnalytics';
 import InstructorMessages from './InstructorMessages';
 import { ModernAdminUserManagement } from './ModernAdminUserManagement';
 import ErrorBoundary from './ErrorBoundary';
+import instructorService from '../services/instructorService';
 
 // 講師用ダッシュボードコンポーネント
 const InstructorDashboard = () => {
   const [currentView, setCurrentView] = useState('overview'); // overview, students, assignments, analytics, messages
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  
+  // 実際のデータベースから取得するデータ
+  const [students, setStudents] = useState([]);
+  const [assignments, setAssignments] = useState([]);
+  const [messages, setMessages] = useState([]);
+  const [analytics, setAnalytics] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // モック生徒データ（実際の実装では API から取得）
-  const students = [
+  // 現在ログイン中の講師情報を取得
+  const getCurrentTeacher = () => {
+    try {
+      const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+      return currentUser.userId || currentUser.id || 'TC-0001'; // デフォルト値
+    } catch (error) {
+      console.error('講師情報取得エラー:', error);
+      return 'TC-0001';
+    }
+  };
+
+  // データを読み込む
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const teacherId = getCurrentTeacher();
+      console.log('📚 講師データ読み込み開始:', teacherId);
+
+      // 並行してデータを取得
+      const [studentsData, assignmentsData, messagesData, analyticsData] = await Promise.all([
+        instructorService.getStudents(teacherId),
+        instructorService.getAssignments(teacherId),
+        instructorService.getMessages(teacherId),
+        instructorService.getAnalytics(teacherId)
+      ]);
+
+      setStudents(studentsData);
+      setAssignments(assignmentsData);
+      setMessages(messagesData);
+      setAnalytics(analyticsData);
+      
+      console.log('✅ 講師データ読み込み完了');
+      console.log('  - 生徒数:', studentsData.length);
+      console.log('  - 課題数:', assignmentsData.length);
+      console.log('  - メッセージ数:', messagesData.length);
+      
+    } catch (error) {
+      console.error('❌ 講師データ読み込みエラー:', error);
+      setError('データの読み込みに失敗しました。');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // コンポーネントマウント時にデータを読み込み
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  // データ再読み込み関数
+  const refreshData = () => {
+    loadData();
+  };
+
+  // ローディング表示
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">講師データを読み込み中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // エラー表示
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-500 text-xl mb-4">⚠️ エラー</div>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button
+            onClick={refreshData}
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          >
+            再試行
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // モック生徒データ（フォールバック用）
+  const fallbackStudents = [
     {
-      id: 1,
-      name: '田中太郎',
-      email: 'tanaka@example.com',
-      grade: '高校3年',
-      subjects: ['数学', '物理'],
-      lastLogin: '2025-01-09 11:30',
-      studyStreak: 7,
-      totalStudyTime: 45.5,
-      weeklyGoal: 40,
-      avatar: '👨‍🎓',
-      status: 'active'
-    },
-    {
-      id: 2,
-      name: '佐藤花子',
-      email: 'sato@example.com',
-      grade: '高校2年',
-      subjects: ['英語', '国語'],
-      lastLogin: '2025-01-09 09:15',
-      studyStreak: 12,
-      totalStudyTime: 38.2,
-      weeklyGoal: 35,
-      avatar: '👩‍🎓',
-      status: 'active'
-    },
-    {
-      id: 3,
-      name: '山田次郎',
-      email: 'yamada@example.com',
-      grade: '高校1年',
-      subjects: ['数学', '英語', '理科'],
-      lastLogin: '2025-01-08 20:45',
-      studyStreak: 3,
-      totalStudyTime: 22.8,
+      id: 'fallback-1',
+      name: 'サンプル生徒',
+      email: 'sample@example.com',
+      grade: '高校生',
+      subjects: ['数学', '英語'],
+      lastLogin: new Date().toLocaleString('ja-JP'),
+      studyStreak: 5,
+      totalStudyTime: 25.0,
       weeklyGoal: 30,
       avatar: '👨‍🎓',
       status: 'inactive'
     }
   ];
 
-  // モック課題データ
-  const [assignments, setAssignments] = useState([
-    {
-      id: 1,
-      title: '二次関数の応用問題',
-      subject: '数学',
-      dueDate: '2025-01-15',
-      assignedTo: [1, 3],
-      status: 'active',
-      submissions: [
-        { studentId: 1, status: 'submitted', submittedAt: '2025-01-09 10:30', score: 85 }
-      ],
-      description: '教科書p.45-60の問題を解いて提出してください。'
-    },
-    {
-      id: 2,
-      title: '英語長文読解練習',
-      subject: '英語',
-      dueDate: '2025-01-12',
-      assignedTo: [2, 3],
-      status: 'active',
-      submissions: [
-        { studentId: 2, status: 'submitted', submittedAt: '2025-01-09 08:20', score: 92 }
-      ],
-      description: '過去問の長文問題3問を解いてください。'
-    }
-  ]);
+  // 課題データはuseEffectでデータベースから取得
 
   // モックタスクデータ
   const mockTasks = {
