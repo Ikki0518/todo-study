@@ -1354,26 +1354,8 @@ function App() {
         onGetStarted={() => {
           setShowSignupScreen(true);
         }}
-        onTestLogin={() => {
-          // テスト用ログイン機能
-          const testUser = {
-            id: 'test-user-001',
-            name: 'テストユーザー',
-            email: 'test@example.com',
-            userRole: 'STUDENT'
-          };
-          
-          // ローカルストレージに保存
-          localStorage.setItem('currentUser', JSON.stringify(testUser));
-          localStorage.setItem('authToken', 'test-token-123');
-          
-          // 状態を更新
-          setCurrentUser(testUser);
-          setUserRole('STUDENT');
-          setIsLoggedIn(true);
-          setHasValidSubscription(true);
-          
-          console.log('✅ テストログイン完了:', testUser);
+        onLogin={() => {
+          setShowLoginScreen(true);
         }}
       />
     );

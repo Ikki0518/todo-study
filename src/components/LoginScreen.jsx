@@ -191,29 +191,95 @@ export const LoginScreen = ({ onLogin, onRoleChange, onSignupClick }) => {
             return;
           }
           
-          if (formData.loginField === 'TC-0001' && formData.password === 'password') {
+          // TC-0001: ikki_y0518@icloud.com の教師権限ログイン
+          if (formData.loginField === 'TC-0001' && formData.password === 'ikki0518') {
             const userData = {
-              id: 'instructor-tc-0001',
+              id: 'teacher-ikki-001',
               userId: 'TC-0001',
-              email: 'tc0001@test.com',
-              name: '講師TC-0001',
+              email: 'ikki_y0518@icloud.com',
+              name: 'Ikki Yamamoto (教師)',
               userRole: 'INSTRUCTOR',
               avatar_url: null,
-              phoneNumber: '090-0001-0002',
-              tenantCode: 'test'
+              phoneNumber: '090-0518-0518',
+              tenantCode: 'TC',
+              subscriptionActive: true,
+              paymentStatus: 'completed'
             };
             
-            // 多層認証システム使用（localStorage、sessionStorage、Cookie）
-            const authToken = 'local-token-tc-0001';
+            const authToken = 'local-token-ikki-teacher';
             const saveSuccess = secureAuthStore.save(userData, authToken);
             
             if (saveSuccess) {
-              console.log('✅ TC-0001多層認証データ保存成功');
+              console.log('✅ Ikki教師アカウント多層認証データ保存成功');
             } else {
-              console.error('❌ TC-0001多層認証データ保存失敗');
+              console.error('❌ Ikki教師アカウント多層認証データ保存失敗');
             }
             
-            console.log('ローカルTC-0001ログイン成功:', userData);
+            console.log('Ikki教師アカウントログイン成功:', userData);
+            onRoleChange('INSTRUCTOR');
+            setTimeout(() => {
+              onLogin(true);
+            }, 100);
+            return;
+          }
+          
+          // TC-0002: minnanoakogare777@gmail.com の教師権限ログイン
+          if (formData.loginField === 'TC-0002' && formData.password === 'minna777') {
+            const userData = {
+              id: 'teacher-minna-001',
+              userId: 'TC-0002',
+              email: 'minnanoakogare777@gmail.com',
+              name: 'Minna Teacher',
+              userRole: 'INSTRUCTOR',
+              avatar_url: null,
+              phoneNumber: '090-7777-7777',
+              tenantCode: 'TC',
+              subscriptionActive: true,
+              paymentStatus: 'completed'
+            };
+            
+            const authToken = 'local-token-minna-teacher';
+            const saveSuccess = secureAuthStore.save(userData, authToken);
+            
+            if (saveSuccess) {
+              console.log('✅ Minna教師アカウント多層認証データ保存成功');
+            } else {
+              console.error('❌ Minna教師アカウント多層認証データ保存失敗');
+            }
+            
+            console.log('Minna教師アカウントログイン成功:', userData);
+            onRoleChange('INSTRUCTOR');
+            setTimeout(() => {
+              onLogin(true);
+            }, 100);
+            return;
+          }
+          
+          // TC-0003: shishanxintai20@gmail.com の教師権限ログイン
+          if (formData.loginField === 'TC-0003' && formData.password === 'shishan20') {
+            const userData = {
+              id: 'teacher-shishan-001',
+              userId: 'TC-0003',
+              email: 'shishanxintai20@gmail.com',
+              name: 'Shishan Teacher',
+              userRole: 'INSTRUCTOR',
+              avatar_url: null,
+              phoneNumber: '090-2020-2020',
+              tenantCode: 'TC',
+              subscriptionActive: true,
+              paymentStatus: 'completed'
+            };
+            
+            const authToken = 'local-token-shishan-teacher';
+            const saveSuccess = secureAuthStore.save(userData, authToken);
+            
+            if (saveSuccess) {
+              console.log('✅ Shishan教師アカウント多層認証データ保存成功');
+            } else {
+              console.error('❌ Shishan教師アカウント多層認証データ保存失敗');
+            }
+            
+            console.log('Shishan教師アカウントログイン成功:', userData);
             onRoleChange('INSTRUCTOR');
             setTimeout(() => {
               onLogin(true);
@@ -270,12 +336,12 @@ export const LoginScreen = ({ onLogin, onRoleChange, onSignupClick }) => {
               return;
             }
             
-            // Ikki専用アカウント
+            // 特定ユーザーの学生権限ログイン（メールアドレス）
             if (formData.loginField === 'ikki_y0518@icloud.com' && formData.password === 'ikki0518') {
               const userData = {
                 id: 'student-ikki-001',
                 email: 'ikki_y0518@icloud.com',
-                name: 'Ikki Yamamoto',
+                name: 'Ikki Yamamoto (学生)',
                 userRole: 'STUDENT',
                 avatar_url: null,
                 phoneNumber: '090-0518-0518',
@@ -284,16 +350,76 @@ export const LoginScreen = ({ onLogin, onRoleChange, onSignupClick }) => {
               };
               
               // 多層認証システム使用（localStorage、sessionStorage、Cookie）
-              const authToken = 'local-token-ikki-001';
+              const authToken = 'local-token-ikki-student';
               const saveSuccess = secureAuthStore.save(userData, authToken);
               
               if (saveSuccess) {
-                console.log('✅ Ikki専用アカウント多層認証データ保存成功');
+                console.log('✅ Ikki学生アカウント多層認証データ保存成功');
               } else {
-                console.error('❌ Ikki専用アカウント多層認証データ保存失敗');
+                console.error('❌ Ikki学生アカウント多層認証データ保存失敗');
               }
               
-              console.log('Ikki専用アカウントログイン成功:', userData);
+              console.log('Ikki学生アカウントログイン成功:', userData);
+              onRoleChange('STUDENT');
+              setTimeout(() => {
+                onLogin(true);
+              }, 100);
+              return;
+            }
+            
+            // minnanoakogare777@gmail.com の学生権限ログイン
+            if (formData.loginField === 'minnanoakogare777@gmail.com' && formData.password === 'minna777') {
+              const userData = {
+                id: 'student-minna-001',
+                email: 'minnanoakogare777@gmail.com',
+                name: 'Minna Student',
+                userRole: 'STUDENT',
+                avatar_url: null,
+                phoneNumber: '090-7777-7777',
+                subscriptionActive: true,
+                paymentStatus: 'completed'
+              };
+              
+              const authToken = 'local-token-minna-student';
+              const saveSuccess = secureAuthStore.save(userData, authToken);
+              
+              if (saveSuccess) {
+                console.log('✅ Minna学生アカウント多層認証データ保存成功');
+              } else {
+                console.error('❌ Minna学生アカウント多層認証データ保存失敗');
+              }
+              
+              console.log('Minna学生アカウントログイン成功:', userData);
+              onRoleChange('STUDENT');
+              setTimeout(() => {
+                onLogin(true);
+              }, 100);
+              return;
+            }
+            
+            // shishanxintai20@gmail.com の学生権限ログイン
+            if (formData.loginField === 'shishanxintai20@gmail.com' && formData.password === 'shishan20') {
+              const userData = {
+                id: 'student-shishan-001',
+                email: 'shishanxintai20@gmail.com',
+                name: 'Shishan Student',
+                userRole: 'STUDENT',
+                avatar_url: null,
+                phoneNumber: '090-2020-2020',
+                subscriptionActive: true,
+                paymentStatus: 'completed'
+              };
+              
+              const authToken = 'local-token-shishan-student';
+              const saveSuccess = secureAuthStore.save(userData, authToken);
+              
+              if (saveSuccess) {
+                console.log('✅ Shishan学生アカウント多層認証データ保存成功');
+              } else {
+                console.error('❌ Shishan学生アカウント多層認証データ保存失敗');
+              }
+              
+              console.log('Shishan学生アカウントログイン成功:', userData);
               onRoleChange('STUDENT');
               setTimeout(() => {
                 onLogin(true);

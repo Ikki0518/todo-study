@@ -1,6 +1,6 @@
 import React from 'react';
 
-export const SystemOverview = ({ onGetStarted, onTestLogin }) => {
+export const SystemOverview = ({ onGetStarted, onLogin }) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       {/* ヘッダー */}
@@ -11,10 +11,10 @@ export const SystemOverview = ({ onGetStarted, onTestLogin }) => {
               <h1 className="text-2xl font-bold text-gray-900">Suna Study</h1>
             </div>
             <button
-              onClick={onGetStarted}
+              onClick={onLogin}
               className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg transition-colors"
             >
-              今すぐ始める
+              ログイン
             </button>
           </div>
         </div>
@@ -38,17 +38,6 @@ export const SystemOverview = ({ onGetStarted, onTestLogin }) => {
             >
               アカウントを作成
             </button>
-            {/* テスト用ログインボタン */}
-            {onTestLogin && (
-              <div>
-                <button
-                  onClick={onTestLogin}
-                  className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg text-sm transition-colors shadow-lg ml-4"
-                >
-                  テストログイン（開発用）
-                </button>
-              </div>
-            )}
           </div>
         </div>
       </section>
