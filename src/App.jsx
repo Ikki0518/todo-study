@@ -1869,7 +1869,7 @@ function App() {
           {userRole === 'STUDENT' && currentView === 'planner' && (
           <div>
             <div className="mb-6">
-              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-2">3日間プランナー</h1>
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-2">デイリープランナー</h1>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:space-x-4">
                   <span className="text-base sm:text-lg lg:text-xl font-medium text-gray-700">{todayString}</span>
