@@ -25,7 +25,7 @@ const FloatingActionButton = ({ currentUser }) => {
           <button
             onClick={() => setIsOpen(!isOpen)}
             className={`
-              w-16 h-16 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500
+              w-16 h-16 bg-gradient-to-br from-cyan-400 via-cyan-500 to-blue-500
               text-white rounded-full shadow-xl hover:shadow-2xl
               transform transition-all duration-300 ease-out
               flex items-center justify-center

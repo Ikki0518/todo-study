@@ -1248,14 +1248,13 @@ function App() {
     const today = new Date()
     const dates = []
     
-    // PC・モバイル共通: 週間表示（weekOffsetを考慮）
-    const dayOfWeek = today.getDay()
-    const startOfWeek = new Date(today)
-    startOfWeek.setDate(today.getDate() - dayOfWeek + (weekOffset * 7))
+    // PC・モバイル共通: 3日間表示（weekOffsetを考慮）
+    const startDate = new Date(today)
+    startDate.setDate(today.getDate() + (weekOffset * 3))
     
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(startOfWeek)
-      date.setDate(startOfWeek.getDate() + i)
+    for (let i = 0; i < 3; i++) {
+      const date = new Date(startDate)
+      date.setDate(startDate.getDate() + i)
       dates.push(date)
     }
     
@@ -1289,10 +1288,13 @@ function App() {
     const hours = currentTime.getHours()
     const minutes = currentTime.getMinutes()
     
-    // 24時間グリッドでの位置を計算（0時から24時まで）
-    // モバイル: 1時間あたり50px、PC: 1時間あたり120px（カレンダーセル高さと統一）
+    // 24時間グリッドでの位置を計算
+    // 各時間行の高さを正確に計算（実際のグリッド行の高さに合わせる）
     const hourHeight = isMobile ? 50 : 120
-    const totalPosition = (hours * hourHeight) + (minutes * hourHeight / 60)
+    const headerHeight = isMobile ? 48 : 56 // ヘッダー行の実際の高さ
+    
+    // 現在時刻の位置を計算（時間行の境界線上に配置）
+    const totalPosition = headerHeight + (hours * hourHeight) + (minutes * hourHeight / 60)
     return totalPosition
   }
 
@@ -1306,8 +1308,8 @@ function App() {
   }
 
   const isCurrentTimeInGrid = () => {
-    const hours = currentTime.getHours()
-    return hours >= 0 && hours <= 23 // 24時間表示
+    // 現在時刻表示を常に表示（24時間表示なので常にグリッド内）
+    return true
   }
 
   // 非同期でトークンの有効性を確認し、必要に応じて認証状態を更新
@@ -1862,7 +1864,7 @@ function App() {
           {userRole === 'STUDENT' && currentView === 'planner' && (
           <div>
             <div className="mb-6">
-              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-2">週間プランナー</h1>
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-2">3日間プランナー</h1>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:space-x-4">
                   <span className="text-base sm:text-lg lg:text-xl font-medium text-gray-700">{todayString}</span>
@@ -1902,7 +1904,7 @@ function App() {
                     }}
                     className="px-2 py-1 sm:px-3 lg:px-4 lg:py-2 border rounded hover:bg-gray-100 text-sm sm:text-base"
                   >
-                    ← 前週
+                    ← 前の3日
                   </button>
                   <button
                     onClick={() => {
@@ -1911,7 +1913,7 @@ function App() {
                     }}
                     className={`px-2 py-1 sm:px-3 lg:px-4 lg:py-2 rounded text-sm sm:text-base ${weekOffset === 0 ? 'bg-blue-500 text-white' : 'border hover:bg-gray-100'}`}
                   >
-                    今週
+                    今日から
                   </button>
                   <button
                     onClick={() => {
@@ -1920,7 +1922,7 @@ function App() {
                     }}
                     className="px-2 py-1 sm:px-3 lg:px-4 lg:py-2 border rounded hover:bg-gray-100 text-sm sm:text-base"
                   >
-                    次週 →
+                    次の3日 →
                   </button>
                 </div>
               </div>
@@ -1985,36 +1987,30 @@ function App() {
                     })}
                   </div>
                   
-                  {/* 現在時刻インジケーター - 24時間グリッド内の場合のみ表示 */}
-                  {isCurrentTimeInGrid() && (
-                    <div
-                      className="absolute left-0 right-0 pointer-events-none z-20 grid"
-                      style={{
-                        top: `${getCurrentTimePosition()}px`,
-                        height: '2px',
-                        gridTemplateColumns: `${isMobile ? '40px' : '60px'} repeat(${dates.length}, 1fr)`
-                      }}
-                    >
-                      {/* 時間列のスペース */}
-                      <div className="relative">
-                        <div className="absolute right-2 -top-3 text-xs font-semibold text-blue-600 bg-white px-1 rounded shadow-sm">
-                          {getCurrentTimeString()}
-                        </div>
+                  {/* 現在時刻インジケーター - 常に表示 */}
+                  <div
+                    className="absolute left-0 right-0 pointer-events-none z-30"
+                    style={{
+                      top: `${getCurrentTimePosition()}px`,
+                      height: '3px'
+                    }}
+                  >
+                    {/* 現在時刻表示バー - 全幅に渡って表示 */}
+                    <div className="relative w-full h-full">
+                      {/* 左側の時刻表示 */}
+                      <div className="absolute -left-2 -top-4 bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded shadow-lg border border-white z-40">
+                        {getCurrentTimeString()}
                       </div>
                       
-                      {/* 各日付列 - 全ての列に青い線を表示 */}
-                      {dates.map((date, dateIndex) => {
-                        const isToday = date.toDateString() === new Date().toDateString()
-                        return (
-                          <div key={dateIndex} className={`relative ${isToday ? 'bg-blue-50' : ''}`}>
-                            <div className="absolute inset-0 bg-blue-500 h-0.5 shadow-sm">
-                              {/* 現在時刻の青い線とドット */}
-                            </div>
-                          </div>
-                        )
-                      })}
+                      {/* 現在時刻の青い線 - 全幅 */}
+                      <div className="absolute inset-0 bg-blue-500 shadow-lg">
+                        {/* 左端のドット */}
+                        <div className="absolute -left-1 -top-1 w-2 h-2 bg-blue-500 rounded-full border border-white"></div>
+                        {/* 右端のドット */}
+                        <div className="absolute -right-1 -top-1 w-2 h-2 bg-blue-500 rounded-full border border-white"></div>
+                      </div>
                     </div>
-                  )}
+                  </div>
                   
                   {[...Array(24)].map((_, hourIndex) => {
                     const hour = hourIndex
@@ -2124,7 +2120,7 @@ function App() {
                                     left: '4px',
                                     top: '4px',
                                     overflow: 'visible',
-                                    minHeight: isMobile ? '42px' : '60px',
+                                    minHeight: isMobile ? '46px' : '56px',
                                     display: 'block',
                                     touchAction: 'none'
                                   }}
@@ -2266,10 +2262,8 @@ function App() {
                                         setDraggingTaskId(null);
                                         setDraggingOverCalendar(false);
                                         
-                                        // スタイルをリセット
+                                        // スタイルをリセット（サイズは維持）
                                         elem.style.position = '';
-                                        elem.style.width = '';
-                                        elem.style.height = '';
                                         elem.style.left = '';
                                         elem.style.top = '';
                                         
@@ -2499,6 +2493,7 @@ function App() {
                                         zIndex: 1000,
                                         opacity: 1,
                                         cursor: 'ns-resize',
+                                        isResize: true,
                                         onMove: (moveCoords, moveEvent) => {
                                           const deltaY = moveCoords.y - startY;
                                           const cellHeight = isMobile ? 50 : 120;

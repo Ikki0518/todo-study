@@ -39,7 +39,8 @@ export function startDrag(element, options = {}) {
     zIndex = 1000,
     opacity = 0.8,
     cursor = 'grabbing',
-    maintainSize = true
+    maintainSize = true,
+    isResize = false
   } = options;
 
   // ドラッグ開始時の要素のサイズを保存
@@ -80,8 +81,12 @@ export function startDrag(element, options = {}) {
     element.style.cursor = '';
     element.style.userSelect = '';
     element.style.webkitUserSelect = '';
-    element.style.width = '';
-    element.style.height = '';
+    
+    // リサイズの場合はサイズをリセットしない
+    if (!isResize) {
+      element.style.width = '';
+      element.style.height = '';
+    }
 
     // イベントリスナーを削除
     document.removeEventListener('mousemove', handleMove);

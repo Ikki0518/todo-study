@@ -135,7 +135,7 @@ export function MobileTaskPopup({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end justify-center z-50">
       <div className="bg-white rounded-t-2xl w-full max-w-md max-h-[80vh] overflow-hidden animate-slide-up">
         {/* ヘッダー */}
-        <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-blue-500 to-purple-600 text-white">
+        <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-cyan-400 via-cyan-500 to-blue-500 text-white">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold">タスクを選択</h2>
@@ -179,33 +179,35 @@ export function MobileTaskPopup({
                 </div>
               </button>
 
-              {/* 利用可能なタスクリスト */}
+              {/* 利用可能なタスクリスト - 2列グリッドレイアウト */}
               {availableTasks.length > 0 ? (
-                <div className="space-y-2">
+                <div>
                   <h3 className="text-sm font-medium text-gray-700 mb-3">利用可能なタスク</h3>
-                  {availableTasks.map((task) => (
-                    <button
-                      key={task.id}
-                      onClick={() => handleTaskSelect(task)}
-                      className="w-full p-3 text-left border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors"
-                    >
-                      <div className="flex items-start space-x-3">
-                        <span className="text-lg">{getPriorityIcon(task.priority)}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-gray-900 truncate">{task.title}</p>
-                          {task.description && (
-                            <p className="text-sm text-gray-600 truncate">{task.description}</p>
-                          )}
-                          <div className="flex items-center space-x-2 mt-1">
-                            <span className={`inline-block w-2 h-2 rounded-full ${getPriorityColor(task.priority)}`}></span>
-                            <span className="text-xs text-gray-500">
-                              {task.category} • {task.duration || 1}時間
-                            </span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {availableTasks.map((task) => (
+                      <button
+                        key={task.id}
+                        onClick={() => handleTaskSelect(task)}
+                        className="p-2 text-left border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors"
+                      >
+                        <div className="flex items-start space-x-2">
+                          <span className="text-base">{getPriorityIcon(task.priority)}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-gray-900 text-sm truncate">{task.title}</p>
+                            {task.description && (
+                              <p className="text-xs text-gray-600 truncate">{task.description}</p>
+                            )}
+                            <div className="flex items-center space-x-1 mt-1">
+                              <span className={`inline-block w-1.5 h-1.5 rounded-full ${getPriorityColor(task.priority)}`}></span>
+                              <span className="text-xs text-gray-500 truncate">
+                                {task.category} • {task.duration || 1}時間
+                              </span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </button>
-                  ))}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               ) : (
                 <div className="text-center py-8 text-gray-500">
