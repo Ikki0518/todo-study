@@ -832,7 +832,38 @@ function App() {
     const newStudyPlans = generateStudyPlan(studyBooks, new Date())
     setStudyPlans(newStudyPlans)
     
-    // 今日の日付のタスクがあれば、今日のタスクプールに追加
+    // 学習計画の全てのタスクをカレンダーに自動スケジュール
+    const newScheduledTasks = { ...scheduledTasks }
+    let totalScheduledTasks = 0
+    
+    Object.entries(newStudyPlans).forEach(([dateKey, dayPlans]) => {
+      if (dayPlans && dayPlans.length > 0) {
+        const tasks = convertPlansToTasks(dayPlans)
+        
+        // 各タスクを適切な時間にスケジュール（9時から開始）
+        tasks.forEach((task, index) => {
+          const hour = 9 + (index * 2) // 2時間間隔でスケジュール
+          if (hour < 22) { // 22時までに制限
+            const taskKey = `${dateKey}-${hour}`
+            
+            // 既存のタスクがない場合のみスケジュール
+            if (!newScheduledTasks[taskKey]) {
+              newScheduledTasks[taskKey] = {
+                ...task,
+                duration: 2, // 2時間のデフォルト期間
+                scheduledAt: new Date().toISOString()
+              }
+              totalScheduledTasks++
+            }
+          }
+        })
+      }
+    })
+    
+    // スケジュールされたタスクを更新
+    setScheduledTasks(newScheduledTasks)
+    
+    // 今日の日付のタスクがあれば、今日のタスクプールにも追加
     const today = new Date()
     const todayKey = today.toISOString().split('T')[0]
     const todayPlans = newStudyPlans[todayKey] || []
@@ -850,7 +881,7 @@ function App() {
     }
     
     const stats = calculateStudyPlanStats(newStudyPlans, studyBooks)
-    alert(`学習計画を生成しました！\n総学習日数: ${stats.totalDays}日\n総学習時間: ${stats.totalHours}時間${todayPlans.length > 0 ? '\n今日のタスクプールに追加されました！' : ''}`)
+    alert(`学習計画を生成しました！\n総学習日数: ${stats.totalDays}日\n総学習時間: ${stats.totalHours}時間\nカレンダーに${totalScheduledTasks}個のタスクをスケジュールしました！${todayPlans.length > 0 ? '\n今日のタスクプールにも追加されました！' : ''}`)
   }
 
   const createDragImage = (task, isSmall = false) => {
