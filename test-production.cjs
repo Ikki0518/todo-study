@@ -6,7 +6,7 @@ const puppeteer = require('puppeteer');
   
   try {
     console.log('本番環境にアクセス中...');
-    await page.goto('https://todo-study-frontend.vercel.app/', { waitUntil: 'networkidle2' });
+    await page.goto('https://todo-study-cramschool.vercel.app/', { waitUntil: 'networkidle2' });
     
     // スクリーンショットを撮影
     await page.screenshot({ path: 'production-test-1.png' });
