@@ -74,8 +74,8 @@ export const ImprovedDailyPlanner = ({
     // 位置計算：行インデックス * 50px + 分のオフセット * 50px
     const position = (hourIndex * 50) + (minuteOffset * 50)
     
-    // 24時間グリッドの範囲（0-1199px）を超えないように制限
-    const maxPosition = (24 * 50) - 1 // 1199px
+    // 25時間グリッドの範囲（0-1249px）を超えないように制限
+    const maxPosition = (25 * 50) - 1 // 1249px
     return Math.min(position, maxPosition)
   }
 
@@ -87,11 +87,11 @@ export const ImprovedDailyPlanner = ({
     return `${hours}:${minutes}`
   }
 
-  // 現在時刻が24時間グリッド内にあるかチェック
+  // 現在時刻が25時間グリッド内にあるかチェック
   const isCurrentTimeInGrid = () => {
     const now = currentTime
     const hours = now.getHours()
-    // 0-23時の範囲内かチェック
+    // 0-23時の範囲内かチェック（24時間表示なので23時まで）
     return hours >= 0 && hours <= 23
   }
 
@@ -273,7 +273,7 @@ export const ImprovedDailyPlanner = ({
           {/* スクロール可能な時間グリッド */}
           <div className="planner-body custom-scrollbar flex-1 overflow-auto" style={{ position: 'relative' }}>
             <div className={isMobile ? 'w-full' : 'min-w-[600px]'}>
-              {[...Array(24)].map((_, hourIndex) => {
+              {[...Array(25)].map((_, hourIndex) => {
                 const hour = hourIndex
                 return (
                   <div
@@ -287,7 +287,7 @@ export const ImprovedDailyPlanner = ({
                     }}
                   >
                     <div className="time-column p-2 text-right text-responsive-xs text-gray-500 touch-optimized">
-                      {hour.toString().padStart(2, '0')}:00
+                      {hour === 24 ? '24:00' : hour.toString().padStart(2, '0') + ':00'}
                     </div>
                     {dates.map((date, dateIndex) => {
                       const dateKey = date.toISOString().split('T')[0]
