@@ -147,11 +147,18 @@ export function StudyBookManager({
                 <input
                   name="title"
                   type="text"
-                  defaultValue={book?.title}
+                  defaultValue={book?.title || ''}
                   className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   required
                   placeholder="例：基本情報技術者試験 午前問題集"
                   autoFocus={!book}
+                  autoComplete="off"
+                  spellCheck="false"
+                  style={{
+                    WebkitAppearance: 'none',
+                    MozAppearance: 'textfield',
+                    appearance: 'none'
+                  }}
                 />
               </div>
               
@@ -161,8 +168,13 @@ export function StudyBookManager({
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                    }}
                     onClick={(e) => {
                       e.preventDefault()
+                      e.stopPropagation()
                       setStudyType('pages')
                     }}
                     className={`p-3 text-sm rounded-md border transition-colors ${
@@ -175,8 +187,13 @@ export function StudyBookManager({
                   </button>
                   <button
                     type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                    }}
                     onClick={(e) => {
                       e.preventDefault()
+                      e.stopPropagation()
                       setStudyType('problems')
                     }}
                     className={`p-3 text-sm rounded-md border transition-colors ${
