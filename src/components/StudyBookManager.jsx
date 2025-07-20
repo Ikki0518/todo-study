@@ -147,9 +147,10 @@ export function StudyBookManager({
                   name="title"
                   type="text"
                   defaultValue={book?.title}
-                  className="w-full p-2 border rounded-md"
+                  className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   required
                   placeholder="例：基本情報技術者試験 午前問題集"
+                  autoFocus={!book}
                 />
               </div>
               
@@ -159,7 +160,10 @@ export function StudyBookManager({
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => setStudyType('pages')}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      setStudyType('pages')
+                    }}
                     className={`p-3 text-sm rounded-md border transition-colors ${
                       studyType === 'pages'
                         ? 'bg-blue-600 text-white border-blue-600'
@@ -170,7 +174,10 @@ export function StudyBookManager({
                   </button>
                   <button
                     type="button"
-                    onClick={() => setStudyType('problems')}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      setStudyType('problems')
+                    }}
                     className={`p-3 text-sm rounded-md border transition-colors ${
                       studyType === 'problems'
                         ? 'bg-green-600 text-white border-green-600'
