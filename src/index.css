@@ -234,20 +234,22 @@
   
   /* グリッドレイアウトの改善 */
   .planner-grid {
-    display: grid;
-    grid-template-rows: auto 1fr;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
   }
   
   .planner-header {
-    position: sticky;
-    top: 0;
+    flex-shrink: 0;
     z-index: 10;
     background: white;
     border-bottom: 2px solid #e5e7eb;
   }
   
   .planner-body {
+    flex: 1;
     overflow: auto;
+    min-height: 0;
   }
 }
 

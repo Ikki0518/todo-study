@@ -126,7 +126,7 @@ export function StudyBookManager({
         currentProblem: parseInt(formData.get('currentProblem') || 0),
         dailyProblems: parseInt(formData.get('dailyProblems')),
         category: formData.get('category'),
-        description: formData.get('description') || '',
+        description: '', // 説明フィールドを削除したため空文字に固定
         startDate: formData.get('startDate') || new Date().toISOString().split('T')[0],
         excludeDays: excludeDays
       }
@@ -136,11 +136,29 @@ export function StudyBookManager({
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-          <h3 className="text-lg font-semibold mb-4">
-            {book ? '参考書を編集' : '参考書を追加'}
-          </h3>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold">
+              {book ? '参考書を編集' : '参考書を追加'}
+            </h3>
+            <div className="flex space-x-2">
+              <button
+                type="button"
+                onClick={onCancel}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800 text-sm"
+              >
+                キャンセル
+              </button>
+              <button
+                type="submit"
+                form="book-form"
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
+              >
+                {book ? '更新' : '追加'}
+              </button>
+            </div>
+          </div>
           
-          <form onSubmit={handleSubmit}>
+          <form id="book-form" onSubmit={handleSubmit}>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">参考書名</label>
@@ -378,31 +396,6 @@ export function StudyBookManager({
                   <option value="other">その他</option>
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">説明（任意）</label>
-                <textarea
-                  name="description"
-                  defaultValue={book?.description}
-                  className="w-full p-2 border rounded-md"
-                  rows="3"
-                  placeholder="参考書についての詳細"
-                />
-              </div>
-            </div>
-            <div className="flex justify-end space-x-2 mt-6">
-              <button
-                type="button"
-                onClick={onCancel}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
-              >
-                キャンセル
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                {book ? '更新' : '追加'}
-              </button>
             </div>
           </form>
         </div>

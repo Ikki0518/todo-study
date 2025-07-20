@@ -183,8 +183,9 @@ export const ImprovedDailyPlanner = ({
   const currentWeekTodayTasks = getCurrentWeekTodayTasks()
 
   return (
-    <div>
-      <div className="mb-6">
+    <div className="h-screen flex flex-col overflow-hidden">
+      {/* 固定ヘッダー */}
+      <div className="flex-shrink-0 mb-6 px-4 pt-4">
         <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-2">
           {isMobile ? 'デイリープランナー' : '週間プランナー'}
         </h1>
@@ -220,8 +221,9 @@ export const ImprovedDailyPlanner = ({
         </div>
       </div>
 
-      <div className="flex flex-col lg:grid lg:grid-cols-12 gap-4">
-        <div className="lg:col-span-3">
+      {/* メインコンテンツエリア */}
+      <div className="flex-1 flex flex-col lg:grid lg:grid-cols-12 gap-4 px-4 pb-4 min-h-0">
+        <div className="lg:col-span-3 flex-shrink-0">
           <DailyTaskPool
             dailyTasks={currentWeekTodayTasks}
             onTasksUpdate={setTodayTasks}
@@ -232,7 +234,7 @@ export const ImprovedDailyPlanner = ({
           />
         </div>
 
-        <div className="lg:col-span-9 bg-white rounded-lg shadow overflow-hidden planner-grid">
+        <div className="lg:col-span-9 bg-white rounded-lg shadow overflow-hidden planner-grid flex-1 min-h-0">
           {/* 固定ヘッダー（日付） */}
           <div className="planner-header">
             <div className="custom-scrollbar">
@@ -269,7 +271,7 @@ export const ImprovedDailyPlanner = ({
           </div>
           
           {/* スクロール可能な時間グリッド */}
-          <div className="planner-body custom-scrollbar" style={{ height: '400px', maxHeight: '60vh', position: 'relative' }}>
+          <div className="planner-body custom-scrollbar flex-1 overflow-auto" style={{ position: 'relative' }}>
             <div className={isMobile ? 'w-full' : 'min-w-[600px]'}>
               {[...Array(24)].map((_, hourIndex) => {
                 const hour = hourIndex
