@@ -154,10 +154,49 @@ export function StudyBookManager({
                   autoFocus={!book}
                   autoComplete="off"
                   spellCheck="false"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  data-form-type="other"
+                  tabIndex="0"
                   style={{
                     WebkitAppearance: 'none',
                     MozAppearance: 'textfield',
-                    appearance: 'none'
+                    appearance: 'none',
+                    WebkitUserSelect: 'text',
+                    userSelect: 'text',
+                    WebkitTouchCallout: 'default',
+                    WebkitTapHighlightColor: 'transparent',
+                    outline: 'none',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '0.375rem',
+                    padding: '0.5rem',
+                    fontSize: '1rem',
+                    lineHeight: '1.5',
+                    backgroundColor: '#ffffff',
+                    color: '#111827'
+                  }}
+                  onFocus={(e) => {
+                    console.log('Input focused');
+                    e.target.style.outline = '2px solid #3b82f6';
+                  }}
+                  onBlur={(e) => {
+                    console.log('Input blurred');
+                    e.target.style.outline = 'none';
+                  }}
+                  onChange={(e) => {
+                    console.log('Input changed:', e.target.value);
+                  }}
+                  onInput={(e) => {
+                    console.log('Input event:', e.target.value);
+                  }}
+                  onKeyDown={(e) => {
+                    console.log('Key down:', e.key);
+                  }}
+                  onKeyPress={(e) => {
+                    console.log('Key press:', e.key);
+                  }}
+                  onKeyUp={(e) => {
+                    console.log('Key up:', e.key);
                   }}
                 />
               </div>

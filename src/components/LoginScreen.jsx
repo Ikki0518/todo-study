@@ -142,11 +142,17 @@ export const LoginScreen = ({ onLogin, onRoleChange, onSignupClick }) => {
     setErrors({});
 
     try {
-      console.log('ログイン開始:', formData.loginField);
+      console.log('🔐 ログイン開始:', formData.loginField);
+      console.log('🌍 環境:', import.meta.env.MODE);
+      console.log('🔗 Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
+      console.log('🔑 Supabase Key存在:', !!import.meta.env.VITE_SUPABASE_ANON_KEY);
       
       // 入力値がユーザーIDかメールアドレスかを自動判定
       const isUserId = userIdGenerator.validateUserIdFormat(formData.loginField);
       const isEmail = /\S+@\S+\.\S+/.test(formData.loginField);
+      
+      console.log('📧 メールアドレス判定:', isEmail);
+      console.log('🆔 ユーザーID判定:', isUserId);
       
       let response;
       
@@ -289,12 +295,15 @@ export const LoginScreen = ({ onLogin, onRoleChange, onSignupClick }) => {
         }
       } else if (isEmail) {
         // メールアドレスでログイン（従来システム + フォールバック）
+        console.log('📧 メールアドレスログイン開始');
         try {
+          console.log('🔗 Supabase認証を試行中...');
           response = await auth.signIn(formData.loginField, formData.password);
+          console.log('🔗 Supabase認証結果:', response);
           
           if (!response.success) {
             // Supabase認証が失敗した場合、ローカルテストアカウントを確認
-            console.log('ローカルテストアカウントでの認証を試行');
+            console.log('⚠️ Supabase認証失敗、ローカルテストアカウントでの認証を試行');
             
             // テスト用講師アカウント
             if (formData.loginField === 'instructor@test.com' && formData.password === 'password123') {
@@ -337,7 +346,7 @@ export const LoginScreen = ({ onLogin, onRoleChange, onSignupClick }) => {
             }
             
             // 特定ユーザーの学生権限ログイン（メールアドレス）
-            if (formData.loginField === 'ikki_y0518@icloud.com' && formData.password === 'ikki0518') {
+            if (formData.loginField === 'ikki_y0518@icloud.com' && formData.password === 'Ikki0518') {
               const userData = {
                 id: 'student-ikki-001',
                 email: 'ikki_y0518@icloud.com',
