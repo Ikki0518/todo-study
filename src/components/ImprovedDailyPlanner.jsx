@@ -72,6 +72,7 @@ export const ImprovedDailyPlanner = ({
     const minuteOffset = minutes / 60 // 0-1の範囲
     
     // 位置計算：行インデックス * 50px + 分のオフセット * 50px
+    // 各時間行の上端から計算するため、minuteOffsetを正確に適用
     const position = (hourIndex * 50) + (minuteOffset * 50)
     
     // 25時間グリッドの範囲（0-1249px）を超えないように制限
@@ -272,7 +273,7 @@ export const ImprovedDailyPlanner = ({
           
           {/* スクロール可能な時間グリッド */}
           <div className="planner-body custom-scrollbar flex-1 overflow-auto" style={{ position: 'relative' }}>
-            <div className={isMobile ? 'w-full' : 'min-w-[600px]'}>
+            <div className={isMobile ? 'w-full' : 'min-w-[600px]'} style={{ height: '1250px' }}>
               {[...Array(25)].map((_, hourIndex) => {
                 const hour = hourIndex
                 return (
