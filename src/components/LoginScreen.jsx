@@ -346,7 +346,7 @@ export const LoginScreen = ({ onLogin, onRoleChange, onSignupClick }) => {
             }
             
             // 特定ユーザーの学生権限ログイン（メールアドレス）
-            if (formData.loginField === 'ikki_y0518@icloud.com' && formData.password === 'Ikki0518') {
+            if (formData.loginField === 'ikki_y0518@icloud.com' && formData.password === 'ikki0518') {
               const userData = {
                 id: 'student-ikki-001',
                 email: 'ikki_y0518@icloud.com',

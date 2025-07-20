@@ -43,24 +43,7 @@ function App() {
   })
   const [goals, setGoals] = useState([])
   const [todayTasks, setTodayTasks] = useState([])
-  const [scheduledTasks, setScheduledTasks] = useState(() => {
-    // テスト用の今日のスケジュールタスク（時間超過テスト用）
-    const today = new Date()
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-    
-    // 現在時刻より過去の時間にタスクを設定（例：数時間前）
-    const pastHour = Math.max(0, today.getHours() - 3) // 3時間前、最小0時
-    
-    return {
-      [`${todayStr}-${pastHour}`]: {
-        id: 'test-overdue-task',
-        title: '時間超過テストタスク',
-        priority: 'high',
-        duration: 2, // 2時間のタスク
-        completed: false
-      }
-    }
-  })
+  const [scheduledTasks, setScheduledTasks] = useState({})
   const [completedTasks, setCompletedTasks] = useState({})
   const [showGoalModal, setShowGoalModal] = useState(false)
   const [editingGoal, setEditingGoal] = useState(null)
@@ -71,51 +54,7 @@ function App() {
 
   // 新機能の状態
   const [studyBooks, setStudyBooks] = useState([])
-  const [studyPlans, setStudyPlans] = useState(() => {
-    // テスト用のサンプルデータ
-    const today = new Date()
-    const yesterday = new Date(today)
-    yesterday.setDate(today.getDate() - 1)
-    
-    // ローカル時間ベースで日付文字列を作成
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-    const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`
-    
-    return {
-      [yesterdayStr]: [
-        {
-          id: 'test-yesterday-1',
-          bookTitle: '数学基礎',
-          startPage: 1,
-          endPage: 10,
-          pages: 10,
-          type: 'book-goal',
-          completed: false
-        },
-        {
-          id: 'test-yesterday-2',
-          bookTitle: '英語長文',
-          startProblem: 1,
-          endProblem: 5,
-          problems: 5,
-          studyType: 'problems',
-          type: 'book-goal',
-          completed: false
-        }
-      ],
-      [todayStr]: [
-        {
-          id: 'test-today-1',
-          bookTitle: '物理基礎',
-          startPage: 20,
-          endPage: 30,
-          pages: 11,
-          type: 'book-goal',
-          completed: false
-        }
-      ]
-    }
-  })
+  const [studyPlans, setStudyPlans] = useState({})
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [dailyTaskPool, setDailyTaskPool] = useState([])
   
@@ -684,16 +623,15 @@ function App() {
     console.log('App.jsx 初期化完了（永続化セッション対応）');
   }, []);
 
-  // ログイン状態変更時にユーザーデータを超遅延読み込み（ログイン速度最優先）
+  // ログイン状態変更時にユーザーデータを即座に読み込み
   useEffect(() => {
     if (isLoggedIn && currentUser) {
-      console.log('ログイン後のデータ読み込みを超遅延実行（ログイン速度最優先）');
-      // 3秒後に実行してログイン体験を最大限改善
-      setTimeout(() => {
-        loadUserData();
-      }, 3000);
+      console.log('ログイン後のデータ読み込みを即座に実行');
+      // データ永続化のため、即座に実行
+      loadUserData();
     }
   }, [isLoggedIn, currentUser]);
+
 
   // タスクデータの軽量キャッシュ（パフォーマンス向上のため）
   useEffect(() => {
@@ -737,6 +675,33 @@ function App() {
         setGoals(goalsResult.goals);
         console.log('目標データ読み込み完了:', goalsResult.goals.length, '件');
       }
+      
+      // 参考書データを読み込み
+      try {
+        const booksResult = await authService.getStudyBooks();
+        if (booksResult.success) {
+          setStudyBooks(booksResult.books || []);
+          console.log('参考書データ読み込み完了:', (booksResult.books || []).length, '件');
+        }
+      } catch (booksError) {
+        console.warn('参考書データ読み込みエラー:', booksError);
+      }
+      
+      // 学習プランデータを読み込み
+      try {
+        const plansResult = await authService.getUserStudyPlans();
+        if (plansResult.success) {
+          setStudyPlans(plansResult.plans || {});
+          console.log('学習プランデータ読み込み完了:', Object.keys(plansResult.plans || {}).length, '日分');
+        }
+      } catch (plansError) {
+        console.warn('学習プランデータ読み込みエラー:', plansError);
+      }
+      
+      // 注意：AI学習アシスタントのユーザー知識データについては、
+      // 現在AuthServiceに対応するメソッドが存在しないため、
+      // このデータのみローカル状態で管理されます
+      console.log('AI知識データは現在ローカル管理です');
       
       // Supabaseからタスクデータを取得（主要データソース）
       try {
@@ -838,11 +803,15 @@ function App() {
       console.error('ログアウトエラー:', error);
     }
     
-    // LocalStorageをクリア
+    // LocalStorageをクリア（永続化データ含む）
     try {
       localStorage.removeItem('isLoggedIn')
       localStorage.removeItem('userRole')
       localStorage.removeItem('currentUser')
+      // キャッシュデータのみクリア
+      localStorage.removeItem('todayTasks_cache')
+      localStorage.removeItem('scheduledTasks_cache')
+      localStorage.removeItem('completedTasks_cache')
       console.log('LocalStorage クリア完了')
     } catch (error) {
       console.warn('LocalStorage クリアエラー:', error)

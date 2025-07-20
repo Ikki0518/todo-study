@@ -235,64 +235,9 @@ function App() {
   const [userRole, setUserRole] = useState(sessionState.userRole)
   const [currentUser, setCurrentUser] = useState(sessionState.currentUser)
   const [hasValidSubscription, setHasValidSubscription] = useState(sessionState.hasValidSubscription)
-  const [goals, setGoals] = useState([
-    {
-      id: 'goal-1',
-      title: '数学の基礎力向上',
-      description: '基本的な計算問題を確実に解けるようになる',
-      priority: 'high',
-      dueDate: '2025-01-20',
-      userId: 'test-user-001'
-    }
-  ])
-  const [todayTasks, setTodayTasks] = useState([
-    {
-      id: 'today-task-1',
-      title: '物理の実験レポート',
-      description: '振り子の実験結果をまとめる',
-      priority: 'high',
-      subject: '物理',
-      dueDate: '2025-07-16',
-      estimatedTime: 90,
-      status: 'pending',
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 'today-task-2',
-      title: '化学の予習',
-      description: '次回の授業範囲を読む',
-      priority: 'medium',
-      subject: '化学',
-      dueDate: '2025-07-16',
-      estimatedTime: 45,
-      status: 'pending',
-      createdAt: new Date().toISOString()
-    }
-  ])
-  const [scheduledTasks, setScheduledTasks] = useState({
-    '2025-07-14-10': {
-      id: 'scheduled-task-1',
-      title: '数学の宿題',
-      description: '教科書p.45-50の問題を解く',
-      priority: 'high',
-      estimatedTime: 60,
-      duration: 1,
-      subject: '数学',
-      startTime: '10:00',
-      endTime: '11:00'
-    },
-    '2025-07-14-14': {
-      id: 'scheduled-task-2',
-      title: '英語の単語暗記',
-      description: '単語帳の50-100番を覚える',
-      priority: 'medium',
-      estimatedTime: 30,
-      duration: 1,
-      subject: '英語',
-      startTime: '14:00',
-      endTime: '14:30'
-    }
-  })
+  const [goals, setGoals] = useState([])
+  const [todayTasks, setTodayTasks] = useState([])
+  const [scheduledTasks, setScheduledTasks] = useState({})
   const [completedTasks, setCompletedTasks] = useState({})
   const [showGoalModal, setShowGoalModal] = useState(false)
   const [editingGoal, setEditingGoal] = useState(null)
@@ -305,47 +250,9 @@ function App() {
   const [studyBooks, setStudyBooks] = useState([])
   const [studyPlans, setStudyPlans] = useState({})
   const [selectedDate, setSelectedDate] = useState(new Date())
-  const [dailyTaskPool, setDailyTaskPool] = useState([
-    {
-      id: 'task-1',
-      title: '数学の宿題',
-      description: '教科書p.45-50の問題を解く',
-      priority: 'high',
-      estimatedTime: 60,
-      goalId: 'goal-1',
-      subject: '数学',
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 'task-2',
-      title: '英語の単語暗記',
-      description: '単語帳の50-100番を覚える',
-      priority: 'medium',
-      estimatedTime: 30,
-      goalId: 'goal-1',
-      subject: '英語',
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 'task-3',
-      title: '理科のレポート作成',
-      description: '実験結果をまとめる',
-      priority: 'low',
-      estimatedTime: 90,
-      goalId: 'goal-1',
-      subject: '理科',
-      createdAt: new Date().toISOString()
-    }
-  ])
+  const [dailyTaskPool, setDailyTaskPool] = useState([])
   const [allTasksHistory, setAllTasksHistory] = useState({})
-  const [examDates, setExamDates] = useState([
-    {
-      id: Date.now(),
-      title: '大学入試',
-      date: '2025-12-31',
-      createdAt: new Date().toISOString()
-    }
-  ])
+  const [examDates, setExamDates] = useState([])
 
   // AI機能の状態
   const [currentAIMode, setCurrentAIMode] = useState('select');
@@ -446,6 +353,83 @@ function App() {
     saveExamDatesToDB();
   }, [examDates, currentUser]);
 
+  // ユーザーがログインした時にすべてのデータを読み込み
+  useEffect(() => {
+    const loadAllUserData = async () => {
+      if (currentUser && currentUser.id) {
+        try {
+          console.log('📖 ユーザーデータを読み込み開始:', currentUser.id);
+          
+          // タスクデータを読み込み
+          const tasksData = await taskService.loadUserTasks(currentUser.id);
+          if (tasksData) {
+            if (tasksData.todayTasks) setTodayTasks(tasksData.todayTasks);
+            if (tasksData.scheduledTasks) setScheduledTasks(tasksData.scheduledTasks);
+            if (tasksData.dailyTaskPool) setDailyTaskPool(tasksData.dailyTaskPool);
+            if (tasksData.completedTasks) setCompletedTasks(tasksData.completedTasks);
+            if (tasksData.goals) setGoals(tasksData.goals);
+            console.log('✅ タスクデータ読み込み完了');
+          }
+          
+          // 学習計画データを読み込み
+          const studyPlansData = await taskService.loadStudyPlans(currentUser.id);
+          if (studyPlansData && studyPlansData.length > 0) {
+            setStudyPlans(studyPlansData);
+            console.log('✅ 学習計画データ読み込み完了');
+          }
+          
+        } catch (error) {
+          console.error('❌ ユーザーデータ読み込み失敗:', error);
+        }
+      }
+    };
+
+    loadAllUserData();
+  }, [currentUser]);
+
+  // データが変更されたらTaskServiceで保存
+  useEffect(() => {
+    const saveAllUserData = async () => {
+      if (currentUser && currentUser.id) {
+        try {
+          const tasksData = {
+            todayTasks,
+            scheduledTasks,
+            dailyTaskPool,
+            completedTasks,
+            goals
+          };
+          
+          await taskService.saveUserTasks(currentUser.id, tasksData);
+          console.log('✅ タスクデータ保存完了');
+        } catch (error) {
+          console.error('❌ タスクデータ保存失敗:', error);
+        }
+      }
+    };
+
+    // データが空でない場合のみ保存
+    if (todayTasks.length > 0 || Object.keys(scheduledTasks).length > 0 ||
+        dailyTaskPool.length > 0 || goals.length > 0) {
+      saveAllUserData();
+    }
+  }, [todayTasks, scheduledTasks, dailyTaskPool, completedTasks, goals, currentUser]);
+
+  // 学習計画データの保存
+  useEffect(() => {
+    const saveStudyPlansData = async () => {
+      if (currentUser && currentUser.id && studyPlans && Object.keys(studyPlans).length > 0) {
+        try {
+          await taskService.saveStudyPlans(currentUser.id, studyPlans);
+          console.log('✅ 学習計画データ保存完了');
+        } catch (error) {
+          console.error('❌ 学習計画データ保存失敗:', error);
+        }
+      }
+    };
+
+    saveStudyPlansData();
+  }, [studyPlans, currentUser]);
 
   // 決済状態のチェック（セッションサービス統合版）
   useEffect(() => {

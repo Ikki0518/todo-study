@@ -841,6 +841,284 @@ class AuthService {
     return errorMessages[error.message] || error.message || 'エラーが発生しました'
   }
 
+  // ==================================================
+  // 参考書（Study Materials）関連メソッド
+  // ==================================================
+
+  // 参考書一覧取得
+  async getStudyBooks() {
+    try {
+      if (!this.currentUser) {
+        return { success: false, error: 'ログインが必要です' }
+      }
+
+      const { data, error } = await database
+        .from('study_materials')
+        .select('*')
+        .eq('user_id', this.currentUser.id)
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('参考書取得エラー:', error)
+        return { success: false, error: '参考書の取得中にエラーが発生しました' }
+      }
+
+      return { success: true, books: data || [] }
+    } catch (error) {
+      console.error('参考書取得エラー:', error)
+      return { success: false, error: '参考書の取得中にエラーが発生しました' }
+    }
+  }
+
+  // 参考書作成
+  async createStudyBook(bookData) {
+    try {
+      if (!this.currentUser) {
+        return { success: false, error: 'ログインが必要です' }
+      }
+
+      const { data, error } = await database
+        .from('study_materials')
+        .insert({
+          user_id: this.currentUser.id,
+          title: bookData.title,
+          description: bookData.description,
+          total_pages: bookData.totalPages,
+          total_problems: bookData.totalProblems,
+          study_type: bookData.studyType || 'pages', // 'pages' or 'problems'
+          start_date: bookData.startDate,
+          end_date: bookData.endDate,
+          exclude_days: bookData.excludeDays ? JSON.stringify(bookData.excludeDays) : null,
+          metadata: bookData.metadata ? JSON.stringify(bookData.metadata) : null
+        })
+        .select()
+        .single()
+
+      if (error) {
+        console.error('参考書作成エラー:', error)
+        return { success: false, error: '参考書の作成中にエラーが発生しました' }
+      }
+
+      return { success: true, book: data }
+    } catch (error) {
+      console.error('参考書作成エラー:', error)
+      return { success: false, error: '参考書の作成中にエラーが発生しました' }
+    }
+  }
+
+  // 参考書更新
+  async updateStudyBook(bookId, updates) {
+    try {
+      if (!this.currentUser) {
+        return { success: false, error: 'ログインが必要です' }
+      }
+
+      const updateData = {}
+      if (updates.title !== undefined) updateData.title = updates.title
+      if (updates.description !== undefined) updateData.description = updates.description
+      if (updates.totalPages !== undefined) updateData.total_pages = updates.totalPages
+      if (updates.totalProblems !== undefined) updateData.total_problems = updates.totalProblems
+      if (updates.studyType !== undefined) updateData.study_type = updates.studyType
+      if (updates.startDate !== undefined) updateData.start_date = updates.startDate
+      if (updates.endDate !== undefined) updateData.end_date = updates.endDate
+      if (updates.excludeDays !== undefined) updateData.exclude_days = updates.excludeDays ? JSON.stringify(updates.excludeDays) : null
+      if (updates.metadata !== undefined) updateData.metadata = updates.metadata ? JSON.stringify(updates.metadata) : null
+
+      const { data, error } = await database
+        .from('study_materials')
+        .update(updateData)
+        .eq('id', bookId)
+        .eq('user_id', this.currentUser.id)
+        .select()
+        .single()
+
+      if (error) {
+        console.error('参考書更新エラー:', error)
+        return { success: false, error: '参考書の更新中にエラーが発生しました' }
+      }
+
+      return { success: true, book: data }
+    } catch (error) {
+      console.error('参考書更新エラー:', error)
+      return { success: false, error: '参考書の更新中にエラーが発生しました' }
+    }
+  }
+
+  // 参考書削除
+  async deleteStudyBook(bookId) {
+    try {
+      if (!this.currentUser) {
+        return { success: false, error: 'ログインが必要です' }
+      }
+
+      const { error } = await database
+        .from('study_materials')
+        .delete()
+        .eq('id', bookId)
+        .eq('user_id', this.currentUser.id)
+
+      if (error) {
+        console.error('参考書削除エラー:', error)
+        return { success: false, error: '参考書の削除中にエラーが発生しました' }
+      }
+
+      return { success: true }
+    } catch (error) {
+      console.error('参考書削除エラー:', error)
+      return { success: false, error: '参考書の削除中にエラーが発生しました' }
+    }
+  }
+
+  // ==================================================
+  // 学習プラン（User Study Plans）関連メソッド
+  // ==================================================
+
+  // 学習プラン取得
+  async getUserStudyPlans() {
+    try {
+      if (!this.currentUser) {
+        return { success: false, error: 'ログインが必要です' }
+      }
+
+      const { data, error } = await database
+        .from('user_study_plans')
+        .select('*')
+        .eq('user_id', this.currentUser.id)
+        .order('plan_date', { ascending: false })
+
+      if (error) {
+        console.error('学習プラン取得エラー:', error)
+        return { success: false, error: '学習プランの取得中にエラーが発生しました' }
+      }
+
+      // 学習プランを日付別にグループ化
+      const plansByDate = {}
+      if (data) {
+        data.forEach(plan => {
+          if (!plansByDate[plan.plan_date]) {
+            plansByDate[plan.plan_date] = []
+          }
+          plansByDate[plan.plan_date].push({
+            id: plan.id,
+            bookTitle: plan.material_title,
+            startPage: plan.start_page,
+            endPage: plan.end_page,
+            pages: plan.end_page - plan.start_page + 1,
+            startProblem: plan.start_problem,
+            endProblem: plan.end_problem,
+            problems: plan.end_problem ? plan.end_problem - plan.start_problem + 1 : null,
+            studyType: plan.study_type,
+            type: 'book-goal',
+            completed: plan.completed || false,
+            materialId: plan.material_id
+          })
+        })
+      }
+
+      return { success: true, plans: plansByDate }
+    } catch (error) {
+      console.error('学習プラン取得エラー:', error)
+      return { success: false, error: '学習プランの取得中にエラーが発生しました' }
+    }
+  }
+
+  // 学習プラン作成
+  async createStudyPlan(planData) {
+    try {
+      if (!this.currentUser) {
+        return { success: false, error: 'ログインが必要です' }
+      }
+
+      const { data, error } = await database
+        .from('user_study_plans')
+        .insert({
+          user_id: this.currentUser.id,
+          material_id: planData.materialId,
+          material_title: planData.bookTitle,
+          plan_date: planData.date,
+          start_page: planData.startPage,
+          end_page: planData.endPage,
+          start_problem: planData.startProblem,
+          end_problem: planData.endProblem,
+          study_type: planData.studyType || 'pages',
+          completed: planData.completed || false,
+          metadata: planData.metadata ? JSON.stringify(planData.metadata) : null
+        })
+        .select()
+        .single()
+
+      if (error) {
+        console.error('学習プラン作成エラー:', error)
+        return { success: false, error: '学習プランの作成中にエラーが発生しました' }
+      }
+
+      return { success: true, plan: data }
+    } catch (error) {
+      console.error('学習プラン作成エラー:', error)
+      return { success: false, error: '学習プランの作成中にエラーが発生しました' }
+    }
+  }
+
+  // 学習プラン更新
+  async updateStudyPlan(planId, updates) {
+    try {
+      if (!this.currentUser) {
+        return { success: false, error: 'ログインが必要です' }
+      }
+
+      const updateData = {}
+      if (updates.completed !== undefined) updateData.completed = updates.completed
+      if (updates.startPage !== undefined) updateData.start_page = updates.startPage
+      if (updates.endPage !== undefined) updateData.end_page = updates.endPage
+      if (updates.startProblem !== undefined) updateData.start_problem = updates.startProblem
+      if (updates.endProblem !== undefined) updateData.end_problem = updates.endProblem
+      if (updates.metadata !== undefined) updateData.metadata = updates.metadata ? JSON.stringify(updates.metadata) : null
+
+      const { data, error } = await database
+        .from('user_study_plans')
+        .update(updateData)
+        .eq('id', planId)
+        .eq('user_id', this.currentUser.id)
+        .select()
+        .single()
+
+      if (error) {
+        console.error('学習プラン更新エラー:', error)
+        return { success: false, error: '学習プランの更新中にエラーが発生しました' }
+      }
+
+      return { success: true, plan: data }
+    } catch (error) {
+      console.error('学習プラン更新エラー:', error)
+      return { success: false, error: '学習プランの更新中にエラーが発生しました' }
+    }
+  }
+
+  // 学習プラン削除
+  async deleteStudyPlan(planId) {
+    try {
+      if (!this.currentUser) {
+        return { success: false, error: 'ログインが必要です' }
+      }
+
+      const { error } = await database
+        .from('user_study_plans')
+        .delete()
+        .eq('id', planId)
+        .eq('user_id', this.currentUser.id)
+
+      if (error) {
+        console.error('学習プラン削除エラー:', error)
+        return { success: false, error: '学習プランの削除中にエラーが発生しました' }
+      }
+
+      return { success: true }
+    } catch (error) {
+      console.error('学習プラン削除エラー:', error)
+      return { success: false, error: '学習プランの削除中にエラーが発生しました' }
+    }
+  }
+
   // データエクスポート（開発用）
   exportData() {
     if (!this.currentUser) {
