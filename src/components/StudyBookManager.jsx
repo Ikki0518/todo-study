@@ -133,6 +133,8 @@ export function StudyBookManager({
       onSubmit(bookData)
     }
 
+    console.log('BookForm レンダリング開始', { book });
+    
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
@@ -151,6 +153,15 @@ export function StudyBookManager({
                   required
                   placeholder="例：基本情報技術者試験 午前問題集"
                   autoFocus={!book}
+                  onFocus={(e) => {
+                    console.log('参考書名フィールドにフォーカス:', e.target.value);
+                  }}
+                  onChange={(e) => {
+                    console.log('参考書名フィールド変更:', e.target.value);
+                  }}
+                  onBlur={(e) => {
+                    console.log('参考書名フィールドからフォーカス離脱:', e.target.value);
+                  }}
                 />
               </div>
               
