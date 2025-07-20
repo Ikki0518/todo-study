@@ -135,12 +135,36 @@ export function StudyBookManager({
 
     console.log('BookForm レンダリング開始', { book });
     
+    // 本番環境デバッグ用の状態
+    const [debugInfo, setDebugInfo] = useState([]);
+    const addDebugInfo = (message) => {
+      const timestamp = new Date().toLocaleTimeString();
+      setDebugInfo(prev => [...prev.slice(-4), `${timestamp}: ${message}`]);
+    };
+    
+    // 環境情報を初期化時に追加
+    React.useEffect(() => {
+      addDebugInfo(`環境: ${process.env.NODE_ENV || 'unknown'}`);
+      addDebugInfo(`UA: ${navigator.userAgent.slice(0, 50)}...`);
+      addDebugInfo(`タッチ: ${('ontouchstart' in window) ? 'あり' : 'なし'}`);
+    }, []);
+    
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
           <h3 className="text-lg font-semibold mb-4">
             {book ? '参考書を編集' : '参考書を追加'}
           </h3>
+          
+          {/* 本番環境デバッグ情報表示 */}
+          {debugInfo.length > 0 && (
+            <div className="mb-4 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
+              <div className="font-semibold text-yellow-800 mb-1">デバッグ情報:</div>
+              {debugInfo.map((info, index) => (
+                <div key={index} className="text-yellow-700">{info}</div>
+              ))}
+            </div>
+          )}
           <form onSubmit={handleSubmit}>
             <div className="space-y-4">
               <div>
@@ -155,12 +179,23 @@ export function StudyBookManager({
                   autoFocus={!book}
                   onFocus={(e) => {
                     console.log('参考書名フィールドにフォーカス:', e.target.value);
+                    addDebugInfo(`フォーカス: "${e.target.value}"`);
                   }}
                   onChange={(e) => {
                     console.log('参考書名フィールド変更:', e.target.value);
+                    addDebugInfo(`変更: "${e.target.value}"`);
                   }}
                   onBlur={(e) => {
                     console.log('参考書名フィールドからフォーカス離脱:', e.target.value);
+                    addDebugInfo(`フォーカス離脱: "${e.target.value}"`);
+                  }}
+                  onKeyDown={(e) => {
+                    console.log('キー押下:', e.key, e.target.value);
+                    addDebugInfo(`キー: ${e.key}`);
+                  }}
+                  onInput={(e) => {
+                    console.log('入力イベント:', e.target.value);
+                    addDebugInfo(`入力: "${e.target.value}"`);
                   }}
                 />
               </div>
