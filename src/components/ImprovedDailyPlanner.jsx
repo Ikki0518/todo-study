@@ -67,13 +67,11 @@ export const ImprovedDailyPlanner = ({
     const minutes = now.getMinutes()
     
     // 各時間行の高さは50px
-    // 時間グリッドは0時から始まるので、現在時刻の行インデックスを計算
-    const hourIndex = hours
-    const minuteOffset = minutes / 60 // 0-1の範囲
+    // 現在時刻の正確な位置を計算：時間 + 分の割合
+    const totalHours = hours + (minutes / 60)
     
-    // 位置計算：行インデックス * 50px + 分のオフセット * 50px
-    // 各時間行の上端から計算するため、minuteOffsetを正確に適用
-    const position = (hourIndex * 50) + (minuteOffset * 50)
+    // 位置計算：総時間 * 50px
+    const position = totalHours * 50
     
     // 25時間グリッドの範囲（0-1249px）を超えないように制限
     const maxPosition = (25 * 50) - 1 // 1249px
@@ -273,7 +271,7 @@ export const ImprovedDailyPlanner = ({
           
           {/* スクロール可能な時間グリッド */}
           <div className="planner-body custom-scrollbar flex-1 overflow-auto" style={{ position: 'relative' }}>
-            <div className={isMobile ? 'w-full' : 'min-w-[600px]'} style={{ height: '1250px' }}>
+            <div className={isMobile ? 'w-full' : 'min-w-[600px]'} style={{ height: '1300px', minHeight: '1300px' }}>
               {[...Array(25)].map((_, hourIndex) => {
                 const hour = hourIndex
                 return (
