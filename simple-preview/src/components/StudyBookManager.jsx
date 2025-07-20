@@ -150,6 +150,12 @@ export function StudyBookManager({
                   className="w-full p-2 border rounded-md"
                   required
                   placeholder="例：基本情報技術者試験 午前問題集"
+                  autoComplete="off"
+                  spellCheck="false"
+                  onInput={(e) => {
+                    // 入力値を確実に反映
+                    e.target.value = e.target.value;
+                  }}
                 />
               </div>
               

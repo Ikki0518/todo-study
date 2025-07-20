@@ -67,6 +67,12 @@ export function DailyTaskPool({
                   className="w-full p-2 border rounded-md"
                   required
                   placeholder="例：数学 - 微分の練習問題"
+                  autoComplete="off"
+                  spellCheck="false"
+                  onInput={(e) => {
+                    // 入力値を確実に反映
+                    e.target.value = e.target.value;
+                  }}
                 />
               </div>
               <div>
