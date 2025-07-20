@@ -281,6 +281,14 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow: hidden; /* ページ全体のスクロールを無効化 */
+  height: 100vh; /* ビューポート高さに固定 */
+}
+
+/* ルート要素も固定 */
+#root {
+  height: 100vh;
+  overflow: hidden;
 }
 
 code {

@@ -185,7 +185,7 @@ export const ImprovedDailyPlanner = ({
   return (
     <div className="h-screen flex flex-col overflow-hidden">
       {/* 固定ヘッダー */}
-      <div className="flex-shrink-0 mb-6 px-4 pt-4">
+      <div className="flex-shrink-0 px-4 pt-4 pb-4 bg-white border-b border-gray-200">
         <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-2">
           {isMobile ? 'デイリープランナー' : '週間プランナー'}
         </h1>
@@ -222,7 +222,7 @@ export const ImprovedDailyPlanner = ({
       </div>
 
       {/* メインコンテンツエリア */}
-      <div className="flex-1 flex flex-col lg:grid lg:grid-cols-12 gap-4 px-4 pb-4 min-h-0">
+      <div className="flex-1 flex flex-col lg:grid lg:grid-cols-12 gap-4 px-4 py-4 min-h-0">
         <div className="lg:col-span-3 flex-shrink-0">
           <DailyTaskPool
             dailyTasks={currentWeekTodayTasks}
