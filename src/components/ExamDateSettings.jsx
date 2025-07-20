@@ -1,29 +1,10 @@
 import { useState, useEffect } from 'react'
 
-export const ExamDateSettings = ({ onExamDateChange }) => {
+export const ExamDateSettings = ({ examList, onExamDateChange, onExamDateDelete }) => {
   const [examDate, setExamDate] = useState('')
   const [examTitle, setExamTitle] = useState('')
   const [daysRemaining, setDaysRemaining] = useState(null)
-  const [examList, setExamList] = useState([])
   const [showAddForm, setShowAddForm] = useState(false)
-
-  // localStorage から受験日リストを読み込み
-  useEffect(() => {
-    const savedExams = localStorage.getItem('examDates')
-    if (savedExams) {
-      try {
-        const parsedExams = JSON.parse(savedExams)
-        setExamList(parsedExams)
-      } catch (error) {
-        console.error('受験日データの読み込みに失敗しました:', error)
-      }
-    }
-  }, [])
-
-  // 受験日リストの変更を localStorage に保存
-  useEffect(() => {
-    localStorage.setItem('examDates', JSON.stringify(examList))
-  }, [examList])
 
   // 日数計算関数
   const calculateDaysRemaining = (targetDate) => {
@@ -54,7 +35,6 @@ export const ExamDateSettings = ({ onExamDateChange }) => {
       createdAt: new Date().toISOString()
     }
 
-    setExamList(prevList => [...prevList, newExam])
     setExamTitle('')
     setExamDate('')
     setShowAddForm(false)
@@ -68,7 +48,10 @@ export const ExamDateSettings = ({ onExamDateChange }) => {
   // 受験日削除ハンドラー
   const handleDeleteExam = (examId) => {
     if (confirm('この受験日を削除しますか？')) {
-      setExamList(prevList => prevList.filter(exam => exam.id !== examId))
+      // 親コンポーネントに削除を通知
+      if (onExamDateDelete) {
+        onExamDateDelete(examId)
+      }
     }
   }
 

@@ -25,6 +25,7 @@ import TaskPoolManager from './components/TaskPoolManager';
 import { generateStudyPlan, convertPlansToTasks, calculateStudyPlanStats } from './utils/studyPlanGenerator';
 import apiService from './services/apiService';
 import sessionService from './services/sessionService';
+import { taskService } from './services/taskService';
 
 function App() {
   // Cookie管理ユーティリティ（App.jsx用）
@@ -394,19 +395,57 @@ function App() {
     })
   }
 
-  // 受験日データの読み込み
+  // 受験日データをデータベースから読み込み
   useEffect(() => {
-    const savedExamDates = localStorage.getItem('examDates')
-    if (savedExamDates) {
-      try {
-        const parsedExamDates = JSON.parse(savedExamDates)
-        setExamDates(parsedExamDates)
-        console.log('✅ 受験日データを読み込みました:', parsedExamDates)
-      } catch (error) {
-        console.error('🚨 受験日データの読み込みに失敗:', error)
+    const loadExamDatesFromDB = async () => {
+      if (currentUser && currentUser.id) {
+        try {
+          console.log('📖 受験日データをデータベースから読み込み中:', currentUser.id);
+          const examDatesData = await taskService.loadExamDates(currentUser.id);
+          setExamDates(examDatesData);
+          console.log('✅ 受験日データ読み込み完了:', examDatesData);
+        } catch (error) {
+          console.error('❌ 受験日データ読み込み失敗:', error);
+          // エラーの場合はlocalStorageからフォールバック
+          const savedExamDates = localStorage.getItem('examDates');
+          if (savedExamDates) {
+            try {
+              const parsedExamDates = JSON.parse(savedExamDates);
+              setExamDates(parsedExamDates);
+              console.log('📦 localStorageから受験日データをフォールバック読み込み:', parsedExamDates);
+            } catch (localError) {
+              console.error('❌ localStorageフォールバックも失敗:', localError);
+            }
+          }
+        }
       }
-    }
-  }, [])
+    };
+
+    loadExamDatesFromDB();
+  }, [currentUser])
+  // 受験日データが変更されたらデータベースに保存
+  useEffect(() => {
+    const saveExamDatesToDB = async () => {
+      if (currentUser && currentUser.id && examDates.length > 0) {
+        try {
+          console.log('💾 受験日データをデータベースに保存中:', { userId: currentUser.id, examCount: examDates.length });
+          await taskService.saveExamDates(currentUser.id, examDates);
+          console.log('✅ 受験日データ保存完了');
+          
+          // バックアップとしてlocalStorageにも保存
+          localStorage.setItem('examDates', JSON.stringify(examDates));
+        } catch (error) {
+          console.error('❌ 受験日データ保存失敗:', error);
+          // エラーの場合はlocalStorageに保存
+          localStorage.setItem('examDates', JSON.stringify(examDates));
+          console.log('📦 localStorageにフォールバック保存');
+        }
+      }
+    };
+
+    saveExamDatesToDB();
+  }, [examDates, currentUser]);
+
 
   // 決済状態のチェック（セッションサービス統合版）
   useEffect(() => {
@@ -1337,15 +1376,31 @@ function App() {
       }
     };
     
-    // タスク履歴を読み込む
-    const savedTasksHistory = localStorage.getItem('allTasksHistory');
-    if (savedTasksHistory) {
-      try {
-        setAllTasksHistory(JSON.parse(savedTasksHistory));
-      } catch (error) {
-        console.error('Failed to load tasks history:', error);
+    // タスク履歴をデータベースから読み込む
+    const loadUserTasksFromDB = async () => {
+      if (currentUser && currentUser.id) {
+        try {
+          console.log('📖 ユーザータスクデータをデータベースから読み込み中:', currentUser.id);
+          const tasksData = await taskService.loadUserTasks(currentUser.id);
+          setAllTasksHistory(tasksData);
+          console.log('✅ タスクデータ読み込み完了:', { tasksCount: Object.keys(tasksData).length });
+        } catch (error) {
+          console.error('❌ タスクデータ読み込み失敗:', error);
+          // エラーの場合はlocalStorageからフォールバック
+          const savedTasksHistory = localStorage.getItem('allTasksHistory');
+          if (savedTasksHistory) {
+            try {
+              setAllTasksHistory(JSON.parse(savedTasksHistory));
+              console.log('📦 localStorageからタスクデータをフォールバック読み込み');
+            } catch (localError) {
+              console.error('❌ localStorageフォールバックも失敗:', localError);
+            }
+          }
+        }
       }
-    }
+    };
+
+    loadUserTasksFromDB();
     
     // 認証状態が復元されている場合のみトークンを確認
     if (isLoggedIn) {
@@ -1353,18 +1408,36 @@ function App() {
     }
   }, [isLoggedIn, currentUser]);
 
-  // タスクが更新されたら履歴を保存
+  // タスクが更新されたらデータベースに保存
   useEffect(() => {
-    if (todayTasks.length > 0 || Object.keys(scheduledTasks).length > 0) {
-      const today = new Date().toISOString().split('T')[0];
-      const updatedHistory = {
-        ...allTasksHistory,
-        [today]: todayTasks
-      };
-      setAllTasksHistory(updatedHistory);
-      localStorage.setItem('allTasksHistory', JSON.stringify(updatedHistory));
-    }
-  }, [todayTasks, scheduledTasks]);
+    const saveUserTasksToDB = async () => {
+      if (currentUser && currentUser.id && (todayTasks.length > 0 || Object.keys(scheduledTasks).length > 0)) {
+        const today = new Date().toISOString().split('T')[0];
+        const updatedHistory = {
+          ...allTasksHistory,
+          [today]: todayTasks
+        };
+        
+        try {
+          console.log('💾 タスクデータをデータベースに保存中:', { userId: currentUser.id, tasksCount: Object.keys(updatedHistory).length });
+          await taskService.saveUserTasks(currentUser.id, updatedHistory);
+          setAllTasksHistory(updatedHistory);
+          console.log('✅ タスクデータ保存完了');
+          
+          // バックアップとしてlocalStorageにも保存
+          localStorage.setItem('allTasksHistory', JSON.stringify(updatedHistory));
+        } catch (error) {
+          console.error('❌ タスクデータ保存失敗:', error);
+          // エラーの場合はlocalStorageに保存
+          setAllTasksHistory(updatedHistory);
+          localStorage.setItem('allTasksHistory', JSON.stringify(updatedHistory));
+          console.log('📦 localStorageにフォールバック保存');
+        }
+      }
+    };
+
+    saveUserTasksToDB();
+  }, [todayTasks, scheduledTasks, currentUser, allTasksHistory]);
 
 
 
@@ -2665,12 +2738,12 @@ function App() {
 
             {/* 受験日設定セクション */}
             <ExamDateSettings
+              examList={examDates}
               onExamDateChange={(examData) => {
                 console.log('受験日が追加されました:', examData);
                 // App.jsxのexamDatesステートを更新
                 setExamDates(prevExams => {
                   const updatedExams = [...prevExams, examData];
-                  localStorage.setItem('examDates', JSON.stringify(updatedExams));
                   
                   // チェックポイント: 受験日設定
                   sessionService.recordCheckpoint(sessionService.CHECKPOINTS.EXAM_DATE_SET, {
@@ -2682,6 +2755,13 @@ function App() {
                   });
                   
                   return updatedExams;
+                });
+              }}
+              onExamDateDelete={(examId) => {
+                console.log('受験日が削除されました:', examId);
+                // App.jsxのexamDatesステートを更新
+                setExamDates(prevExams => {
+                  return prevExams.filter(exam => exam.id !== examId);
                 });
               }}
             />
