@@ -2202,9 +2202,7 @@ function App() {
               {/* 週間カレンダー */}
               <div className={`bg-white rounded-lg shadow overflow-hidden ${!isMobile ? 'flex-1' : ''}`}>
                 <div className="overflow-x-auto overflow-y-auto" style={{
-                  height: 'auto',
-                  maxHeight: isMobile ? 'calc(100vh - 150px)' : 'calc(100vh - 200px)',
-                  minHeight: '2400px'
+                  height: isMobile ? 'calc(100vh - 120px)' : 'calc(100vh - 170px)'
                 }}>
                   <div className={`${isMobile ? 'min-w-[320px]' : 'min-w-[600px]'} relative`}>
                   
@@ -2258,7 +2256,7 @@ function App() {
                   {[...Array(24)].map((_, hourIndex) => {
                     const hour = hourIndex
                     return (
-                      <div key={hour} className={`grid border-b border-gray-300`} style={{gridTemplateColumns: `${isMobile ? '40px' : '60px'} repeat(${dates.length}, 1fr)`}}>
+                      <div key={hour} className={`grid border-b border-gray-300 ${hour === 23 ? 'border-b-2' : ''}`} style={{gridTemplateColumns: `${isMobile ? '40px' : '60px'} repeat(${dates.length}, 1fr)`}}>
                         <div className={`${isMobile ? 'px-1 py-2 text-xs font-medium' : 'p-2 text-xs'} text-right text-gray-600 bg-gray-50 flex items-center justify-end`}>
                           <span className={isMobile ? 'text-xs leading-none' : ''}>
                             {hour}:00
