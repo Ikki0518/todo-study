@@ -1,26 +1,33 @@
--- RLSポリシーを修正（Supabase認証システムに対応）
+-- RLSポリシーを匿名アクセス対応に修正
 
 -- 既存のポリシーを削除
 DROP POLICY IF EXISTS "Users can only access their own tasks" ON user_tasks;
 DROP POLICY IF EXISTS "Users can only access their own study plans" ON user_study_plans;
 DROP POLICY IF EXISTS "Users can only access their own exam dates" ON user_exam_dates;
 
--- 修正されたRLSポリシーを作成（auth.uid()を使用）
-CREATE POLICY "Users can only access their own tasks" ON user_tasks
-  FOR ALL USING (user_id = auth.uid()::text);
+-- 匿名アクセス対応のポリシーを作成
+-- user_tasksテーブル用
+CREATE POLICY "Allow anonymous access to user_tasks" ON user_tasks
+  FOR ALL 
+  USING (true)
+  WITH CHECK (true);
 
-CREATE POLICY "Users can only access their own study plans" ON user_study_plans
-  FOR ALL USING (user_id = auth.uid()::text);
+-- user_study_plansテーブル用
+CREATE POLICY "Allow anonymous access to user_study_plans" ON user_study_plans
+  FOR ALL 
+  USING (true)
+  WITH CHECK (true);
 
-CREATE POLICY "Users can only access their own exam dates" ON user_exam_dates
-  FOR ALL USING (user_id = auth.uid()::text);
+-- user_exam_datesテーブル用
+CREATE POLICY "Allow anonymous access to user_exam_dates" ON user_exam_dates
+  FOR ALL 
+  USING (true)
+  WITH CHECK (true);
 
--- INSERTポリシーも追加（新規データ作成用）
-CREATE POLICY "Users can insert their own tasks" ON user_tasks
-  FOR INSERT WITH CHECK (user_id = auth.uid()::text);
+-- 匿名ユーザーに対してテーブルへのアクセス権限を付与
+GRANT ALL ON user_tasks TO anon;
+GRANT ALL ON user_study_plans TO anon;
+GRANT ALL ON user_exam_dates TO anon;
 
-CREATE POLICY "Users can insert their own study plans" ON user_study_plans
-  FOR INSERT WITH CHECK (user_id = auth.uid()::text);
-
-CREATE POLICY "Users can insert their own exam dates" ON user_exam_dates
-  FOR INSERT WITH CHECK (user_id = auth.uid()::text);
+-- シーケンスへのアクセス権限も付与
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO anon;

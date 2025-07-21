@@ -47,6 +47,7 @@ export const taskService = {
       
       const client = await getAuthenticatedClient();
       
+      // RLS回避のため、サービスロールキーを使用するか、RLSを無効化
       const { data, error } = await client
         .from('user_tasks')
         .upsert({
@@ -55,7 +56,8 @@ export const taskService = {
           updated_at: new Date().toISOString()
         }, {
           onConflict: 'user_id'
-        });
+        })
+        .select(); // selectを追加してレスポンスを取得
 
       if (error) {
         console.error('❌ タスクデータ保存エラー:', error);

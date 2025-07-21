@@ -2202,7 +2202,8 @@ function App() {
               {/* 週間カレンダー */}
               <div className={`bg-white rounded-lg shadow overflow-hidden ${!isMobile ? 'flex-1' : ''}`}>
                 <div className="overflow-x-auto overflow-y-auto" style={{
-                  height: isMobile ? 'calc(100vh - 150px)' : 'calc(100vh - 200px)'
+                  maxHeight: isMobile ? 'calc(100vh - 120px)' : 'calc(100vh - 150px)',
+                  minHeight: isMobile ? '1600px' : '2000px'
                 }}>
                   <div className={`${isMobile ? 'min-w-[320px]' : 'min-w-[600px]'} relative`}>
                   
@@ -3626,7 +3627,23 @@ function App() {
                     console.log('✅ 新規タスク追加時のSupabaseデータベース保存完了:', { taskKey, scheduledTask });
                   })
                   .catch(error => {
+                    console.error('❌ 🚨 サーバーへのタスク保存リクエストが失敗しました');
                     console.error('❌ 新規タスク追加時のSupabaseデータベース保存失敗:', error);
+                    console.error('❌ エラーの詳細情報:', {
+                      name: error.name,
+                      message: error.message,
+                      code: error.code,
+                      details: error.details,
+                      hint: error.hint,
+                      stack: error.stack
+                    });
+                    console.error('❌ 保存しようとしたデータ:', {
+                      userId: actualUserId,
+                      tasksDataKeys: Object.keys(tasksData),
+                      scheduledTasksCount: Object.keys(tasksData.scheduledTasks || {}).length,
+                      todayTasksCount: (tasksData.todayTasks || []).length
+                    });
+                    
                     // フォールバック: ローカルストレージに保存
                     try {
                       localStorage.setItem(`tasks_${actualUserId}`, JSON.stringify(tasksData));
@@ -3665,7 +3682,22 @@ function App() {
                       console.log('✅ 今日のタスク追加時のSupabaseデータベース保存完了:', newTask);
                     })
                     .catch(error => {
+                      console.error('❌ 🚨 サーバーへのタスク保存リクエストが失敗しました (今日のタスク)');
                       console.error('❌ 今日のタスク追加時のSupabaseデータベース保存失敗:', error);
+                      console.error('❌ エラーの詳細情報:', {
+                        name: error.name,
+                        message: error.message,
+                        code: error.code,
+                        details: error.details,
+                        hint: error.hint,
+                        stack: error.stack
+                      });
+                      console.error('❌ 保存しようとしたデータ:', {
+                        userId: actualUserId,
+                        tasksDataKeys: Object.keys(tasksData),
+                        newTask: newTask
+                      });
+                      
                       // フォールバック: ローカルストレージに保存
                       try {
                         localStorage.setItem(`tasks_${actualUserId}`, JSON.stringify(tasksData));
@@ -3697,7 +3729,22 @@ function App() {
                       console.log('✅ デイリータスクプール追加時のSupabaseデータベース保存完了:', newTask);
                     })
                     .catch(error => {
+                      console.error('❌ 🚨 サーバーへのタスク保存リクエストが失敗しました (デイリータスクプール)');
                       console.error('❌ デイリータスクプール追加時のSupabaseデータベース保存失敗:', error);
+                      console.error('❌ エラーの詳細情報:', {
+                        name: error.name,
+                        message: error.message,
+                        code: error.code,
+                        details: error.details,
+                        hint: error.hint,
+                        stack: error.stack
+                      });
+                      console.error('❌ 保存しようとしたデータ:', {
+                        userId: actualUserId,
+                        tasksDataKeys: Object.keys(tasksData),
+                        newTask: newTask
+                      });
+                      
                       // フォールバック: ローカルストレージに保存
                       try {
                         localStorage.setItem(`tasks_${actualUserId}`, JSON.stringify(tasksData));
