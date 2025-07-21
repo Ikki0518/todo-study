@@ -348,11 +348,10 @@ export const ImprovedDailyPlanner = ({
           
           {/* スクロール可能な時間グリッド */}
           <div className="planner-body custom-scrollbar" style={{ position: 'relative', height: 'calc(100vh - 200px)', overflowY: 'scroll', overflowX: 'hidden', flex: '1 1 auto', maxHeight: 'none' }}>
-            <div className={`planner-content ${isMobile ? 'w-full' : 'min-w-[600px]'}`} style={{ height: '1250px !important', minHeight: '1250px !important', maxHeight: 'none !important', display: 'block' }}>
-              {Array.from({ length: 25 }, (_, hourIndex) => {
-                const hour = hourIndex
-                // 本番環境対応: 全時間のデバッグログ（強制表示）
-                console.log(`🕐 FORCE RENDERING HOUR: ${hour} (${hour === 24 ? '24:00' : hour.toString().padStart(2, '0') + ':00'}) - Array length: 25`)
+            <div className={`planner-content ${isMobile ? 'w-full' : 'min-w-[600px]'}`} style={{ height: '1250px', minHeight: '1250px', maxHeight: 'none', display: 'block' }}>
+              {[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24].map((hour) => {
+                // 本番環境対応: 明示的な25時間配列 - 絶対に切り捨てられない
+                console.log(`🕐 EXPLICIT HOUR RENDERING: ${hour} (${hour === 24 ? '24:00' : hour.toString().padStart(2, '0') + ':00'}) - HARDCODED ARRAY`)
                 return (
                   <div
                     key={hour}

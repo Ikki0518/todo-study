@@ -1391,3 +1391,58 @@ div[style*="zIndex: 99999"] * {
   flex-shrink: 0 !important;
   min-height: 50px !important;
 }
+
+/* ===== 最終手段: 23:00/24:00 強制表示 (ULTIMATE FIX) ===== */
+/* PRODUCTION CRITICAL: Absolutely force 23:00 and 24:00 display */
+body {
+  --planner-height: 1250px;
+}
+
+.planner-content,
+.planner-content > *,
+div[class*="planner-content"],
+div[class*="planner-content"] > * {
+  min-height: var(--planner-height) !important;
+  height: var(--planner-height) !important;
+  max-height: none !important;
+}
+
+/* NUCLEAR OPTION: Force every possible selector */
+[class*="calendar-grid"]:nth-child(24),
+[class*="calendar-grid"]:nth-child(25),
+div:nth-child(24),
+div:nth-child(25),
+.calendar-grid:nth-child(24),
+.calendar-grid:nth-child(25) {
+  display: grid !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  height: 50px !important;
+  min-height: 50px !important;
+  flex-shrink: 0 !important;
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+/* VERCEL BUILD OVERRIDE */
+@supports (display: grid) {
+  .planner-content {
+    height: 1250px !important;
+    min-height: 1250px !important;
+  }
+  
+  .planner-content > div {
+    height: 50px !important;
+    min-height: 50px !important;
+    display: grid !important;
+  }
+}
+
+/* EMERGENCY CSS INJECTION */
+.planner-content::after {
+  content: "";
+  display: block;
+  height: 100px;
+  width: 100%;
+  background: transparent;
+}
