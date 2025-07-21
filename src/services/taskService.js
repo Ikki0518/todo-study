@@ -88,8 +88,8 @@ export const taskService = {
             .upsert({
               user_id: sanitizedUserId,
               tasks_data: asciiOnlyData,
-              updated_at: new Date().toISOString(),
-              sanitized: true // フラグを追加
+              updated_at: new Date().toISOString()
+              // sanitized: true フラグを削除（データベースにカラムが存在しないため）
             }, {
               onConflict: 'user_id'
             });
@@ -133,7 +133,7 @@ export const taskService = {
       // maybeSingle()を使用してデータが存在しない場合もエラーにしない
       const { data, error } = await client
         .from('user_tasks')
-        .select('tasks_data, sanitized')
+        .select('tasks_data')
         .eq('user_id', sanitizedUserId)
         .maybeSingle();
 
@@ -167,8 +167,11 @@ export const taskService = {
       // データのサニタイズチェック
       let tasksData = data.tasks_data || {};
       
-      if (data.sanitized) {
-        console.log('ℹ️ サニタイズ済みデータを読み込み中');
+      // サニタイズ状態の判定をデータ内容ベースに変更
+      const jsonString = JSON.stringify(tasksData);
+      const isSanitized = !/[^\x00-\x7F]/.test(jsonString);
+      if (isSanitized) {
+        console.log('ℹ️ ASCII文字のみのデータを読み込み中');
       }
       
       // 念のため読み込んだデータもサニタイズ

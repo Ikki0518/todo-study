@@ -2176,7 +2176,7 @@ function App() {
               {/* PC版: 左側にタスクプール */}
               {!isMobile && (
                 <div className="bg-white rounded-lg shadow" style={{ width: '350px', minWidth: '350px' }}>
-                  <div className="h-full" style={{ maxHeight: '75vh', overflow: 'hidden' }}>
+                  <div className="h-full" style={{ maxHeight: 'calc(100vh - 200px)', overflow: 'hidden' }}>
                     <TaskPoolManager
                       tasks={[...todayTasks, ...dailyTaskPool]}
                       onTaskSelect={(task) => {
@@ -2202,8 +2202,9 @@ function App() {
               {/* 週間カレンダー */}
               <div className={`bg-white rounded-lg shadow overflow-hidden ${!isMobile ? 'flex-1' : ''}`}>
                 <div className="overflow-x-auto overflow-y-auto" style={{
-                  maxHeight: isMobile ? 'calc(100vh - 120px)' : 'calc(100vh - 150px)',
-                  minHeight: isMobile ? '1600px' : '2000px'
+                  height: isMobile ? '2400px' : '3000px',
+                  maxHeight: 'none',
+                  minHeight: isMobile ? '2400px' : '3000px'
                 }}>
                   <div className={`${isMobile ? 'min-w-[320px]' : 'min-w-[600px]'} relative`}>
                   
@@ -2269,16 +2270,19 @@ function App() {
                           const scheduledTask = scheduledTasks[taskKey]
                           const isToday = date.toDateString() === new Date().toDateString()
                           
-                          // デバッグログ
-                          if ((hour === 10 || hour === 14) && dateKey === '2025-07-14') {
-                            console.log('🔍 Debug - タスク表示チェック:')
+                          // デバッグログ - 23時のセル生成確認
+                          if (hour === 23 && dateKey === '2025-07-21') {
+                            console.log('🔍 Debug - 23時セルチェック:')
                             console.log('  - dateKey:', dateKey)
                             console.log('  - hour:', hour)
                             console.log('  - taskKey:', taskKey)
                             console.log('  - scheduledTask:', scheduledTask)
-                            console.log('  - hasScheduledTask:', !!scheduledTask)
-                            console.log('  - scheduledTasksKeys:', Object.keys(scheduledTasks))
-                            console.log('  - allScheduledTasks:', scheduledTasks)
+                            console.log('  - 23時セル生成確認: TRUE')
+                          }
+                          
+                          // 22時以降のセル生成チェック
+                          if (hour >= 22 && dateKey === '2025-07-21') {
+                            console.log(`🔍 Debug - ${hour}時セル生成:`, { dateKey, hour, taskKey })
                           }
                           
                           // 他のタスクがこの時間スロットを占有しているかチェック
