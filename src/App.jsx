@@ -25,7 +25,7 @@ import TaskPoolManager from './components/TaskPoolManager';
 import { generateStudyPlan, convertPlansToTasks, calculateStudyPlanStats } from './utils/studyPlanGenerator';
 import apiService from './services/apiService';
 import sessionService from './services/sessionService';
-import { localTaskService as taskService } from './services/localTaskService';
+import { taskService } from './services/taskService';
 
 function App() {
   // Cookie管理ユーティリティ（App.jsx用）
@@ -2202,7 +2202,7 @@ function App() {
               {/* 週間カレンダー */}
               <div className={`bg-white rounded-lg shadow overflow-hidden ${!isMobile ? 'flex-1' : ''}`}>
                 <div className="overflow-x-auto overflow-y-auto" style={{
-                  height: isMobile ? 'calc(100vh - 120px)' : 'calc(100vh - 170px)'
+                  height: isMobile ? 'calc(100vh - 150px)' : 'calc(100vh - 200px)'
                 }}>
                   <div className={`${isMobile ? 'min-w-[320px]' : 'min-w-[600px]'} relative`}>
                   
@@ -3610,7 +3610,7 @@ function App() {
                   [taskKey]: scheduledTask
                 }
                 
-                // 🚨 緊急修正: 新規タスク追加時に即座にローカルストレージに保存
+                // 🚨 修正: 新規タスク追加時にSupabaseデータベースに即座保存
                 const actualUserId = '9c91a0e0-cfac-4178-9d84-74a567200f3a';
                 const tasksData = {
                   todayTasks,
@@ -3620,17 +3620,21 @@ function App() {
                   goals
                 };
                 
-                try {
-                  localStorage.setItem(`tasks_${actualUserId}`, JSON.stringify(tasksData));
-                  localStorage.setItem('suna_user_tasks_backup', JSON.stringify({
-                    userId: actualUserId,
-                    tasksData,
-                    updatedAt: new Date().toISOString()
-                  }));
-                  console.log('✅ 新規タスク追加時の即座保存完了:', { taskKey, scheduledTask });
-                } catch (error) {
-                  console.error('❌ 新規タスク追加時の保存失敗:', error);
-                }
+                // Supabaseデータベースに非同期保存
+                taskService.saveUserTasks(actualUserId, tasksData)
+                  .then(() => {
+                    console.log('✅ 新規タスク追加時のSupabaseデータベース保存完了:', { taskKey, scheduledTask });
+                  })
+                  .catch(error => {
+                    console.error('❌ 新規タスク追加時のSupabaseデータベース保存失敗:', error);
+                    // フォールバック: ローカルストレージに保存
+                    try {
+                      localStorage.setItem(`tasks_${actualUserId}`, JSON.stringify(tasksData));
+                      console.log('⚠️ フォールバック: ローカルストレージに保存完了');
+                    } catch (localError) {
+                      console.error('❌ フォールバック保存も失敗:', localError);
+                    }
+                  });
                 
                 return newScheduledTasks;
               })
@@ -3645,7 +3649,7 @@ function App() {
                 setTodayTasks(prev => {
                   const newTodayTasks = [...prev, newTask];
                   
-                  // 🚨 緊急修正: タスクプール追加時も即座に保存
+                  // 🚨 修正: 今日のタスク追加時にSupabaseデータベースに即座保存
                   const actualUserId = '9c91a0e0-cfac-4178-9d84-74a567200f3a';
                   const tasksData = {
                     todayTasks: newTodayTasks,
@@ -3655,17 +3659,21 @@ function App() {
                     goals
                   };
                   
-                  try {
-                    localStorage.setItem(`tasks_${actualUserId}`, JSON.stringify(tasksData));
-                    localStorage.setItem('suna_user_tasks_backup', JSON.stringify({
-                      userId: actualUserId,
-                      tasksData,
-                      updatedAt: new Date().toISOString()
-                    }));
-                    console.log('✅ 今日のタスク追加時の即座保存完了:', newTask);
-                  } catch (error) {
-                    console.error('❌ 今日のタスク追加時の保存失敗:', error);
-                  }
+                  // Supabaseデータベースに非同期保存
+                  taskService.saveUserTasks(actualUserId, tasksData)
+                    .then(() => {
+                      console.log('✅ 今日のタスク追加時のSupabaseデータベース保存完了:', newTask);
+                    })
+                    .catch(error => {
+                      console.error('❌ 今日のタスク追加時のSupabaseデータベース保存失敗:', error);
+                      // フォールバック: ローカルストレージに保存
+                      try {
+                        localStorage.setItem(`tasks_${actualUserId}`, JSON.stringify(tasksData));
+                        console.log('⚠️ フォールバック: ローカルストレージに保存完了');
+                      } catch (localError) {
+                        console.error('❌ フォールバック保存も失敗:', localError);
+                      }
+                    });
                   
                   return newTodayTasks;
                 })
@@ -3673,7 +3681,7 @@ function App() {
                 setDailyTaskPool(prev => {
                   const newDailyTaskPool = [...prev, newTask];
                   
-                  // 🚨 緊急修正: タスクプール追加時も即座に保存
+                  // 🚨 修正: デイリータスクプール追加時にSupabaseデータベースに即座保存
                   const actualUserId = '9c91a0e0-cfac-4178-9d84-74a567200f3a';
                   const tasksData = {
                     todayTasks,
@@ -3683,17 +3691,21 @@ function App() {
                     goals
                   };
                   
-                  try {
-                    localStorage.setItem(`tasks_${actualUserId}`, JSON.stringify(tasksData));
-                    localStorage.setItem('suna_user_tasks_backup', JSON.stringify({
-                      userId: actualUserId,
-                      tasksData,
-                      updatedAt: new Date().toISOString()
-                    }));
-                    console.log('✅ デイリータスクプール追加時の即座保存完了:', newTask);
-                  } catch (error) {
-                    console.error('❌ デイリータスクプール追加時の保存失敗:', error);
-                  }
+                  // Supabaseデータベースに非同期保存
+                  taskService.saveUserTasks(actualUserId, tasksData)
+                    .then(() => {
+                      console.log('✅ デイリータスクプール追加時のSupabaseデータベース保存完了:', newTask);
+                    })
+                    .catch(error => {
+                      console.error('❌ デイリータスクプール追加時のSupabaseデータベース保存失敗:', error);
+                      // フォールバック: ローカルストレージに保存
+                      try {
+                        localStorage.setItem(`tasks_${actualUserId}`, JSON.stringify(tasksData));
+                        console.log('⚠️ フォールバック: ローカルストレージに保存完了');
+                      } catch (localError) {
+                        console.error('❌ フォールバック保存も失敗:', localError);
+                      }
+                    });
                   
                   return newDailyTaskPool;
                 })
