@@ -341,15 +341,29 @@ function App() {
         try {
           console.log('📖 ユーザーデータを読み込み開始:', currentUserRef.current.id);
           
-          // タスクデータを読み込み
-          const tasksData = await taskService.loadUserTasks(currentUserRef.current.id);
-          if (tasksData) {
+          // タスクデータを読み込み（ローカルストレージフォールバック付き）
+          let tasksData = null;
+          try {
+            tasksData = await taskService.loadUserTasks(currentUserRef.current.id);
+          } catch (dbError) {
+            console.warn('⚠️ データベース読み込み失敗、ローカルストレージから復元:', dbError);
+            // ローカルストレージからフォールバック
+            const localData = localStorage.getItem(`tasks_${currentUserRef.current.id}`);
+            if (localData) {
+              tasksData = JSON.parse(localData);
+              console.log('✅ ローカルストレージからデータ復元');
+            }
+          }
+          
+          if (tasksData && Object.keys(tasksData).length > 0) {
             if (tasksData.todayTasks) setTodayTasks(tasksData.todayTasks);
             if (tasksData.scheduledTasks) setScheduledTasks(tasksData.scheduledTasks);
             if (tasksData.dailyTaskPool) setDailyTaskPool(tasksData.dailyTaskPool);
             if (tasksData.completedTasks) setCompletedTasks(tasksData.completedTasks);
             if (tasksData.goals) setGoals(tasksData.goals);
-            console.log('✅ タスクデータ読み込み完了');
+            console.log('✅ タスクデータ読み込み完了:', { tasksCount: Object.keys(tasksData).length });
+          } else {
+            console.log('ℹ️ タスクデータなし - 新規ユーザー');
           }
           
           // 学習計画データを読み込み（エラー耐性強化）
@@ -401,10 +415,21 @@ function App() {
           };
           
           console.log('💾 データベースに保存中...', { userId, tasksData });
+          
+          // ローカルストレージにも保存（フォールバック）
+          try {
+            localStorage.setItem(`tasks_${userId}`, JSON.stringify(tasksData));
+            console.log('✅ ローカルストレージ保存完了');
+          } catch (localError) {
+            console.warn('⚠️ ローカルストレージ保存失敗:', localError);
+          }
+          
+          // データベースに保存
           await taskService.saveUserTasks(userId, tasksData);
           console.log('✅ タスクデータ保存完了');
         } catch (error) {
           console.error('❌ タスクデータ保存失敗:', error);
+          // データベース保存失敗時もローカルストレージは保持
         }
       } else {
         console.warn('⚠️ 保存スキップ - ユーザー情報なし:', { currentUser: currentUserRef.current, userId });

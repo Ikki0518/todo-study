@@ -1,4 +1,11 @@
 import { supabase } from './supabase'
+import {
+  sanitizeObjectForJSON,
+  handleJSONError,
+  debugStringData,
+  sanitizeStringForJSON,
+  toSafeLogString
+} from '../utils/stringUtils.js'
 
 // 認証済みSupabaseクライアントを取得（匿名アクセス対応）
 const getAuthenticatedClient = async () => {
@@ -24,18 +31,27 @@ const getAuthenticatedClient = async () => {
 };
 
 export const taskService = {
-  // ユーザーのタスクデータを保存
+  // ユーザーのタスクデータを保存（サロゲート文字エラー対応）
   async saveUserTasks(userId, tasksData) {
     try {
       console.log('💾 タスクデータを保存中:', { userId, tasksCount: Object.keys(tasksData).length });
+      
+      // デバッグ情報（開発環境のみ）
+      debugStringData(tasksData, 'TasksData before sanitization');
+      
+      // 1. データのサニタイズ
+      const sanitizedTasksData = sanitizeObjectForJSON(tasksData);
+      const sanitizedUserId = sanitizeStringForJSON(userId);
+      
+      console.log('🧹 データサニタイズ完了');
       
       const client = await getAuthenticatedClient();
       
       const { data, error } = await client
         .from('user_tasks')
         .upsert({
-          user_id: userId,
-          tasks_data: tasksData,
+          user_id: sanitizedUserId,
+          tasks_data: sanitizedTasksData,
           updated_at: new Date().toISOString()
         }, {
           onConflict: 'user_id'
@@ -49,6 +65,41 @@ export const taskService = {
           details: error.details,
           hint: error.hint
         });
+        
+        // サロゲート文字エラーの特別な処理
+        if (error.message && error.message.includes('invalid high surrogate')) {
+          console.error('🔍 サロゲート文字エラーを検出:', {
+            originalDataPreview: toSafeLogString(tasksData, 200),
+            sanitizedDataPreview: toSafeLogString(sanitizedTasksData, 200)
+          });
+          
+          handleJSONError(error, tasksData);
+          
+          // フォールバック: ASCII文字のみで再試行
+          console.log('🔄 ASCII文字のみで再試行...');
+          const asciiOnlyData = JSON.parse(
+            JSON.stringify(sanitizedTasksData).replace(/[^\x00-\x7F]/g, '')
+          );
+          
+          const retryResult = await client
+            .from('user_tasks')
+            .upsert({
+              user_id: sanitizedUserId,
+              tasks_data: asciiOnlyData,
+              updated_at: new Date().toISOString(),
+              sanitized: true // フラグを追加
+            }, {
+              onConflict: 'user_id'
+            });
+            
+          if (retryResult.error) {
+            throw retryResult.error;
+          }
+          
+          console.log('✅ フォールバックでの保存成功');
+          return retryResult.data;
+        }
+        
         throw error;
       }
 
@@ -56,22 +107,32 @@ export const taskService = {
       return data;
     } catch (error) {
       console.error('❌ タスクデータ保存失敗:', error);
+      
+      // JSON関連のエラーハンドリング
+      const handled = handleJSONError(error, tasksData);
+      if (handled) {
+        console.log('⚠️ サロゲート文字エラーを処理済み');
+      }
+      
       throw error;
     }
   },
 
-  // ユーザーのタスクデータを読み込み
+  // ユーザーのタスクデータを読み込み（サロゲート文字エラー対応）
   async loadUserTasks(userId) {
     try {
       console.log('📖 タスクデータを読み込み中:', userId);
+      
+      // ユーザーIDのサニタイズ
+      const sanitizedUserId = sanitizeStringForJSON(userId);
       
       const client = await getAuthenticatedClient();
       
       // maybeSingle()を使用してデータが存在しない場合もエラーにしない
       const { data, error } = await client
         .from('user_tasks')
-        .select('tasks_data')
-        .eq('user_id', userId)
+        .select('tasks_data, sanitized')
+        .eq('user_id', sanitizedUserId)
         .maybeSingle();
 
       if (error) {
@@ -83,6 +144,13 @@ export const taskService = {
           hint: error.hint,
           status: error.status
         });
+        
+        // サロゲート文字エラーの処理
+        if (error.message && error.message.includes('invalid high surrogate')) {
+          console.error('🔍 データ読み込み時のサロゲート文字エラーを検出');
+          handleJSONError(error, { userId });
+        }
+        
         // エラーが発生してもアプリは継続動作
         console.log('⚠️ エラーを無視して空のデータを返します');
         return {};
@@ -94,10 +162,35 @@ export const taskService = {
         return {};
       }
 
-      console.log('✅ タスクデータ読み込み完了:', { tasksCount: Object.keys(data.tasks_data || {}).length });
-      return data.tasks_data || {};
+      // データのサニタイズチェック
+      let tasksData = data.tasks_data || {};
+      
+      if (data.sanitized) {
+        console.log('ℹ️ サニタイズ済みデータを読み込み中');
+      }
+      
+      // 念のため読み込んだデータもサニタイズ
+      try {
+        tasksData = sanitizeObjectForJSON(tasksData);
+        debugStringData(tasksData, 'Loaded TasksData after sanitization');
+      } catch (sanitizeError) {
+        console.warn('⚠️ データサニタイズエラー:', sanitizeError);
+        handleJSONError(sanitizeError, tasksData);
+        // フォールバック: 空のオブジェクト
+        tasksData = {};
+      }
+
+      console.log('✅ タスクデータ読み込み完了:', { tasksCount: Object.keys(tasksData).length });
+      return tasksData;
     } catch (error) {
       console.error('❌ タスクデータ読み込み失敗:', error);
+      
+      // JSON関連のエラーハンドリング
+      const handled = handleJSONError(error, { userId });
+      if (handled) {
+        console.log('⚠️ サロゲート文字エラーを処理済み');
+      }
+      
       console.log('⚠️ 例外を無視して空のデータを返します');
       // エラーの場合は空のオブジェクトを返してアプリが動作するようにする
       return {};

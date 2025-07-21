@@ -1,7 +1,11 @@
 // ローカルストレージベースのタスクサービス
+import {
+  sanitizeObjectForJSON
+} from '../utils/stringUtils.js';
+
 const LOCAL_STORAGE_KEYS = {
   TASKS: 'suna_user_tasks',
-  STUDY_PLANS: 'suna_study_plans', 
+  STUDY_PLANS: 'suna_study_plans',
   EXAM_DATES: 'suna_exam_dates'
 };
 
@@ -11,19 +15,49 @@ export const localTaskService = {
     try {
       console.log('💾 ローカルタスクデータを保存中:', { userId, tasksCount: Object.keys(tasksData).length });
       
+      // データをサニタイズ
+      const sanitizedTasksData = sanitizeObjectForJSON(tasksData, 'localTaskService.saveUserTasks.tasksData');
+      
       // ローカルストレージに保存
       const storageData = {
-        userId,
-        tasksData,
+        userId: sanitizeObjectForJSON(userId, 'localTaskService.saveUserTasks.userId'),
+        tasksData: sanitizedTasksData,
         updatedAt: new Date().toISOString()
       };
       
-      localStorage.setItem(LOCAL_STORAGE_KEYS.TASKS, JSON.stringify(storageData));
+      // ローカルストレージに保存
+      try {
+        localStorage.setItem(LOCAL_STORAGE_KEYS.TASKS, JSON.stringify(storageData));
+      } catch (storageError) {
+        // フォールバック：ASCIIのみでデータを再構築
+        console.warn('⚠️ ローカルストレージエラーのため、ASCIIのみでデータを再構築します:', storageError);
+        const asciiOnlyData = {
+          userId: String(userId).replace(/[^\x00-\x7F]/g, ''),
+          tasksData: sanitizeObjectForJSON(tasksData, 'localTaskService.saveUserTasks.fallback', true),
+          updatedAt: new Date().toISOString(),
+          sanitized: true
+        };
+        localStorage.setItem(LOCAL_STORAGE_KEYS.TASKS, JSON.stringify(asciiOnlyData));
+      }
       
       console.log('✅ ローカルタスクデータ保存完了');
       return storageData;
     } catch (error) {
       console.error('❌ ローカルタスクデータ保存失敗:', error);
+      
+      // サロゲートペアエラーの場合の特別処理
+      if (handleJSONError(error, tasksData, 'localTaskService.saveUserTasks')) {
+        // エラーをログに記録し、フォールバックデータで再試行
+        const fallbackData = {
+          userId: String(userId).replace(/[^\x00-\x7F]/g, ''),
+          tasksData: {},
+          updatedAt: new Date().toISOString(),
+          error: 'surrogate_pair_error_fallback'
+        };
+        localStorage.setItem(LOCAL_STORAGE_KEYS.TASKS, JSON.stringify(fallbackData));
+        return fallbackData;
+      }
+      
       throw error;
     }
   },
@@ -32,7 +66,7 @@ export const localTaskService = {
   async loadUserTasks(userId) {
     try {
       console.log('🔍 [DEBUG] localTaskService.loadUserTasks 呼び出し開始:', userId);
-      console.log('� ローカルタスクデータを読み込み中:', userId);
+      console.log('📂 ローカルタスクデータを読み込み中:', userId);
       
       const storedData = localStorage.getItem(LOCAL_STORAGE_KEYS.TASKS);
       
@@ -41,7 +75,22 @@ export const localTaskService = {
         return this.getSampleTasks();
       }
       
-      const parsedData = JSON.parse(storedData);
+      // サロゲートペアエラー対応の安全なJSONパース
+      let parsedData;
+      try {
+        parsedData = JSON.parse(storedData);
+      } catch (parseError) {
+        console.error('❌ JSONパースエラー:', parseError);
+        
+        // サロゲートペアエラーの場合の処理
+        if (handleJSONError(parseError, storedData, 'localTaskService.loadUserTasks')) {
+          console.log('🔄 破損データを削除してサンプルタスクを返します');
+          localStorage.removeItem(LOCAL_STORAGE_KEYS.TASKS);
+          return this.getSampleTasks();
+        }
+        
+        throw parseError;
+      }
       
       // ユーザーIDが一致するかチェック（将来的に複数ユーザー対応する場合）
       if (parsedData.userId !== userId) {
@@ -56,6 +105,14 @@ export const localTaskService = {
       return parsedData.tasksData || {};
     } catch (error) {
       console.error('❌ ローカルタスクデータ読み込み失敗:', error);
+      
+      // サロゲートペアエラーの場合の特別処理
+      if (handleJSONError(error, null, 'localTaskService.loadUserTasks.catch')) {
+        // 破損したデータを削除
+        localStorage.removeItem(LOCAL_STORAGE_KEYS.TASKS);
+        console.log('🔄 破損データを削除してサンプルタスクを返します');
+      }
+      
       // エラーの場合は空のオブジェクトを返してアプリが動作するようにする
       return this.getSampleTasks();
     }
