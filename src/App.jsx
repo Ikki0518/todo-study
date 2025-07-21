@@ -391,7 +391,7 @@ function App() {
               console.log('🔍 既存のscheduledTasksを使用:', tasksData.scheduledTasks);
               setScheduledTasks(tasksData.scheduledTasks);
             } else {
-              // localTaskServiceから返されたデータを変換
+              // taskServiceから返されたデータを変換
               console.log('🔍 データ変換開始 - 元データ:', tasksData);
               const convertedScheduledTasks = {};
               Object.entries(tasksData).forEach(([dateKey, dayTasks]) => {
@@ -2203,8 +2203,8 @@ function App() {
               <div className={`bg-white rounded-lg shadow overflow-hidden ${!isMobile ? 'flex-1' : ''}`}>
                 <div className="overflow-x-auto overflow-y-auto" style={{
                   height: 'auto',
-                  maxHeight: isMobile ? 'calc(100vh - 120px)' : 'calc(100vh - 180px)',
-                  minHeight: isMobile ? '1600px' : '3200px'
+                  maxHeight: isMobile ? 'calc(100vh - 150px)' : 'calc(100vh - 200px)',
+                  minHeight: '2400px'
                 }}>
                   <div className={`${isMobile ? 'min-w-[320px]' : 'min-w-[600px]'} relative`}>
                   
