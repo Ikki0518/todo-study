@@ -2202,14 +2202,14 @@ function App() {
               {/* 週間カレンダー */}
               <div className={`bg-white rounded-lg shadow overflow-hidden ${!isMobile ? 'flex-1' : ''}`}>
                 <div className="overflow-x-auto overflow-y-auto" style={{
-                  height: isMobile ? 'calc(100vh - 180px)' : 'calc(100vh - 200px)',
-                  maxHeight: isMobile ? 'calc(100vh - 180px)' : 'calc(100vh - 200px)',
-                  minHeight: isMobile ? '1500px' : '3000px'
+                  height: 'auto',
+                  maxHeight: isMobile ? 'calc(100vh - 120px)' : 'calc(100vh - 180px)',
+                  minHeight: isMobile ? '1600px' : '3200px'
                 }}>
                   <div className={`${isMobile ? 'min-w-[320px]' : 'min-w-[600px]'} relative`}>
                   
                   {/* ヘッダー行 - 固定位置 */}
-                  <div className="sticky top-0 z-10 bg-white border-b-2 border-gray-600 grid" style={{gridTemplateColumns: `${isMobile ? '40px' : '60px'} repeat(${dates.length}, 1fr)`}}>
+                  <div className="sticky top-0 z-10 bg-white border-b border-gray-300 grid" style={{gridTemplateColumns: `${isMobile ? '40px' : '60px'} repeat(${dates.length}, 1fr)`}}>
                     <div className="p-1 sm:p-2 text-center text-xs sm:text-sm font-medium bg-gray-50"></div>
                     {dates.map((date, index) => {
                       const isToday = date.toDateString() === new Date().toDateString()
@@ -2217,7 +2217,7 @@ function App() {
                       return (
                         <div
                           key={index}
-                          className={`p-1 sm:p-2 text-center border-l ${isToday ? 'bg-blue-50' : 'bg-gray-50'}`}
+                          className={`p-1 sm:p-2 text-center border-l border-gray-300 ${isToday ? 'bg-blue-50' : 'bg-gray-50'}`}
                         >
                           <div className="text-xs text-gray-500">
                             {dayNames[date.getDay()]}
