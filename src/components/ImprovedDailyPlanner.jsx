@@ -45,7 +45,7 @@ export const ImprovedDailyPlanner = ({
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
 
-  // 現在時刻を10秒ごとに更新（よりリアルタイムに）
+  // 現在時刻を1秒ごとに更新（最高精度）
   useEffect(() => {
     const updateCurrentTime = () => {
       setCurrentTime(new Date())
@@ -54,8 +54,8 @@ export const ImprovedDailyPlanner = ({
     // 初回実行
     updateCurrentTime()
     
-    // 10秒ごとに更新
-    const interval = setInterval(updateCurrentTime, 10000)
+    // 1秒ごとに更新（最高精度）
+    const interval = setInterval(updateCurrentTime, 1000)
     
     return () => clearInterval(interval)
   }, [])
@@ -65,17 +65,43 @@ export const ImprovedDailyPlanner = ({
     const now = currentTime
     const hours = now.getHours()
     const minutes = now.getMinutes()
+    const seconds = now.getSeconds()
     
     // 各時間行の高さは50px
-    // 現在時刻の正確な位置を計算：時間 + 分の割合
-    const totalHours = hours + (minutes / 60)
+    // 重要：時間行の基準点は行の上端（例：12:00行は600px位置から開始）
+    // 12:30 = 12:00行の中央 = 600px + 25px = 625px
+    // 12:35 = 12:00行の70%位置 = 600px + 35px = 635px
     
-    // 位置計算：総時間 * 50px
-    const position = totalHours * 50
+    const hourPosition = hours * 50  // 時間行の開始位置（上端）
+    const totalMinutes = minutes + (seconds / 60)  // 秒を含む分の値
+    
+    // 重要：分の位置計算を修正
+    // 60分 = 50px（1時間行の高さ）なので、1分 = 50/60 = 0.833...px
+    const minutePosition = totalMinutes * (50 / 60)  // 直接的な分→ピクセル変換
+    const totalPosition = hourPosition + minutePosition
+    
+    // 詳細デバッグログ
+    console.log(`=== 現在時刻インジケーター位置計算（修正版） ===`)
+    console.log(`デバイス: ${isMobile ? 'モバイル' : 'デスクトップ'}`)
+    console.log(`現在時刻: ${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`)
+    console.log(`計算詳細:`)
+    console.log(`  - 時間行開始位置: ${hours}時 × 50px = ${hourPosition}px`)
+    console.log(`  - 分の値（秒含む）: ${totalMinutes.toFixed(2)}分`)
+    console.log(`  - 分のピクセル位置: ${totalMinutes.toFixed(2)} × (50/60) = ${minutePosition.toFixed(2)}px`)
+    console.log(`  - 合計位置: ${hourPosition} + ${minutePosition.toFixed(2)} = ${totalPosition.toFixed(2)}px`)
+    
+    // 検証用計算
+    const expectedPercentage = (totalMinutes / 60) * 100
+    console.log(`検証: ${hours}時間目の${expectedPercentage.toFixed(2)}%位置`)
+    console.log(`検証: 30分なら25px、35分なら${(35 * 50/60).toFixed(2)}px追加されるべき`)
     
     // 25時間グリッドの範囲（0-1249px）を超えないように制限
     const maxPosition = (25 * 50) - 1 // 1249px
-    return Math.min(position, maxPosition)
+    const finalPosition = Math.min(totalPosition, maxPosition)
+    
+    console.log(`最終位置: ${finalPosition.toFixed(2)}px`)
+    
+    return finalPosition
   }
 
   // 現在時刻の文字列を取得
@@ -233,9 +259,58 @@ export const ImprovedDailyPlanner = ({
           />
         </div>
 
-        <div className="lg:col-span-9 bg-white rounded-lg shadow overflow-hidden planner-grid flex-1 min-h-0">
+        <div className="lg:col-span-9 bg-white rounded-lg shadow overflow-hidden planner-grid flex-1 min-h-0" style={{ position: 'relative' }}>
+          {/* 現在時刻インジケーター - 完全独立レイヤー（最上位） */}
+          {isCurrentTimeInGrid() && (
+            <div
+              className="absolute pointer-events-none"
+              style={{
+                top: `${getCurrentTimePosition() + 60}px`, // ヘッダー分のオフセット追加
+                left: isMobile ? '60px' : '60px',
+                right: '0px',
+                height: '2px',
+                zIndex: 99999  // 絶対最高優先度
+              }}
+            >
+              <div
+                className="calendar-grid"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: isMobile
+                    ? `60px repeat(3, 1fr)`
+                    : `60px repeat(7, 1fr)`,
+                  height: '2px',
+                  zIndex: 99999
+                }}
+              >
+                {/* 時間列のスペース */}
+                <div className="relative" style={{ zIndex: 99999 }}>
+                  <div className="absolute right-2 -top-3 text-xs font-semibold text-blue-600 bg-white px-1 rounded shadow-sm" style={{ zIndex: 99999 }}>
+                    {getCurrentTimeString()}
+                  </div>
+                </div>
+                
+                {/* 各日付列 - 全ての列に青い線を表示 */}
+                {dates.map((date, dateIndex) => {
+                  return (
+                    <div key={dateIndex} className="relative" style={{ zIndex: 99999 }}>
+                      <div className="absolute inset-0 bg-blue-500 h-0.5 shadow-lg" style={{ zIndex: 99999 }}>
+                        {dateIndex === 0 && (
+                          <div className="absolute left-0 -top-1 w-2 h-2 bg-blue-500 rounded-full" style={{ zIndex: 99999 }}></div>
+                        )}
+                        {dateIndex === dates.length - 1 && (
+                          <div className="absolute right-0 -top-1 w-2 h-2 bg-blue-500 rounded-full" style={{ zIndex: 99999 }}></div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           {/* 固定ヘッダー（日付） */}
-          <div className="planner-header">
+          <div className="planner-header" style={{ position: 'relative', zIndex: 1 }}>
             <div className="custom-scrollbar">
               <div
                 className={`calendar-grid ${isMobile ? 'w-full' : 'min-w-[600px]'}`}
@@ -243,7 +318,9 @@ export const ImprovedDailyPlanner = ({
                   display: 'grid',
                   gridTemplateColumns: isMobile
                     ? `60px repeat(3, 1fr)`
-                    : `60px repeat(7, 1fr)`
+                    : `60px repeat(7, 1fr)`,
+                  position: 'relative',
+                  zIndex: 1
                 }}
               >
                 <div className="calendar-cell p-2 text-center text-responsive-xs font-medium bg-gray-50"></div>
@@ -270,10 +347,14 @@ export const ImprovedDailyPlanner = ({
           </div>
           
           {/* スクロール可能な時間グリッド */}
-          <div className="planner-body custom-scrollbar flex-1 overflow-auto" style={{ position: 'relative' }}>
-            <div className={isMobile ? 'w-full' : 'min-w-[600px]'} style={{ height: '1300px', minHeight: '1300px' }}>
+          <div className="planner-body custom-scrollbar" style={{ position: 'relative', height: 'calc(100vh - 200px)', overflowY: 'scroll', overflowX: 'hidden', flex: '1 1 auto' }}>
+            <div className={`planner-content ${isMobile ? 'w-full' : 'min-w-[600px]'}`} style={{ height: '1250px', minHeight: '1250px', maxHeight: 'none', display: 'block' }}>
               {[...Array(25)].map((_, hourIndex) => {
                 const hour = hourIndex
+                // デバッグ用ログ
+                if (hour >= 22) {
+                  console.log(`Rendering hour: ${hour}`)
+                }
                 return (
                   <div
                     key={hour}
@@ -282,10 +363,12 @@ export const ImprovedDailyPlanner = ({
                       display: 'grid',
                       gridTemplateColumns: isMobile
                         ? `60px repeat(3, 1fr)`
-                        : `60px repeat(7, 1fr)`
+                        : `60px repeat(7, 1fr)`,
+                      minHeight: '50px',
+                      height: '50px'
                     }}
                   >
-                    <div className="time-column p-2 text-right text-responsive-xs text-gray-500 touch-optimized">
+                    <div className="time-column h-[50px] p-2 text-right text-responsive-xs text-gray-500 touch-optimized">
                       {hour === 24 ? '24:00' : hour.toString().padStart(2, '0') + ':00'}
                     </div>
                     {dates.map((date, dateIndex) => {
@@ -317,9 +400,10 @@ export const ImprovedDailyPlanner = ({
                       return (
                         <div
                           key={dateIndex}
-                          className={`calendar-cell relative p-1 min-h-[50px] touch-optimized ${isMobile ? 'mobile-grid-cell' : ''} ${
+                          className={`calendar-cell relative p-1 h-[50px] touch-optimized ${isMobile ? 'mobile-grid-cell' : ''} ${
                             isOccupied ? '' : 'hover:bg-gray-50'
                           } ${isToday ? 'bg-blue-25' : ''} ${isTaskOverdue ? 'bg-red-50' : ''}`}
+                          style={{ zIndex: 1 }}  // 日付セルを背景レイヤーに設定
                           onDragOver={!isOccupied ? handleDragOver : undefined}
                           onDrop={!isOccupied ? (e) => handleDrop(e, dateKey, hour) : undefined}
                           onTouchEnd={!isOccupied ? (e) => handleTouchEnd(e, dateKey, hour) : undefined}
@@ -327,7 +411,7 @@ export const ImprovedDailyPlanner = ({
                         >
                           {scheduledTask && !isOccupied && (
                             <div
-                              className={`absolute p-2 rounded cursor-pointer z-10 ${
+                              className={`scheduled-task absolute p-2 rounded cursor-pointer shadow-md ${
                                 completedTasks[taskKey]
                                   ? 'bg-gray-300 text-gray-700'
                                   : isTaskOverdue
@@ -338,7 +422,8 @@ export const ImprovedDailyPlanner = ({
                                 height: `${(scheduledTask.duration || 1) * 50 - 2}px`,
                                 width: 'calc(100% - 8px)',
                                 left: '4px',
-                                top: '2px'
+                                top: '2px',
+                                zIndex: 15  // タスクを日付セルより上に表示
                               }}
                               ref={(el) => {
                                 if (el && !completedTasks[taskKey]) {
@@ -444,50 +529,6 @@ export const ImprovedDailyPlanner = ({
               })}
             </div>
             
-            {/* 現在時刻インジケーター - 24時間グリッド内の場合のみ表示 */}
-            {isCurrentTimeInGrid() && (
-              <div
-                className="absolute left-0 right-0 pointer-events-none z-20"
-                style={{
-                  top: `${getCurrentTimePosition()}px`,
-                  height: '2px'
-                }}
-              >
-              <div
-                className="calendar-grid"
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: isMobile
-                    ? `60px repeat(3, 1fr)`
-                    : `60px repeat(7, 1fr)`,
-                  height: '2px'
-                }}
-              >
-                {/* 時間列のスペース */}
-                <div className="relative">
-                  <div className="absolute right-2 -top-3 text-xs font-semibold text-blue-600 bg-white px-1 rounded shadow-sm">
-                    {getCurrentTimeString()}
-                  </div>
-                </div>
-                
-                {/* 各日付列 - 全ての列に青い線を表示 */}
-                {dates.map((date, dateIndex) => {
-                  return (
-                    <div key={dateIndex} className="relative">
-                      <div className="absolute inset-0 bg-blue-500 h-0.5 shadow-sm">
-                        {dateIndex === 0 && (
-                          <div className="absolute left-0 -top-1 w-2 h-2 bg-blue-500 rounded-full"></div>
-                        )}
-                        {dateIndex === dates.length - 1 && (
-                          <div className="absolute right-0 -top-1 w-2 h-2 bg-blue-500 rounded-full"></div>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-              </div>
-            )}
           </div>
         </div>
       </div>

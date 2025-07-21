@@ -44,6 +44,40 @@
   transition: height 0.2s ease-out;
 }
 
+/* Task visibility improvements */
+.calendar-cell {
+  position: relative;
+  z-index: 1;
+}
+
+.scheduled-task {
+  position: absolute;
+  z-index: 15 !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.scheduled-task:hover {
+  z-index: 16 !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* Current time indicator - highest priority */
+.current-time-indicator,
+.current-time-indicator * {
+  z-index: 9999 !important;
+  position: relative;
+}
+
+/* Force current time indicator above all tasks */
+div[style*="zIndex: 9999"] {
+  z-index: 9999 !important;
+}
+
+div[style*="zIndex: 9999"] * {
+  z-index: 9999 !important;
+}
+
 /* Mobile optimizations */
 @media (max-width: 768px) {
   /* Larger touch targets on mobile */
@@ -289,6 +323,19 @@ body {
 #root {
   height: 100vh;
   overflow: hidden;
+}
+
+/* デイリープランナー専用のスクロール強制設定 */
+.planner-body {
+  overflow-y: scroll !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.planner-content {
+  min-height: 1250px !important;
+  height: 1250px !important;
 }
 
 code {
