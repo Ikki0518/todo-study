@@ -1,12 +1,46 @@
 import { supabase } from './supabase'
 
+// 認証されたSupabaseクライアントを取得する関数
+const getAuthenticatedClient = () => {
+  const authToken = localStorage.getItem('authToken');
+  const currentUser = localStorage.getItem('currentUser');
+  
+  if (authToken && currentUser) {
+    try {
+      const userData = JSON.parse(currentUser);
+      
+      // Supabaseクライアントに認証トークンを設定
+      supabase.auth.setSession({
+        access_token: authToken,
+        refresh_token: authToken,
+        user: {
+          id: userData.id || userData.userId,
+          email: userData.email,
+          user_metadata: userData
+        }
+      });
+      
+      console.log('🔐 Supabaseクライアントに認証情報を設定:', {
+        userId: userData.id || userData.userId,
+        email: userData.email
+      });
+    } catch (error) {
+      console.error('❌ 認証情報の設定に失敗:', error);
+    }
+  }
+  
+  return supabase;
+};
+
 export const taskService = {
   // ユーザーのタスクデータを保存
   async saveUserTasks(userId, tasksData) {
     try {
       console.log('💾 タスクデータを保存中:', { userId, tasksCount: Object.keys(tasksData).length });
       
-      const { data, error } = await supabase
+      const client = getAuthenticatedClient();
+      
+      const { data, error } = await client
         .from('user_tasks')
         .upsert({
           user_id: userId,
@@ -18,6 +52,12 @@ export const taskService = {
 
       if (error) {
         console.error('❌ タスクデータ保存エラー:', error);
+        console.error('❌ エラー詳細:', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint
+        });
         throw error;
       }
 
@@ -34,7 +74,9 @@ export const taskService = {
     try {
       console.log('📖 タスクデータを読み込み中:', userId);
       
-      const { data, error } = await supabase
+      const client = getAuthenticatedClient();
+      
+      const { data, error } = await client
         .from('user_tasks')
         .select('tasks_data')
         .eq('user_id', userId)
@@ -47,6 +89,12 @@ export const taskService = {
           return {};
         }
         console.error('❌ タスクデータ読み込みエラー:', error);
+        console.error('❌ エラー詳細:', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint
+        });
         throw error;
       }
 
@@ -64,7 +112,9 @@ export const taskService = {
     try {
       console.log('💾 学習計画データを保存中:', { userId, plansCount: studyPlansData.length });
       
-      const { data, error } = await supabase
+      const client = getAuthenticatedClient();
+      
+      const { data, error } = await client
         .from('user_study_plans')
         .upsert({
           user_id: userId,
@@ -76,6 +126,12 @@ export const taskService = {
 
       if (error) {
         console.error('❌ 学習計画データ保存エラー:', error);
+        console.error('❌ エラー詳細:', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint
+        });
         throw error;
       }
 
@@ -92,7 +148,9 @@ export const taskService = {
     try {
       console.log('📖 学習計画データを読み込み中:', userId);
       
-      const { data, error } = await supabase
+      const client = getAuthenticatedClient();
+      
+      const { data, error } = await client
         .from('user_study_plans')
         .select('study_plans')
         .eq('user_id', userId)
@@ -105,6 +163,12 @@ export const taskService = {
           return [];
         }
         console.error('❌ 学習計画データ読み込みエラー:', error);
+        console.error('❌ エラー詳細:', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint
+        });
         throw error;
       }
 
@@ -122,7 +186,9 @@ export const taskService = {
     try {
       console.log('💾 受験日データを保存中:', { userId, examCount: examDatesData.length });
       
-      const { data, error } = await supabase
+      const client = getAuthenticatedClient();
+      
+      const { data, error } = await client
         .from('user_exam_dates')
         .upsert({
           user_id: userId,
@@ -134,6 +200,12 @@ export const taskService = {
 
       if (error) {
         console.error('❌ 受験日データ保存エラー:', error);
+        console.error('❌ エラー詳細:', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint
+        });
         throw error;
       }
 
@@ -150,7 +222,9 @@ export const taskService = {
     try {
       console.log('📖 受験日データを読み込み中:', userId);
       
-      const { data, error } = await supabase
+      const client = getAuthenticatedClient();
+      
+      const { data, error } = await client
         .from('user_exam_dates')
         .select('exam_dates')
         .eq('user_id', userId)
@@ -163,6 +237,12 @@ export const taskService = {
           return [];
         }
         console.error('❌ 受験日データ読み込みエラー:', error);
+        console.error('❌ エラー詳細:', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint
+        });
         throw error;
       }
 

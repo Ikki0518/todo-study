@@ -348,7 +348,7 @@ export const ImprovedDailyPlanner = ({
           
           {/* スクロール可能な時間グリッド */}
           <div className="planner-body custom-scrollbar" style={{ position: 'relative', height: 'calc(100vh - 200px)', overflowY: 'scroll', overflowX: 'hidden', flex: '1 1 auto', maxHeight: 'none' }}>
-            <div className={`planner-content ${isMobile ? 'w-full' : 'min-w-[600px]'}`} style={{ height: '1300px', minHeight: '1300px', maxHeight: 'none', display: 'block' }}>
+            <div className={`planner-content ${isMobile ? 'w-full' : 'min-w-[600px]'}`} style={{ height: '1200px', minHeight: '1200px', maxHeight: 'none', display: 'block' }}>
               {[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24].map((hour) => {
                 // 本番環境対応: 明示的な25時間配列 - 絶対に切り捨てられない
                 console.log(`🕐 EXPLICIT HOUR RENDERING: ${hour} (${hour === 24 ? '24:00' : hour.toString().padStart(2, '0') + ':00'}) - HARDCODED ARRAY`)
@@ -376,8 +376,9 @@ export const ImprovedDailyPlanner = ({
                       const taskKey = `${dateKey}-${hour}`
                       const scheduledTask = scheduledTasks[taskKey]
                       
-                      // 他のタスクがこの時間スロットを占有しているかチェック
+                      // 他のタスクがこの時間スロットを占有しているかチェック（翌日延長対応）
                       const isOccupiedByOtherTask = () => {
+                        // 当日のタスクチェック
                         for (let checkHour = 0; checkHour < hour; checkHour++) {
                           const checkKey = `${dateKey}-${checkHour}`
                           const checkTask = scheduledTasks[checkKey]
@@ -385,11 +386,42 @@ export const ImprovedDailyPlanner = ({
                             return true
                           }
                         }
+                        
+                        // 前日の23:00以降のタスクが翌日（今日）に延長しているかチェック
+                        const prevDate = new Date(date)
+                        prevDate.setDate(prevDate.getDate() - 1)
+                        const prevDateKey = prevDate.toISOString().split('T')[0]
+                        
+                        for (let checkHour = 23; checkHour <= 23; checkHour++) {
+                          const checkKey = `${prevDateKey}-${checkHour}`
+                          const checkTask = scheduledTasks[checkKey]
+                          if (checkTask && checkTask.duration) {
+                            const taskEndHour = checkHour + checkTask.duration
+                            // 23:00開始のタスクが翌日のこの時間に延長している場合
+                            if (taskEndHour > 24 && (taskEndHour - 24) > hour) {
+                              return { task: checkTask, originalHour: checkHour, originalDate: prevDateKey }
+                            }
+                          }
+                        }
+                        
                         return false
                       }
                       
-                      const isOccupied = isOccupiedByOtherTask()
+                      const occupiedInfo = isOccupiedByOtherTask()
+                      const isOccupied = occupiedInfo && occupiedInfo !== false
                       const isToday = date.toDateString() === new Date().toDateString()
+                      
+                      // 前日からの延長タスクがある場合の処理
+                      let extendedTask = null
+                      if (occupiedInfo && occupiedInfo.task) {
+                        extendedTask = {
+                          ...occupiedInfo.task,
+                          isExtended: true,
+                          originalHour: occupiedInfo.originalHour,
+                          originalDate: occupiedInfo.originalDate,
+                          extendedHour: hour
+                        }
+                      }
                       
                       // 時間超過タスクの判定（タスク終了から1時間経過）
                       const isTaskOverdue = scheduledTask &&
@@ -409,7 +441,7 @@ export const ImprovedDailyPlanner = ({
                           onTouchEnd={!isOccupied ? (e) => handleTouchEnd(e, dateKey, hour) : undefined}
                           data-dropzone={!isOccupied ? `${dateKey}-${hour}` : undefined}
                         >
-                          {scheduledTask && !isOccupied && (
+                          {(scheduledTask && !isOccupied) && (
                             <div
                               className={`scheduled-task absolute p-2 rounded cursor-pointer shadow-md ${
                                 completedTasks[taskKey]
@@ -521,6 +553,33 @@ export const ImprovedDailyPlanner = ({
                               </div>
                             </div>
                           )}
+                          
+                          {/* 前日からの延長タスク表示 */}
+                          {extendedTask && (
+                            <div
+                              className={`scheduled-task absolute p-2 rounded cursor-pointer shadow-md border-2 border-dashed ${
+                                `${getPriorityColor(extendedTask.priority)} text-white hover:opacity-90 border-yellow-300`
+                              }`}
+                              style={{
+                                height: '50px',
+                                zIndex: 15,
+                                minHeight: '50px',
+                                opacity: 0.8
+                              }}
+                              title={`前日${extendedTask.originalHour}:00からの延長タスク`}
+                            >
+                              <div className="flex items-center space-x-2 flex-1 min-w-0">
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium text-responsive-xs leading-tight">
+                                    🌙 {extendedTask.title}
+                                  </div>
+                                  <div className="text-xs opacity-75 mt-1">
+                                    前日{extendedTask.originalHour}:00から延長
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )
                     })}
@@ -528,8 +587,8 @@ export const ImprovedDailyPlanner = ({
                 )
               })}
               
-              {/* 23:00と24:00の強制表示 - 本番環境対応 */}
-              {[23, 24].map((forceHour) => (
+              {/* 23:00の強制表示 - 本番環境対応 */}
+              {[23].map((forceHour) => (
                 <div
                   key={`force-${forceHour}`}
                   className="calendar-grid"
