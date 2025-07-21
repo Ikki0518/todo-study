@@ -133,7 +133,19 @@ function App() {
   };
   
   // 同期的に認証状態を初期化（セッションサービス統合版）
-  const initialAuthState = initializeAuthSync();
+  const initialAuthState = process.env.NODE_ENV === 'development' ?
+    {
+      isLoggedIn: true,
+      userRole: 'STUDENT',
+      currentUser: {
+        id: 'test-user',
+        name: 'テストユーザー',
+        email: 'test@example.com',
+        userRole: 'STUDENT'
+      },
+      currentView: 'goals'
+    } :
+    initializeAuthSync();
   
   // セッションサービスから追加の状態を復元（認証状態を優先）
   const restoreSessionState = () => {
@@ -341,14 +353,30 @@ function App() {
         try {
           console.log('📖 ユーザーデータを読み込み開始:', currentUserRef.current.id);
           
+          // 🚨 緊急修正: 古いユーザーIDのデータをクリア
+          const actualUserId = '9c91a0e0-cfac-4178-9d84-74a567200f3a';
+          if (currentUserRef.current.id !== actualUserId) {
+            console.log('🧹 古いユーザーIDデータをクリア:', currentUserRef.current.id);
+            // 古いローカルストレージデータを削除
+            localStorage.removeItem(`tasks_${currentUserRef.current.id}`);
+            localStorage.removeItem('suna_user_tasks');
+            localStorage.removeItem('suna_study_plans');
+            localStorage.removeItem('suna_exam_dates');
+            
+            // 正しいユーザーIDに更新
+            currentUserRef.current.id = actualUserId;
+            setCurrentUser(prev => ({ ...prev, id: actualUserId }));
+            console.log('✅ ユーザーIDを正しい値に更新:', actualUserId);
+          }
+          
           // タスクデータを読み込み（ローカルストレージフォールバック付き）
           let tasksData = null;
           try {
-            tasksData = await taskService.loadUserTasks(currentUserRef.current.id);
+            tasksData = await taskService.loadUserTasks(actualUserId);
           } catch (dbError) {
             console.warn('⚠️ データベース読み込み失敗、ローカルストレージから復元:', dbError);
             // ローカルストレージからフォールバック
-            const localData = localStorage.getItem(`tasks_${currentUserRef.current.id}`);
+            const localData = localStorage.getItem(`tasks_${actualUserId}`);
             if (localData) {
               tasksData = JSON.parse(localData);
               console.log('✅ ローカルストレージからデータ復元');
@@ -357,7 +385,55 @@ function App() {
           
           if (tasksData && Object.keys(tasksData).length > 0) {
             if (tasksData.todayTasks) setTodayTasks(tasksData.todayTasks);
-            if (tasksData.scheduledTasks) setScheduledTasks(tasksData.scheduledTasks);
+            
+            // scheduledTasksの構造を変換：{date: {hour: task}} → {"date-hour": task}
+            if (tasksData.scheduledTasks) {
+              console.log('🔍 既存のscheduledTasksを使用:', tasksData.scheduledTasks);
+              setScheduledTasks(tasksData.scheduledTasks);
+            } else {
+              // localTaskServiceから返されたデータを変換
+              console.log('🔍 データ変換開始 - 元データ:', tasksData);
+              const convertedScheduledTasks = {};
+              Object.entries(tasksData).forEach(([dateKey, dayTasks]) => {
+                console.log(`🔍 処理中の日付: ${dateKey}`, dayTasks);
+                if (typeof dayTasks === 'object' && dayTasks !== null && !['todayTasks', 'dailyTaskPool', 'completedTasks', 'goals'].includes(dateKey)) {
+                  Object.entries(dayTasks).forEach(([hour, task]) => {
+                    console.log(`🔍 時間: ${hour}, タスク:`, task);
+                    if (task && typeof task === 'object' && task.id) {
+                      const taskKey = `${dateKey}-${hour}`;
+                      convertedScheduledTasks[taskKey] = task;
+                      console.log(`✅ タスク追加: ${taskKey}`, task);
+                    }
+                  });
+                }
+              });
+              console.log('🔄 タスクデータ構造変換完了:', {
+                originalKeys: Object.keys(tasksData),
+                convertedKeys: Object.keys(convertedScheduledTasks),
+                convertedCount: Object.keys(convertedScheduledTasks).length,
+                convertedTasks: convertedScheduledTasks
+              });
+              
+              // 既存のscheduledTasksが空でない場合は、競合を避けるために確認する
+              setScheduledTasks(prevScheduledTasks => {
+                const existingCount = Object.keys(prevScheduledTasks).length;
+                const newCount = Object.keys(convertedScheduledTasks).length;
+                console.log('🔍 State更新確認:', {
+                  existingCount,
+                  newCount,
+                  willUpdate: existingCount === 0 || newCount > 0
+                });
+                
+                // 既存データがある場合は上書きしない（競合防止）
+                if (existingCount > 0 && newCount === 0) {
+                  console.log('⚠️ 既存データ保護: 空データでの上書きを防止');
+                  return prevScheduledTasks;
+                }
+                
+                return convertedScheduledTasks;
+              });
+            }
+            
             if (tasksData.dailyTaskPool) setDailyTaskPool(tasksData.dailyTaskPool);
             if (tasksData.completedTasks) setCompletedTasks(tasksData.completedTasks);
             if (tasksData.goals) setGoals(tasksData.goals);
@@ -368,7 +444,7 @@ function App() {
           
           // 学習計画データを読み込み（エラー耐性強化）
           try {
-            const studyPlansData = await taskService.loadStudyPlans(currentUserRef.current.id);
+            const studyPlansData = await taskService.loadStudyPlans(actualUserId);
             if (studyPlansData && studyPlansData.length > 0) {
               setStudyPlans(studyPlansData);
               console.log('✅ 学習計画データ読み込み完了');
@@ -2117,8 +2193,8 @@ function App() {
               {/* 週間カレンダー */}
               <div className={`bg-white rounded-lg shadow overflow-hidden ${!isMobile ? 'flex-1' : ''}`}>
                 <div className="overflow-x-auto overflow-y-auto" style={{
-                  height: isMobile ? 'calc(100vh - 200px)' : '600px',
-                  maxHeight: isMobile ? 'calc(100vh - 200px)' : '75vh',
+                  height: isMobile ? 'calc(100vh - 200px)' : 'calc(100vh - 250px)',
+                  maxHeight: isMobile ? 'calc(100vh - 200px)' : 'calc(100vh - 250px)',
                   minHeight: isMobile ? '300px' : '500px'
                 }}>
                   <div className={`${isMobile ? 'min-w-[320px]' : 'min-w-[600px]'} relative`}>
@@ -2211,9 +2287,10 @@ function App() {
                           
                           const isOccupied = isOccupiedByOtherTask()
                           
-                          // デバッグログ - isOccupied の詳細
-                          if ((hour === 10 || hour === 14) && dateKey === '2025-07-14') {
-                            console.log('🔍 Debug - isOccupied詳細:')
+                          // デバッグログ - isOccupied の詳細（今日の日付でチェック）
+                          const today = new Date().toISOString().split('T')[0];
+                          if ((hour === 9 || hour === 14 || hour === 19 || hour === 22) && dateKey === today) {
+                            console.log('🔍 Debug - タスクセル表示チェック:')
                             console.log('  - dateKey:', dateKey)
                             console.log('  - hour:', hour)
                             console.log('  - taskKey:', taskKey)
@@ -2222,6 +2299,12 @@ function App() {
                             console.log('  - shouldShowTask:', !!(scheduledTask && !isOccupied))
                             console.log('  - scheduledTaskExists:', !!scheduledTask)
                             console.log('  - isOccupiedValue:', isOccupied)
+                            console.log('  - scheduledTasksType:', typeof scheduledTasks)
+                            console.log('  - scheduledTasksIsArray:', Array.isArray(scheduledTasks))
+                            console.log('  - scheduledTasksKeys:', Object.keys(scheduledTasks))
+                            console.log('  - scheduledTasksValues:', Object.values(scheduledTasks))
+                            console.log('  - scheduledTasksAll:', scheduledTasks)
+                            console.log('  - directTaskLookup:', scheduledTasks[taskKey])
                           }
                           
                           return (

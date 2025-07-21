@@ -543,7 +543,23 @@ export const LoginScreen = ({ onLogin, onRoleChange, onSignupClick }) => {
           onLogin(true);
         }, 100);
       } else {
-        setErrors({ general: response.error || 'ログインに失敗しました' });
+        let errorMessage = 'ログインに失敗しました';
+        
+        if (response.error) {
+          if (typeof response.error === 'string') {
+            errorMessage = response.error;
+          } else if (typeof response.error === 'object' && response.error.message) {
+            errorMessage = response.error.message;
+          } else if (typeof response.error === 'object') {
+            try {
+              errorMessage = JSON.stringify(response.error);
+            } catch (e) {
+              errorMessage = 'ログインエラーが発生しました';
+            }
+          }
+        }
+        
+        setErrors({ general: errorMessage });
       }
     } catch (error) {
       console.error('ログインエラー:', error);
