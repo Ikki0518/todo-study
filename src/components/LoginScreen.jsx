@@ -547,7 +547,8 @@ export const LoginScreen = ({ onLogin, onRoleChange, onSignupClick }) => {
       }
     } catch (error) {
       console.error('ログインエラー:', error);
-      setErrors({ general: error.message || 'ログイン処理中にエラーが発生しました' });
+      const errorMessage = error?.message || error?.toString() || 'ログイン処理中にエラーが発生しました';
+      setErrors({ general: String(errorMessage) });
     } finally {
       setIsLoading(false);
     }

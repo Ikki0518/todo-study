@@ -25,7 +25,7 @@ import TaskPoolManager from './components/TaskPoolManager';
 import { generateStudyPlan, convertPlansToTasks, calculateStudyPlanStats } from './utils/studyPlanGenerator';
 import apiService from './services/apiService';
 import sessionService from './services/sessionService';
-import { taskService } from './services/taskService';
+import { localTaskService as taskService } from './services/localTaskService';
 
 function App() {
   // Cookie管理ユーティリティ（App.jsx用）

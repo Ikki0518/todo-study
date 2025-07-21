@@ -31,13 +31,14 @@ export const localTaskService = {
   // ユーザーのタスクデータを読み込み
   async loadUserTasks(userId) {
     try {
-      console.log('📖 ローカルタスクデータを読み込み中:', userId);
+      console.log('🔍 [DEBUG] localTaskService.loadUserTasks 呼び出し開始:', userId);
+      console.log('� ローカルタスクデータを読み込み中:', userId);
       
       const storedData = localStorage.getItem(LOCAL_STORAGE_KEYS.TASKS);
       
       if (!storedData) {
-        console.log('📝 ローカルストレージにデータなし - 空のタスクデータを返します');
-        return {};
+        console.log('📝 ローカルストレージにデータなし - サンプルタスクを返します');
+        return this.getSampleTasks();
       }
       
       const parsedData = JSON.parse(storedData);

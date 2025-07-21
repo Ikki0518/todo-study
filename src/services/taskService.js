@@ -235,34 +235,40 @@ export const taskService = {
       
       const client = await getAuthenticatedClient();
       
+      // maybeSingle()を使用してデータが存在しない場合もエラーにしない
       const { data, error } = await client
         .from('user_exam_dates')
         .select('exam_dates')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
 
       if (error) {
-        if (error.code === 'PGRST116') {
-          // データが存在しない場合は空の配列を返す
-          console.log('📝 新規ユーザー - 空の受験日データを返します');
-          return [];
-        }
         console.error('❌ 受験日データ読み込みエラー:', error);
         console.error('❌ エラー詳細:', {
           message: error.message,
           code: error.code,
           details: error.details,
-          hint: error.hint
+          hint: error.hint,
+          status: error.status
         });
-        throw error;
+        // エラーが発生してもアプリは継続動作
+        console.log('⚠️ エラーを無視して空のデータを返します');
+        return [];
+      }
+
+      if (!data) {
+        // データが存在しない場合は空の配列を返す
+        console.log('📝 新規ユーザー - 空の受験日データを返します');
+        return [];
       }
 
       console.log('✅ 受験日データ読み込み完了:', { examCount: (data.exam_dates || []).length });
       return data.exam_dates || [];
     } catch (error) {
       console.error('❌ 受験日データ読み込み失敗:', error);
+      console.log('⚠️ 例外を無視して空のデータを返します');
       // エラーの場合は空の配列を返してアプリが動作するようにする
       return [];
     }
-  }
+  },
 };
