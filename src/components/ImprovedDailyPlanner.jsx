@@ -348,7 +348,7 @@ export const ImprovedDailyPlanner = ({
           
           {/* スクロール可能な時間グリッド */}
           <div className="planner-body custom-scrollbar" style={{ position: 'relative', height: 'calc(100vh - 200px)', overflowY: 'scroll', overflowX: 'hidden', flex: '1 1 auto', maxHeight: 'none' }}>
-            <div className={`planner-content ${isMobile ? 'w-full' : 'min-w-[600px]'}`} style={{ height: '1250px', minHeight: '1250px', maxHeight: 'none', display: 'block' }}>
+            <div className={`planner-content ${isMobile ? 'w-full' : 'min-w-[600px]'}`} style={{ height: '1300px', minHeight: '1300px', maxHeight: 'none', display: 'block' }}>
               {[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24].map((hour) => {
                 // 本番環境対応: 明示的な25時間配列 - 絶対に切り捨てられない
                 console.log(`🕐 EXPLICIT HOUR RENDERING: ${hour} (${hour === 24 ? '24:00' : hour.toString().padStart(2, '0') + ':00'}) - HARDCODED ARRAY`)
@@ -527,9 +527,83 @@ export const ImprovedDailyPlanner = ({
                   </div>
                 )
               })}
-            </div>
-            
-          </div>
+              
+              {/* 23:00と24:00の強制表示 - 本番環境対応 */}
+              {[23, 24].map((forceHour) => (
+                <div
+                  key={`force-${forceHour}`}
+                  className="calendar-grid"
+                  style={{
+                    display: 'grid !important',
+                    gridTemplateColumns: isMobile
+                      ? `60px repeat(3, 1fr)`
+                      : `60px repeat(7, 1fr)`,
+                    minHeight: '50px !important',
+                    height: '50px !important',
+                    flexShrink: '0 !important',
+                    visibility: 'visible !important',
+                    opacity: '1 !important',
+                    backgroundColor: '#f8f9fa',
+                    borderBottom: '1px solid #e9ecef'
+                  }}
+                >
+                  <div className="time-column h-[50px] p-2 text-right text-responsive-xs text-gray-500 touch-optimized">
+                    {forceHour === 24 ? '24:00' : forceHour.toString().padStart(2, '0') + ':00'}
+                  </div>
+                  {dates.map((date, dateIndex) => {
+                    const dateKey = date.toISOString().split('T')[0]
+                    const taskKey = `${dateKey}-${forceHour}`
+                    const scheduledTask = scheduledTasks[taskKey]
+                    
+                    return (
+                      <div
+                        key={`${dateKey}-${forceHour}`}
+                        className="calendar-cell relative border-r border-gray-200 hover:bg-gray-50 cursor-pointer touch-optimized"
+                        style={{
+                          minHeight: '50px',
+                          height: '50px',
+                          zIndex: 1,
+                          display: 'block !important',
+                          visibility: 'visible !important'
+                        }}
+                        onClick={() => handleCellClick(forceHour, dateIndex)}
+                      >
+                        {scheduledTask && (
+                          <div
+                            className={`scheduled-task absolute inset-0 p-1 rounded text-white text-xs flex items-center justify-between ${getTaskColor(scheduledTask.priority)} cursor-move touch-optimized`}
+                            style={{
+                              height: `${(scheduledTask.duration || 1) * 50}px`,
+                              zIndex: 15,
+                              minHeight: '50px'
+                            }}
+                          >
+                            <div className="flex items-center space-x-2 flex-1 min-w-0">
+                              <input
+                                type="checkbox"
+                                checked={completedTasks[taskKey] || false}
+                                onChange={(e) => handleTaskComplete(taskKey, e.target.checked)}
+                                className="w-3 h-3 rounded border-white"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className={`font-medium text-responsive-xs leading-tight ${completedTasks[taskKey] ? 'line-through' : ''}`}>
+                                  {scheduledTask.title}
+                                </div>
+                                <div className="text-xs opacity-75 mt-1">
+                                  {forceHour.toString().padStart(2, '0')}:00 - {(forceHour + (scheduledTask.duration || 1)).toString().padStart(2, '0')}:00
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              ))}
+           </div>
+           
+         </div>
         </div>
       </div>
     </div>
