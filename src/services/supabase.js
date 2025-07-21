@@ -236,8 +236,7 @@ export const supabase = (() => {
       },
       global: {
         headers: {
-          'X-Client-Info': 'simple-preview-app',
-          'Authorization': `Bearer ${localStorage.getItem('authToken') || supabaseAnonKey}`
+          'X-Client-Info': 'simple-preview-app'
         }
       },
       db: {
@@ -300,7 +299,7 @@ export const auth = {
   },
 
   // 現在のユーザー取得
-  getCurrentUser() {
+  getUser() {
     return supabase.auth.getUser()
   },
 

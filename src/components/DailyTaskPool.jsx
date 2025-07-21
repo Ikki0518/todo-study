@@ -54,8 +54,8 @@ export function DailyTaskPool({
     }
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg p-6 w-full max-w-md">
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]">
+        <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-2xl">
           <h3 className="text-lg font-semibold mb-4">タスクを追加</h3>
           <form onSubmit={handleSubmit}>
             <div className="space-y-4">
@@ -64,9 +64,10 @@ export function DailyTaskPool({
                 <input
                   name="title"
                   type="text"
-                  className="w-full p-2 border rounded-md"
+                  className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   required
                   placeholder="例：数学 - 微分の練習問題"
+                  autoFocus
                 />
               </div>
               <div>

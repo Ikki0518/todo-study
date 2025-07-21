@@ -22,9 +22,9 @@ class AuthService {
   // セッション復元のための軽量初期化
   async initializeSession() {
     try {
-      const { data: { user } } = await auth.getCurrentUser()
-      if (user) {
-        console.log('既存セッション復元:', user.email)
+      const { data: { user }, error } = await auth.getUser()
+      if (user && !error) {
+        console.log('既存セッション復元:', user.email, 'ID:', user.id)
         // 軽量なユーザー情報設定
         this.currentUser = {
           id: user.id,
@@ -32,10 +32,29 @@ class AuthService {
           name: user.user_metadata?.name || user.email.split('@')[0],
           role: user.user_metadata?.role || 'STUDENT'
         }
+        console.log('✅ 認証済みユーザーとして設定:', this.currentUser.id)
+      } else {
+        console.log('セッションなし - 匿名ユーザーとして継続')
+        // 匿名ユーザーとして設定
+        this.currentUser = {
+          id: 'student-ikki-001', // デフォルトユーザーID
+          email: 'anonymous@example.com',
+          name: 'Anonymous User',
+          role: 'STUDENT'
+        }
+        console.log('⚠️ 匿名ユーザーとして設定:', this.currentUser.id)
       }
       this.isInitialized = true
     } catch (error) {
       console.warn('セッション復元エラー:', error)
+      // エラーの場合も匿名ユーザーとして設定
+      this.currentUser = {
+        id: 'student-ikki-001',
+        email: 'anonymous@example.com',
+        name: 'Anonymous User',
+        role: 'STUDENT'
+      }
+      console.log('❌ エラー時匿名ユーザーとして設定:', this.currentUser.id)
       this.isInitialized = true
     }
   }
@@ -65,28 +84,37 @@ class AuthService {
       // プロフィールが存在しない場合は作成
       if (!profile) {
         console.log('プロフィールが存在しないため作成中...')
-        const { data: user } = await auth.getCurrentUser()
-        if (user?.user) {
-          const newProfile = {
-            email: user.user.email,
-            name: user.user.user_metadata?.name || user.user.email.split('@')[0],
-            role: user.user.user_metadata?.role || 'STUDENT',
-            created_at: new Date().toISOString()
-          }
-          
-          const { data: createdProfile, error: createError } = await database.upsertUserProfile(
-            user.user.id,
-            newProfile
-          )
-          
-          if (!createError) {
-            this.currentUser = createdProfile
-            console.log('新しいプロフィール作成成功:', createdProfile)
-            return { success: true, user: createdProfile }
+        try {
+          const { data: user, error: userError } = await auth.getUser()
+          if (user?.user && !userError) {
+            const newProfile = {
+              email: user.user.email,
+              name: user.user.user_metadata?.name || user.user.email.split('@')[0],
+              role: user.user.user_metadata?.role || 'STUDENT',
+              created_at: new Date().toISOString()
+            }
+            
+            const { data: createdProfile, error: createError } = await database.upsertUserProfile(
+              user.user.id,
+              newProfile
+            )
+            
+            if (!createError) {
+              this.currentUser = createdProfile
+              console.log('新しいプロフィール作成成功:', createdProfile)
+              return { success: true, user: createdProfile }
+            } else {
+              console.error('プロフィール作成エラー:', createError)
+              return { success: false, error: 'プロフィール作成に失敗しました' }
+            }
           } else {
-            console.error('プロフィール作成エラー:', createError)
-            return { success: false, error: 'プロフィール作成に失敗しました' }
+            console.log('認証ユーザーなし - 匿名ユーザーとして継続')
+            // 匿名ユーザーの場合はcurrentUserを使用
+            return { success: true, user: this.currentUser }
           }
+        } catch (authError) {
+          console.warn('認証エラー - 匿名ユーザーとして継続:', authError)
+          return { success: true, user: this.currentUser }
         }
       } else {
         this.currentUser = profile

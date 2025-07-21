@@ -630,7 +630,7 @@ function App() {
       // データ永続化のため、即座に実行
       loadUserData();
     }
-  }, [isLoggedIn, currentUser]);
+  }, [isLoggedIn]); // currentUserを依存関係から削除
 
 
   // タスクデータの軽量キャッシュ（パフォーマンス向上のため）

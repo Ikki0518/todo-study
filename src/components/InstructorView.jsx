@@ -68,7 +68,7 @@ const InstructorDashboard = () => {
   // コンポーネントマウント時にデータを読み込み
   useEffect(() => {
     loadData();
-  }, []);
+  }, []); // 初回マウント時のみ実行
 
   // データ再読み込み関数
   const refreshData = () => {

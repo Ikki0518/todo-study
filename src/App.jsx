@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { SunaLogo } from './components/SunaLogo';
 import { PersonalizeMode } from './components/PersonalizeMode';
 import { CompanionMode } from './components/CompanionMode';
@@ -275,40 +275,21 @@ function App() {
   const [showMobileTaskPopup, setShowMobileTaskPopup] = useState(false)
   const [selectedCellInfo, setSelectedCellInfo] = useState({ date: null, hour: null })
   
-  // 受験日から残り日数を計算する関数
-  const calculateDaysRemaining = (targetDate) => {
-    const today = new Date()
-    const target = new Date(targetDate)
-    today.setHours(0, 0, 0, 0)
-    target.setHours(0, 0, 0, 0)
-    const diffTime = target - today
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    return diffDays
-  }
-
-  // 最も近い受験日を取得する関数
-  const getNextExam = () => {
-    const futureExams = examDates.filter(exam => {
-      const days = calculateDaysRemaining(exam.date)
-      return days >= 0
-    })
-    
-    if (futureExams.length === 0) return null
-    
-    return futureExams.reduce((nearest, current) => {
-      const nearestDays = calculateDaysRemaining(nearest.date)
-      const currentDays = calculateDaysRemaining(current.date)
-      return currentDays < nearestDays ? current : nearest
-    })
-  }
-
+  // currentUserの参照を保持（無限ループ防止用）
+  const currentUserRef = useRef(currentUser);
+  
+  // currentUserが変更されたらrefを更新
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
+  
   // 受験日データをデータベースから読み込み
   useEffect(() => {
     const loadExamDatesFromDB = async () => {
-      if (currentUser && currentUser.id) {
+      if (currentUserRef.current && currentUserRef.current.id) {
         try {
-          console.log('📖 受験日データをデータベースから読み込み中:', currentUser.id);
-          const examDatesData = await taskService.loadExamDates(currentUser.id);
+          console.log('📖 受験日データをデータベースから読み込み中:', currentUserRef.current.id);
+          const examDatesData = await taskService.loadExamDates(currentUserRef.current.id);
           setExamDates(examDatesData);
           console.log('✅ 受験日データ読み込み完了:', examDatesData);
         } catch (error) {
@@ -329,14 +310,14 @@ function App() {
     };
 
     loadExamDatesFromDB();
-  }, [currentUser])
+  }, [currentUserRef]);
   // 受験日データが変更されたらデータベースに保存
   useEffect(() => {
     const saveExamDatesToDB = async () => {
-      if (currentUser && currentUser.id && examDates.length > 0) {
+      if (currentUserRef.current && currentUserRef.current.id && examDates.length > 0) {
         try {
-          console.log('💾 受験日データをデータベースに保存中:', { userId: currentUser.id, examCount: examDates.length });
-          await taskService.saveExamDates(currentUser.id, examDates);
+          console.log('💾 受験日データをデータベースに保存中:', { userId: currentUserRef.current.id, examCount: examDates.length });
+          await taskService.saveExamDates(currentUserRef.current.id, examDates);
           console.log('✅ 受験日データ保存完了');
           
           // バックアップとしてlocalStorageにも保存
@@ -351,17 +332,17 @@ function App() {
     };
 
     saveExamDatesToDB();
-  }, [examDates, currentUser]);
+  }, [examDates]); // currentUserRefを依存関係から削除
 
   // ユーザーがログインした時にすべてのデータを読み込み
   useEffect(() => {
     const loadAllUserData = async () => {
-      if (currentUser && currentUser.id) {
+      if (currentUserRef.current && currentUserRef.current.id) {
         try {
-          console.log('📖 ユーザーデータを読み込み開始:', currentUser.id);
+          console.log('📖 ユーザーデータを読み込み開始:', currentUserRef.current.id);
           
           // タスクデータを読み込み
-          const tasksData = await taskService.loadUserTasks(currentUser.id);
+          const tasksData = await taskService.loadUserTasks(currentUserRef.current.id);
           if (tasksData) {
             if (tasksData.todayTasks) setTodayTasks(tasksData.todayTasks);
             if (tasksData.scheduledTasks) setScheduledTasks(tasksData.scheduledTasks);
@@ -371,11 +352,18 @@ function App() {
             console.log('✅ タスクデータ読み込み完了');
           }
           
-          // 学習計画データを読み込み
-          const studyPlansData = await taskService.loadStudyPlans(currentUser.id);
-          if (studyPlansData && studyPlansData.length > 0) {
-            setStudyPlans(studyPlansData);
-            console.log('✅ 学習計画データ読み込み完了');
+          // 学習計画データを読み込み（エラー耐性強化）
+          try {
+            const studyPlansData = await taskService.loadStudyPlans(currentUserRef.current.id);
+            if (studyPlansData && studyPlansData.length > 0) {
+              setStudyPlans(studyPlansData);
+              console.log('✅ 学習計画データ読み込み完了');
+            } else {
+              console.log('ℹ️ 学習計画データなし - 空の状態で継続');
+            }
+          } catch (studyPlanError) {
+            console.warn('⚠️ 学習計画データ読み込みエラー（継続動作）:', studyPlanError.message);
+            // エラーが発生してもアプリは継続動作
           }
           
         } catch (error) {
@@ -385,12 +373,24 @@ function App() {
     };
 
     loadAllUserData();
-  }, [currentUser]);
+  }, []); // 初回マウント時のみ実行
 
   // データが変更されたらTaskServiceで保存
   useEffect(() => {
     const saveAllUserData = async () => {
-      if (currentUser && currentUser.id) {
+      // ユーザーIDの確認を強化
+      const userId = currentUserRef.current?.id || currentUserRef.current?.userId;
+      
+      console.log('🔍 保存処理開始:', {
+        hasCurrentUser: !!currentUserRef.current,
+        userId: userId,
+        todayTasksCount: todayTasks.length,
+        scheduledTasksCount: Object.keys(scheduledTasks).length,
+        dailyTaskPoolCount: dailyTaskPool.length,
+        goalsCount: goals.length
+      });
+      
+      if (currentUserRef.current && userId) {
         try {
           const tasksData = {
             todayTasks,
@@ -400,27 +400,29 @@ function App() {
             goals
           };
           
-          await taskService.saveUserTasks(currentUser.id, tasksData);
+          console.log('💾 データベースに保存中...', { userId, tasksData });
+          await taskService.saveUserTasks(userId, tasksData);
           console.log('✅ タスクデータ保存完了');
         } catch (error) {
           console.error('❌ タスクデータ保存失敗:', error);
         }
+      } else {
+        console.warn('⚠️ 保存スキップ - ユーザー情報なし:', { currentUser: currentUserRef.current, userId });
       }
     };
 
-    // データが空でない場合のみ保存
-    if (todayTasks.length > 0 || Object.keys(scheduledTasks).length > 0 ||
-        dailyTaskPool.length > 0 || goals.length > 0) {
+    // ユーザーがログインしている場合は常に保存を試行
+    if (currentUserRef.current) {
       saveAllUserData();
     }
-  }, [todayTasks, scheduledTasks, dailyTaskPool, completedTasks, goals, currentUser]);
+  }, [todayTasks, scheduledTasks, dailyTaskPool, completedTasks, goals]); // currentUserを依存関係から削除
 
   // 学習計画データの保存
   useEffect(() => {
     const saveStudyPlansData = async () => {
-      if (currentUser && currentUser.id && studyPlans && Object.keys(studyPlans).length > 0) {
+      if (currentUserRef.current && currentUserRef.current.id && studyPlans && Object.keys(studyPlans).length > 0) {
         try {
-          await taskService.saveStudyPlans(currentUser.id, studyPlans);
+          await taskService.saveStudyPlans(currentUserRef.current.id, studyPlans);
           console.log('✅ 学習計画データ保存完了');
         } catch (error) {
           console.error('❌ 学習計画データ保存失敗:', error);
@@ -429,7 +431,7 @@ function App() {
     };
 
     saveStudyPlansData();
-  }, [studyPlans, currentUser]);
+  }, [studyPlans]); // currentUserを依存関係から削除
 
   // 決済状態のチェック（セッションサービス統合版）
   useEffect(() => {
@@ -612,11 +614,11 @@ function App() {
 
   // ログイン状態を定期的に更新（セッション維持）
   useEffect(() => {
-    if (isLoggedIn && currentUser) {
+    if (isLoggedIn && currentUserRef.current) {
       const updateSessionActivity = () => {
         const timestamp = new Date().toISOString();
         const sessionData = {
-          user: currentUser,
+          user: currentUserRef.current,
           token: localStorage.getItem('authToken'),
           loginTime: localStorage.getItem('loginTime') || timestamp,
           lastActiveTime: timestamp
@@ -636,7 +638,7 @@ function App() {
       
       return () => clearInterval(interval);
     }
-  }, [isLoggedIn, currentUser])
+  }, [isLoggedIn]) // currentUserを依存関係から削除
 
   // ウィンドウサイズ変更の監視
   useEffect(() => {
@@ -1073,7 +1075,7 @@ function App() {
           dueDate: task.dueDate
         },
         timestamp: new Date().toISOString(),
-        userId: currentUser?.id
+        userId: currentUserRef.current?.id
       })
     }
     // スケジュール間での移動
@@ -1089,7 +1091,7 @@ function App() {
         from: oldKey,
         to: { date: dateKey, hour },
         timestamp: new Date().toISOString(),
-        userId: currentUser?.id
+        userId: currentUserRef.current?.id
       })
     }
     
@@ -1119,7 +1121,7 @@ function App() {
         taskId: draggingTaskId,
         scheduledDate: dateKey,
         scheduledHour: hour,
-        userId: currentUser?.id,
+        userId: currentUserRef.current?.id,
         timestamp: new Date().toISOString()
       })
     }
@@ -1329,7 +1331,7 @@ function App() {
   // 非同期でトークンの有効性を確認し、必要に応じて認証状態を更新
   useEffect(() => {
     const validateAuthToken = async () => {
-      if (isLoggedIn && currentUser) {
+      if (isLoggedIn && currentUserRef.current) {
         try {
           console.log('🔍 バックグラウンドでトークンの有効性を確認中...');
           const response = await apiService.getCurrentUser();
@@ -1362,10 +1364,10 @@ function App() {
     
     // タスク履歴をデータベースから読み込む
     const loadUserTasksFromDB = async () => {
-      if (currentUser && currentUser.id) {
+      if (currentUserRef.current && currentUserRef.current.id) {
         try {
-          console.log('📖 ユーザータスクデータをデータベースから読み込み中:', currentUser.id);
-          const tasksData = await taskService.loadUserTasks(currentUser.id);
+          console.log('📖 ユーザータスクデータをデータベースから読み込み中:', currentUserRef.current.id);
+          const tasksData = await taskService.loadUserTasks(currentUserRef.current.id);
           setAllTasksHistory(tasksData);
           console.log('✅ タスクデータ読み込み完了:', { tasksCount: Object.keys(tasksData).length });
         } catch (error) {
@@ -1390,21 +1392,26 @@ function App() {
     if (isLoggedIn) {
       validateAuthToken();
     }
-  }, [isLoggedIn, currentUser]);
+  }, [isLoggedIn]); // currentUserを依存関係から削除
 
   // タスクが更新されたらデータベースに保存
   useEffect(() => {
     const saveUserTasksToDB = async () => {
-      if (currentUser && currentUser.id && (todayTasks.length > 0 || Object.keys(scheduledTasks).length > 0)) {
+      if (currentUserRef.current && currentUserRef.current.id) {
         const today = new Date().toISOString().split('T')[0];
+        // 空の配列でも保存するように修正
         const updatedHistory = {
           ...allTasksHistory,
-          [today]: todayTasks
+          [today]: todayTasks || []  // nullの場合は空配列を使用
         };
         
         try {
-          console.log('💾 タスクデータをデータベースに保存中:', { userId: currentUser.id, tasksCount: Object.keys(updatedHistory).length });
-          await taskService.saveUserTasks(currentUser.id, updatedHistory);
+          console.log('💾 タスクデータをデータベースに保存中:', {
+            userId: currentUserRef.current.id,
+            tasksCount: Object.keys(updatedHistory).length,
+            todayTasksCount: (todayTasks || []).length
+          });
+          await taskService.saveUserTasks(currentUserRef.current.id, updatedHistory);
           setAllTasksHistory(updatedHistory);
           console.log('✅ タスクデータ保存完了');
           
@@ -1417,11 +1424,13 @@ function App() {
           localStorage.setItem('allTasksHistory', JSON.stringify(updatedHistory));
           console.log('📦 localStorageにフォールバック保存');
         }
+      } else {
+        console.log('⚠️ ユーザー情報がないため保存をスキップ');
       }
     };
 
     saveUserTasksToDB();
-  }, [todayTasks, scheduledTasks, currentUser, allTasksHistory]);
+  }, [todayTasks, scheduledTasks]); // allTasksHistoryを依存関係から削除して無限ループを防ぐ
 
 
 
@@ -1965,6 +1974,37 @@ function App() {
                     🔥 {currentStreak}日連続！
                   </span>
                   {(() => {
+                    // 日数計算関数
+                    const calculateDaysRemaining = (targetDate) => {
+                      const today = new Date()
+                      const target = new Date(targetDate)
+                      
+                      // 時刻を00:00:00に設定して正確な日数を計算
+                      today.setHours(0, 0, 0, 0)
+                      target.setHours(0, 0, 0, 0)
+                      
+                      const diffTime = target - today
+                      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+                      
+                      return diffDays
+                    }
+
+                    // 最も近い受験日を取得
+                    const getNextExam = () => {
+                      const futureExams = examDates.filter(exam => {
+                        const days = calculateDaysRemaining(exam.date)
+                        return days >= 0
+                      })
+                      
+                      if (futureExams.length === 0) return null
+                      
+                      return futureExams.reduce((nearest, current) => {
+                        const nearestDays = calculateDaysRemaining(nearest.date)
+                        const currentDays = calculateDaysRemaining(current.date)
+                        return currentDays < nearestDays ? current : nearest
+                      })
+                    }
+
                     const nextExam = getNextExam()
                     if (nextExam) {
                       const daysRemaining = calculateDaysRemaining(nextExam.date)

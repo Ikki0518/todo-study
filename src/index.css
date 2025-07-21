@@ -178,11 +178,83 @@ div[style*="zIndex: 9999"] * {
   /* グリッドセルの境界線を統一 */
   .calendar-grid {
     border-collapse: collapse;
+    border: 1px solid #e5e7eb !important;
+    background-color: white;
   }
   
   .calendar-cell {
-    border-right: 1px solid #e5e7eb;
-    border-bottom: 1px solid #e5e7eb;
+    border-right: 1px solid #e5e7eb !important;
+    border-bottom: 1px solid #e5e7eb !important;
+    border-left: 1px solid #e5e7eb !important;
+    border-top: 1px solid #e5e7eb !important;
+  }
+
+  /* 強制的な境界線スタイル */
+  .calendar-grid .calendar-cell,
+  .planner-content .calendar-grid .calendar-cell,
+  div[class*="calendar-cell"] {
+    border: 1px solid #d1d5db !important;
+    box-sizing: border-box !important;
+  }
+
+  /* 時間列の境界線も強化 */
+  .time-label {
+    border-right: 2px solid #d1d5db !important;
+    border-bottom: 1px solid #d1d5db !important;
+  }
+
+  /* テーブル構造用の強制境界線 */
+  .planner-content table {
+    border-collapse: collapse !important;
+    border: 2px solid #374151 !important;
+    width: 100% !important;
+  }
+
+  .planner-content table td {
+    border: 1px solid #374151 !important;
+    box-sizing: border-box !important;
+    padding: 4px !important;
+    vertical-align: top !important;
+    min-height: 50px !important;
+    height: 50px !important;
+  }
+
+  .planner-content table tr {
+    border-bottom: 1px solid #374151 !important;
+    min-height: 50px !important;
+    height: 50px !important;
+  }
+
+  /* 時間列の特別スタイル */
+  .planner-content .time-column {
+    border-right: 2px solid #374151 !important;
+    background-color: #f9fafb !important;
+    font-weight: 500 !important;
+    min-height: 50px !important;
+    height: 50px !important;
+  }
+
+  /* 22時以降のセルを強制的に統一 */
+  .planner-content table tbody tr:nth-child(n+23) td {
+    border: 1px solid #374151 !important;
+    min-height: 50px !important;
+    height: 50px !important;
+    background-color: white !important;
+    box-sizing: border-box !important;
+  }
+
+  /* calendar-cellクラスの強制適用 */
+  .planner-content .calendar-cell {
+    border: 1px solid #374151 !important;
+    min-height: 50px !important;
+    height: 50px !important;
+    box-sizing: border-box !important;
+  }
+
+  /* 全てのtd要素に対する最強の境界線指定 */
+  .planner-content table tbody tr td[class*="calendar-cell"] {
+    border: 1px solid #374151 !important;
+    border-collapse: separate !important;
   }
   
   /* 時間列の固定スタイル */

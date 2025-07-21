@@ -45,7 +45,7 @@ export const ImprovedDailyPlanner = ({
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
 
-  // 現在時刻を10秒ごとに更新（よりリアルタイムに）
+  // 現在時刻を1分ごとに更新（パフォーマンス最適化）
   useEffect(() => {
     const updateCurrentTime = () => {
       setCurrentTime(new Date())
@@ -54,8 +54,8 @@ export const ImprovedDailyPlanner = ({
     // 初回実行
     updateCurrentTime()
     
-    // 10秒ごとに更新
-    const interval = setInterval(updateCurrentTime, 10000)
+    // 1分ごとに更新（パフォーマンス最適化）
+    const interval = setInterval(updateCurrentTime, 60000)
     
     return () => clearInterval(interval)
   }, [])

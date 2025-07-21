@@ -45,7 +45,7 @@ export const ImprovedDailyPlanner = ({
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
 
-  // 現在時刻を1秒ごとに更新（最高精度）
+  // 現在時刻を1分ごとに更新（パフォーマンス最適化）
   useEffect(() => {
     const updateCurrentTime = () => {
       setCurrentTime(new Date())
@@ -54,8 +54,8 @@ export const ImprovedDailyPlanner = ({
     // 初回実行
     updateCurrentTime()
     
-    // 1秒ごとに更新（最高精度）
-    const interval = setInterval(updateCurrentTime, 1000)
+    // 1分ごとに更新（パフォーマンス最適化）
+    const interval = setInterval(updateCurrentTime, 60000)
     
     return () => clearInterval(interval)
   }, [])
@@ -323,7 +323,14 @@ export const ImprovedDailyPlanner = ({
                   zIndex: 1
                 }}
               >
-                <div className="calendar-cell p-2 text-center text-responsive-xs font-medium bg-gray-50"></div>
+                <div
+                  className="calendar-cell p-2 text-center text-responsive-xs font-medium bg-gray-50"
+                  style={{
+                    border: '1px solid #d1d5db',
+                    borderRight: '2px solid #d1d5db',
+                    boxSizing: 'border-box'
+                  }}
+                ></div>
                 {dates.map((date, index) => {
                   const isToday = date.toDateString() === new Date().toDateString()
                   const day = date.getDate()
@@ -332,6 +339,11 @@ export const ImprovedDailyPlanner = ({
                     <div
                       key={index}
                       className={`calendar-cell p-2 text-center ${isMobile ? 'mobile-grid-cell' : ''} ${isToday ? 'bg-blue-50' : 'bg-gray-50'}`}
+                      style={{
+                        border: '1px solid #d1d5db',
+                        borderLeft: isToday ? '2px solid #3b82f6' : '1px solid #d1d5db',
+                        boxSizing: 'border-box'
+                      }}
                     >
                       <div className="text-responsive-xs text-gray-500">
                         {dayNames[date.getDay()]}
@@ -347,30 +359,48 @@ export const ImprovedDailyPlanner = ({
           </div>
           
           {/* スクロール可能な時間グリッド */}
-          <div className="planner-body custom-scrollbar" style={{ position: 'relative', height: 'calc(100vh - 200px)', overflowY: 'scroll', overflowX: 'hidden', flex: '1 1 auto', maxHeight: 'none' }}>
-            <div className={`planner-content ${isMobile ? 'w-full' : 'min-w-[600px]'}`} style={{ height: '1200px', minHeight: '1200px', maxHeight: 'none', display: 'block' }}>
+          <div className="planner-body custom-scrollbar" style={{ position: 'relative', height: 'auto', minHeight: '400px', overflowY: 'scroll', overflowX: 'hidden', flex: '1 1 auto', maxHeight: 'calc(100vh - 200px)' }}>
+            <table
+              className={`planner-content ${isMobile ? 'w-full' : 'min-w-[600px]'}`}
+              style={{
+                height: '1250px',
+                minHeight: '1250px',
+                maxHeight: 'none',
+                borderCollapse: 'separate',
+                borderSpacing: '0',
+                width: '100%',
+                border: '2px solid #374151',
+                backgroundColor: 'white'
+              }}
+            >
+              <tbody>
               {[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24].map((hour) => {
                 // 本番環境対応: 明示的な25時間配列 - 絶対に切り捨てられない
                 console.log(`🕐 EXPLICIT HOUR RENDERING: ${hour} (${hour === 24 ? '24:00' : hour.toString().padStart(2, '0') + ':00'}) - HARDCODED ARRAY`)
                 return (
-                  <div
+                  <tr
                     key={hour}
-                    className="calendar-grid"
                     style={{
-                      display: 'grid !important',
-                      gridTemplateColumns: isMobile
-                        ? `60px repeat(3, 1fr)`
-                        : `60px repeat(7, 1fr)`,
-                      minHeight: '50px !important',
-                      height: '50px !important',
-                      flexShrink: '0 !important',
-                      visibility: 'visible !important',
-                      opacity: '1 !important'
+                      height: '50px',
+                      minHeight: '50px'
                     }}
                   >
-                    <div className="time-column h-[50px] p-2 text-right text-responsive-xs text-gray-500 touch-optimized">
+                    <td
+                      className="time-column p-2 text-right text-responsive-xs text-gray-500 touch-optimized"
+                      style={{
+                        height: '50px',
+                        minHeight: '50px',
+                        border: '2px solid #374151',
+                        borderRight: '3px solid #374151',
+                        borderBottom: '2px solid #374151',
+                        backgroundColor: '#f9fafb',
+                        width: '60px',
+                        minWidth: '60px',
+                        boxSizing: 'border-box'
+                      }}
+                    >
                       {hour === 24 ? '24:00' : hour.toString().padStart(2, '0') + ':00'}
-                    </div>
+                    </td>
                     {dates.map((date, dateIndex) => {
                       const dateKey = date.toISOString().split('T')[0]
                       const taskKey = `${dateKey}-${hour}`
@@ -430,12 +460,23 @@ export const ImprovedDailyPlanner = ({
                                            isTimeOverdue(`${hour}:00`, date, scheduledTask.duration || 1)
                       
                       return (
-                        <div
+                        <td
                           key={dateIndex}
-                          className={`calendar-cell relative p-1 h-[50px] touch-optimized ${isMobile ? 'mobile-grid-cell' : ''} ${
+                          className={`calendar-cell relative p-1 touch-optimized ${isMobile ? 'mobile-grid-cell' : ''} ${
                             isOccupied ? '' : 'hover:bg-gray-50'
                           } ${isToday ? 'bg-blue-25' : ''} ${isTaskOverdue ? 'bg-red-50' : ''}`}
-                          style={{ zIndex: 1 }}  // 日付セルを背景レイヤーに設定
+                          style={{
+                            height: '50px',
+                            minHeight: '50px',
+                            zIndex: 1,
+                            border: '2px solid #374151',
+                            borderLeft: isToday ? '3px solid #3b82f6' : '2px solid #374151',
+                            borderBottom: '2px solid #374151',
+                            borderTop: '2px solid #374151',
+                            borderRight: '2px solid #374151',
+                            boxSizing: 'border-box',
+                            backgroundColor: 'white'
+                          }}
                           onDragOver={!isOccupied ? handleDragOver : undefined}
                           onDrop={!isOccupied ? (e) => handleDrop(e, dateKey, hour) : undefined}
                           onTouchEnd={!isOccupied ? (e) => handleTouchEnd(e, dateKey, hour) : undefined}
@@ -580,87 +621,15 @@ export const ImprovedDailyPlanner = ({
                               </div>
                             </div>
                           )}
-                        </div>
+                        </td>
                       )
                     })}
-                  </div>
+                  </tr>
                 )
               })}
               
-              {/* 23:00の強制表示 - 本番環境対応 */}
-              {[23].map((forceHour) => (
-                <div
-                  key={`force-${forceHour}`}
-                  className="calendar-grid"
-                  style={{
-                    display: 'grid !important',
-                    gridTemplateColumns: isMobile
-                      ? `60px repeat(3, 1fr)`
-                      : `60px repeat(7, 1fr)`,
-                    minHeight: '50px !important',
-                    height: '50px !important',
-                    flexShrink: '0 !important',
-                    visibility: 'visible !important',
-                    opacity: '1 !important',
-                    backgroundColor: '#f8f9fa',
-                    borderBottom: '1px solid #e9ecef'
-                  }}
-                >
-                  <div className="time-column h-[50px] p-2 text-right text-responsive-xs text-gray-500 touch-optimized">
-                    {forceHour === 24 ? '24:00' : forceHour.toString().padStart(2, '0') + ':00'}
-                  </div>
-                  {dates.map((date, dateIndex) => {
-                    const dateKey = date.toISOString().split('T')[0]
-                    const taskKey = `${dateKey}-${forceHour}`
-                    const scheduledTask = scheduledTasks[taskKey]
-                    
-                    return (
-                      <div
-                        key={`${dateKey}-${forceHour}`}
-                        className="calendar-cell relative border-r border-gray-200 hover:bg-gray-50 cursor-pointer touch-optimized"
-                        style={{
-                          minHeight: '50px',
-                          height: '50px',
-                          zIndex: 1,
-                          display: 'block !important',
-                          visibility: 'visible !important'
-                        }}
-                        onClick={() => handleCellClick(forceHour, dateIndex)}
-                      >
-                        {scheduledTask && (
-                          <div
-                            className={`scheduled-task absolute inset-0 p-1 rounded text-white text-xs flex items-center justify-between ${getTaskColor(scheduledTask.priority)} cursor-move touch-optimized`}
-                            style={{
-                              height: `${(scheduledTask.duration || 1) * 50}px`,
-                              zIndex: 15,
-                              minHeight: '50px'
-                            }}
-                          >
-                            <div className="flex items-center space-x-2 flex-1 min-w-0">
-                              <input
-                                type="checkbox"
-                                checked={completedTasks[taskKey] || false}
-                                onChange={(e) => handleTaskComplete(taskKey, e.target.checked)}
-                                className="w-3 h-3 rounded border-white"
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                              <div className="flex-1 min-w-0">
-                                <div className={`font-medium text-responsive-xs leading-tight ${completedTasks[taskKey] ? 'line-through' : ''}`}>
-                                  {scheduledTask.title}
-                                </div>
-                                <div className="text-xs opacity-75 mt-1">
-                                  {forceHour.toString().padStart(2, '0')}:00 - {(forceHour + (scheduledTask.duration || 1)).toString().padStart(2, '0')}:00
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              ))}
-           </div>
+             </tbody>
+           </table>
            
          </div>
         </div>
