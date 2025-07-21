@@ -1322,3 +1322,72 @@ div[style*="zIndex: 99999"] * {
     height: 50px !important;
   }
 }
+
+/* ===== 本番環境24時間表示強制設定 (CRITICAL) ===== */
+/* PRODUCTION ENVIRONMENT: Force 24-hour display (0:00-24:00) */
+.planner-content {
+  min-height: 1250px !important;
+  height: 1250px !important;
+  max-height: none !important;
+  overflow: visible !important;
+  contain: none !important;
+}
+
+.planner-body {
+  overflow-y: scroll !important;
+  max-height: none !important;
+  height: calc(100vh - 120px) !important;
+  contain: none !important;
+}
+
+/* Ensure all 25 hours (0:00-24:00) are visible - CRITICAL */
+.calendar-grid {
+  min-height: 50px !important;
+  height: 50px !important;
+  flex-shrink: 0 !important;
+  display: grid !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.time-column {
+  min-height: 50px !important;
+  height: 50px !important;
+  flex-shrink: 0 !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* VERCEL PRODUCTION OVERRIDE - Force 25 rows */
+@media (min-width: 1px) {
+  .planner-content {
+    height: 1250px !important;
+    min-height: 1250px !important;
+    max-height: none !important;
+  }
+  
+  /* Force display of hours 23:00 and 24:00 */
+  .planner-content > div:nth-child(24),
+  .planner-content > div:nth-child(25) {
+    display: grid !important;
+    min-height: 50px !important;
+    height: 50px !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    flex-shrink: 0 !important;
+  }
+  
+  /* Force all calendar grids to be visible */
+  .calendar-grid:nth-child(n+23) {
+    display: grid !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+}
+
+/* EMERGENCY OVERRIDE for production builds */
+.planner-content > * {
+  flex-shrink: 0 !important;
+  min-height: 50px !important;
+}

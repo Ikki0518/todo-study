@@ -347,23 +347,26 @@ export const ImprovedDailyPlanner = ({
           </div>
           
           {/* スクロール可能な時間グリッド */}
-          <div className="planner-body custom-scrollbar" style={{ position: 'relative', height: 'calc(100vh - 200px)', overflowY: 'scroll', overflowX: 'hidden', flex: '1 1 auto' }}>
-            <div className={`planner-content ${isMobile ? 'w-full' : 'min-w-[600px]'}`} style={{ height: '1250px', minHeight: '1250px', maxHeight: 'none', display: 'block' }}>
-              {[...Array(25)].map((_, hourIndex) => {
+          <div className="planner-body custom-scrollbar" style={{ position: 'relative', height: 'calc(100vh - 200px)', overflowY: 'scroll', overflowX: 'hidden', flex: '1 1 auto', maxHeight: 'none' }}>
+            <div className={`planner-content ${isMobile ? 'w-full' : 'min-w-[600px]'}`} style={{ height: '1250px !important', minHeight: '1250px !important', maxHeight: 'none !important', display: 'block' }}>
+              {Array.from({ length: 25 }, (_, hourIndex) => {
                 const hour = hourIndex
-                // 本番環境対応: 全時間のデバッグログ
-                console.log(`Rendering hour: ${hour} (${hour === 24 ? '24:00' : hour.toString().padStart(2, '0') + ':00'})`)
+                // 本番環境対応: 全時間のデバッグログ（強制表示）
+                console.log(`🕐 FORCE RENDERING HOUR: ${hour} (${hour === 24 ? '24:00' : hour.toString().padStart(2, '0') + ':00'}) - Array length: 25`)
                 return (
                   <div
                     key={hour}
                     className="calendar-grid"
                     style={{
-                      display: 'grid',
+                      display: 'grid !important',
                       gridTemplateColumns: isMobile
                         ? `60px repeat(3, 1fr)`
                         : `60px repeat(7, 1fr)`,
-                      minHeight: '50px',
-                      height: '50px'
+                      minHeight: '50px !important',
+                      height: '50px !important',
+                      flexShrink: '0 !important',
+                      visibility: 'visible !important',
+                      opacity: '1 !important'
                     }}
                   >
                     <div className="time-column h-[50px] p-2 text-right text-responsive-xs text-gray-500 touch-optimized">
