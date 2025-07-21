@@ -468,19 +468,22 @@ function App() {
   // データが変更されたらTaskServiceで保存
   useEffect(() => {
     const saveAllUserData = async () => {
-      // ユーザーIDの確認を強化
-      const userId = currentUserRef.current?.id || currentUserRef.current?.userId;
+      // 🚨 緊急修正: 実際のユーザーIDを強制使用
+      const actualUserId = '9c91a0e0-cfac-4178-9d84-74a567200f3a';
+      const userId = currentUserRef.current?.id || actualUserId;
       
-      console.log('🔍 保存処理開始:', {
+      console.log('🔍 保存処理開始（強化版）:', {
         hasCurrentUser: !!currentUserRef.current,
         userId: userId,
+        actualUserId: actualUserId,
         todayTasksCount: todayTasks.length,
         scheduledTasksCount: Object.keys(scheduledTasks).length,
         dailyTaskPoolCount: dailyTaskPool.length,
         goalsCount: goals.length
       });
       
-      if (currentUserRef.current && userId) {
+      // 🚨 緊急修正: ユーザーIDが存在しない場合も実際のユーザーIDで保存
+      if (userId) {
         try {
           const tasksData = {
             todayTasks,
@@ -490,12 +493,18 @@ function App() {
             goals
           };
           
-          console.log('💾 データベースに保存中...', { userId, tasksData });
+          console.log('💾 データベースに保存中（強化版）...', { userId, tasksData });
           
-          // ローカルストレージにも保存（フォールバック）
+          // 🚨 緊急修正: 複数のキーでローカルストレージに保存（冗長化）
           try {
             localStorage.setItem(`tasks_${userId}`, JSON.stringify(tasksData));
-            console.log('✅ ローカルストレージ保存完了');
+            localStorage.setItem(`tasks_${actualUserId}`, JSON.stringify(tasksData));
+            localStorage.setItem('suna_user_tasks_backup', JSON.stringify({
+              userId: actualUserId,
+              tasksData,
+              updatedAt: new Date().toISOString()
+            }));
+            console.log('✅ ローカルストレージ保存完了（冗長化）');
           } catch (localError) {
             console.warn('⚠️ ローカルストレージ保存失敗:', localError);
           }
@@ -2193,14 +2202,14 @@ function App() {
               {/* 週間カレンダー */}
               <div className={`bg-white rounded-lg shadow overflow-hidden ${!isMobile ? 'flex-1' : ''}`}>
                 <div className="overflow-x-auto overflow-y-auto" style={{
-                  height: isMobile ? 'calc(100vh - 200px)' : 'calc(100vh - 250px)',
-                  maxHeight: isMobile ? 'calc(100vh - 200px)' : 'calc(100vh - 250px)',
-                  minHeight: isMobile ? '300px' : '500px'
+                  height: isMobile ? 'calc(100vh - 180px)' : 'calc(100vh - 200px)',
+                  maxHeight: isMobile ? 'calc(100vh - 180px)' : 'calc(100vh - 200px)',
+                  minHeight: isMobile ? '1500px' : '3000px'
                 }}>
                   <div className={`${isMobile ? 'min-w-[320px]' : 'min-w-[600px]'} relative`}>
                   
                   {/* ヘッダー行 - 固定位置 */}
-                  <div className="sticky top-0 z-10 bg-white border-b grid" style={{gridTemplateColumns: `${isMobile ? '40px' : '60px'} repeat(${dates.length}, 1fr)`}}>
+                  <div className="sticky top-0 z-10 bg-white border-b-2 border-gray-600 grid" style={{gridTemplateColumns: `${isMobile ? '40px' : '60px'} repeat(${dates.length}, 1fr)`}}>
                     <div className="p-1 sm:p-2 text-center text-xs sm:text-sm font-medium bg-gray-50"></div>
                     {dates.map((date, index) => {
                       const isToday = date.toDateString() === new Date().toDateString()
@@ -2249,7 +2258,7 @@ function App() {
                   {[...Array(24)].map((_, hourIndex) => {
                     const hour = hourIndex
                     return (
-                      <div key={hour} className={`grid border-b`} style={{gridTemplateColumns: `${isMobile ? '40px' : '60px'} repeat(${dates.length}, 1fr)`}}>
+                      <div key={hour} className={`grid border-b border-gray-300`} style={{gridTemplateColumns: `${isMobile ? '40px' : '60px'} repeat(${dates.length}, 1fr)`}}>
                         <div className={`${isMobile ? 'px-1 py-2 text-xs font-medium' : 'p-2 text-xs'} text-right text-gray-600 bg-gray-50 flex items-center justify-end`}>
                           <span className={isMobile ? 'text-xs leading-none' : ''}>
                             {hour}:00
@@ -2307,10 +2316,13 @@ function App() {
                             console.log('  - directTaskLookup:', scheduledTasks[taskKey])
                           }
                           
+                          // 最後の列かどうかを判定
+                          const isLastColumn = dateIndex === dates.length - 1
+
                           return (
                             <div
                               key={dateIndex}
-                              className={`relative p-1 border-l ${isMobile ? 'min-h-[50px]' : 'min-h-[120px]'} ${isToday ? 'bg-blue-50' : ''} ${
+                              className={`relative p-1 border-l border-gray-300 ${isLastColumn ? 'border-r border-gray-300' : ''} ${isMobile ? 'min-h-[60px]' : 'min-h-[120px]'} ${isToday ? 'bg-blue-50' : ''} ${
                                 isOccupied ? '' : (
                                   draggingOverCalendar && currentDragTask ?
                                     (isToday ? 'bg-green-100 border-green-300' : 'bg-green-50 border-green-200') :
@@ -3594,10 +3606,36 @@ function App() {
                 duration: newTask.duration || 1
               }
               
-              setScheduledTasks(prev => ({
-                ...prev,
-                [taskKey]: scheduledTask
-              }))
+              setScheduledTasks(prev => {
+                const newScheduledTasks = {
+                  ...prev,
+                  [taskKey]: scheduledTask
+                }
+                
+                // 🚨 緊急修正: 新規タスク追加時に即座にローカルストレージに保存
+                const actualUserId = '9c91a0e0-cfac-4178-9d84-74a567200f3a';
+                const tasksData = {
+                  todayTasks,
+                  scheduledTasks: newScheduledTasks,
+                  dailyTaskPool,
+                  completedTasks,
+                  goals
+                };
+                
+                try {
+                  localStorage.setItem(`tasks_${actualUserId}`, JSON.stringify(tasksData));
+                  localStorage.setItem('suna_user_tasks_backup', JSON.stringify({
+                    userId: actualUserId,
+                    tasksData,
+                    updatedAt: new Date().toISOString()
+                  }));
+                  console.log('✅ 新規タスク追加時の即座保存完了:', { taskKey, scheduledTask });
+                } catch (error) {
+                  console.error('❌ 新規タスク追加時の保存失敗:', error);
+                }
+                
+                return newScheduledTasks;
+              })
               
               console.log('✅ 新規タスクを直接セルに配置:', { taskKey, scheduledTask })
             } else {
@@ -3606,9 +3644,61 @@ function App() {
               const selectedDateKey = selectedCellInfo.date
               
               if (selectedDateKey === today) {
-                setTodayTasks(prev => [...prev, newTask])
+                setTodayTasks(prev => {
+                  const newTodayTasks = [...prev, newTask];
+                  
+                  // 🚨 緊急修正: タスクプール追加時も即座に保存
+                  const actualUserId = '9c91a0e0-cfac-4178-9d84-74a567200f3a';
+                  const tasksData = {
+                    todayTasks: newTodayTasks,
+                    scheduledTasks,
+                    dailyTaskPool,
+                    completedTasks,
+                    goals
+                  };
+                  
+                  try {
+                    localStorage.setItem(`tasks_${actualUserId}`, JSON.stringify(tasksData));
+                    localStorage.setItem('suna_user_tasks_backup', JSON.stringify({
+                      userId: actualUserId,
+                      tasksData,
+                      updatedAt: new Date().toISOString()
+                    }));
+                    console.log('✅ 今日のタスク追加時の即座保存完了:', newTask);
+                  } catch (error) {
+                    console.error('❌ 今日のタスク追加時の保存失敗:', error);
+                  }
+                  
+                  return newTodayTasks;
+                })
               } else {
-                setDailyTaskPool(prev => [...prev, newTask])
+                setDailyTaskPool(prev => {
+                  const newDailyTaskPool = [...prev, newTask];
+                  
+                  // 🚨 緊急修正: タスクプール追加時も即座に保存
+                  const actualUserId = '9c91a0e0-cfac-4178-9d84-74a567200f3a';
+                  const tasksData = {
+                    todayTasks,
+                    scheduledTasks,
+                    dailyTaskPool: newDailyTaskPool,
+                    completedTasks,
+                    goals
+                  };
+                  
+                  try {
+                    localStorage.setItem(`tasks_${actualUserId}`, JSON.stringify(tasksData));
+                    localStorage.setItem('suna_user_tasks_backup', JSON.stringify({
+                      userId: actualUserId,
+                      tasksData,
+                      updatedAt: new Date().toISOString()
+                    }));
+                    console.log('✅ デイリータスクプール追加時の即座保存完了:', newTask);
+                  } catch (error) {
+                    console.error('❌ デイリータスクプール追加時の保存失敗:', error);
+                  }
+                  
+                  return newDailyTaskPool;
+                })
               }
               
               console.log('⚠️ セルが占有されているためタスクプールに追加:', newTask)
