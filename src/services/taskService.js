@@ -116,6 +116,22 @@ export const taskService = {
         console.log('⚠️ サロゲート文字エラーを処理済み');
       }
       
+      // ローカルストレージにフォールバック保存
+      try {
+        const fallbackData = {
+          userId,
+          tasksData,
+          savedAt: new Date().toISOString(),
+          source: 'fallback_save',
+          error: error.message
+        };
+        localStorage.setItem(`tasks_fallback_${userId}`, JSON.stringify(fallbackData));
+        localStorage.setItem(`tasks_${userId}`, JSON.stringify(tasksData));
+        console.log('✅ フォールバック保存完了（ローカルストレージ）');
+      } catch (fallbackError) {
+        console.error('❌ フォールバック保存も失敗:', fallbackError);
+      }
+      
       throw error;
     }
   },
@@ -153,12 +169,60 @@ export const taskService = {
           handleJSONError(error, { userId });
         }
         
+        // データベース読み込み失敗時のフォールバック処理
+        console.warn('⚠️ データベース読み込み失敗、フォールバックを試行:', error);
+        
+        // 1. フォールバックデータから復元を試行
+        try {
+          const fallbackData = localStorage.getItem(`tasks_fallback_${sanitizedUserId}`);
+          if (fallbackData) {
+            const parsed = JSON.parse(fallbackData);
+            console.log('✅ フォールバックデータから復元:', parsed.tasksData);
+            return parsed.tasksData;
+          }
+        } catch (fallbackError) {
+          console.warn('⚠️ フォールバックデータ復元失敗:', fallbackError);
+        }
+        
+        // 2. 通常のローカルストレージから復元を試行
+        try {
+          const localData = localStorage.getItem(`tasks_${sanitizedUserId}`);
+          if (localData) {
+            const parsed = JSON.parse(localData);
+            console.log('✅ ローカルストレージから復元:', parsed);
+            return parsed;
+          }
+        } catch (localError) {
+          console.warn('⚠️ ローカルストレージ復元失敗:', localError);
+        }
+        
         // エラーが発生してもアプリは継続動作
-        console.log('⚠️ エラーを無視して空のデータを返します');
+        console.log('⚠️ 全てのフォールバック失敗、空のデータを返します');
         return {};
       }
 
       if (!data) {
+        console.log('ℹ️ データベースにタスクデータが見つかりません - フォールバック復元を試行');
+        
+        // データベースにデータがない場合もフォールバックを試行
+        try {
+          const fallbackData = localStorage.getItem(`tasks_fallback_${sanitizedUserId}`);
+          if (fallbackData) {
+            const parsed = JSON.parse(fallbackData);
+            console.log('✅ フォールバックデータから復元（データなし時）:', parsed.tasksData);
+            return parsed.tasksData;
+          }
+          
+          const localData = localStorage.getItem(`tasks_${sanitizedUserId}`);
+          if (localData) {
+            const parsed = JSON.parse(localData);
+            console.log('✅ ローカルストレージから復元（データなし時）:', parsed);
+            return parsed;
+          }
+        } catch (fallbackError) {
+          console.warn('⚠️ フォールバック復元失敗（データなし時）:', fallbackError);
+        }
+        
         // データが存在しない場合は空のオブジェクトを返す
         console.log('📝 新規ユーザー - 空のタスクデータを返します');
         return {};

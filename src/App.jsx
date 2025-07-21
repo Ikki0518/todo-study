@@ -2172,7 +2172,7 @@ function App() {
             </div>
 
             {/* PC版: タスクプールとカレンダーを横並びに配置 */}
-            <div className={`${!isMobile ? 'flex gap-4' : ''}`}>
+            <div className={`${!isMobile ? 'flex gap-4' : ''}`} style={{ minHeight: 'fit-content' }}>
               {/* PC版: 左側にタスクプール */}
               {!isMobile && (
                 <div className="bg-white rounded-lg shadow" style={{ width: '350px', minWidth: '350px' }}>
@@ -2202,11 +2202,12 @@ function App() {
               {/* 週間カレンダー */}
               <div className={`bg-white rounded-lg shadow overflow-hidden ${!isMobile ? 'flex-1' : ''}`}>
                 <div className="overflow-x-auto overflow-y-auto" style={{
-                  height: isMobile ? '2400px' : '3000px',
-                  maxHeight: 'none',
-                  minHeight: isMobile ? '2400px' : '3000px'
+                  minHeight: `${24 * (isMobile ? 30 : 35) + 50}px`, // 24時間 × 高さ + ヘッダー分
+                  height: `${24 * (isMobile ? 30 : 35) + 50}px`
                 }}>
-                  <div className={`${isMobile ? 'min-w-[320px]' : 'min-w-[600px]'} relative`}>
+                  <div className={`${isMobile ? 'min-w-[320px]' : 'min-w-[600px]'} relative`} style={{
+                    minHeight: `${24 * (isMobile ? 30 : 35)}px` // 24時間分の確実な高さ確保
+                  }}>
                   
                   {/* ヘッダー行 - 固定位置 */}
                   <div className="sticky top-0 z-10 bg-white border-b border-gray-300 grid" style={{gridTemplateColumns: `${isMobile ? '40px' : '60px'} repeat(${dates.length}, 1fr)`}}>
@@ -2258,7 +2259,11 @@ function App() {
                   {[...Array(24)].map((_, hourIndex) => {
                     const hour = hourIndex
                     return (
-                      <div key={hour} className={`grid border-b border-gray-300 ${hour === 23 ? 'border-b-2' : ''}`} style={{gridTemplateColumns: `${isMobile ? '40px' : '60px'} repeat(${dates.length}, 1fr)`}}>
+                      <div key={hour} className={`grid border-b border-gray-300 ${hour === 23 ? 'border-b-2' : ''}`} style={{
+                        gridTemplateColumns: `${isMobile ? '40px' : '60px'} repeat(${dates.length}, 1fr)`,
+                        minHeight: isMobile ? '100px' : '120px',
+                        height: isMobile ? '100px' : '120px'
+                      }}>
                         <div className={`${isMobile ? 'px-1 py-2 text-xs font-medium' : 'p-2 text-xs'} text-right text-gray-600 bg-gray-50 flex items-center justify-end`}>
                           <span className={isMobile ? 'text-xs leading-none' : ''}>
                             {hour}:00
