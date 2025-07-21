@@ -351,10 +351,8 @@ export const ImprovedDailyPlanner = ({
             <div className={`planner-content ${isMobile ? 'w-full' : 'min-w-[600px]'}`} style={{ height: '1250px', minHeight: '1250px', maxHeight: 'none', display: 'block' }}>
               {[...Array(25)].map((_, hourIndex) => {
                 const hour = hourIndex
-                // デバッグ用ログ
-                if (hour >= 22) {
-                  console.log(`Rendering hour: ${hour}`)
-                }
+                // 本番環境対応: 全時間のデバッグログ
+                console.log(`Rendering hour: ${hour} (${hour === 24 ? '24:00' : hour.toString().padStart(2, '0') + ':00'})`)
                 return (
                   <div
                     key={hour}
