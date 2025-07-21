@@ -547,8 +547,23 @@ export const LoginScreen = ({ onLogin, onRoleChange, onSignupClick }) => {
       }
     } catch (error) {
       console.error('ログインエラー:', error);
-      const errorMessage = error?.message || error?.toString() || 'ログイン処理中にエラーが発生しました';
-      setErrors({ general: String(errorMessage) });
+      let errorMessage = 'ログイン処理中にエラーが発生しました';
+      
+      if (error && typeof error === 'object') {
+        if (error.message && typeof error.message === 'string') {
+          errorMessage = error.message;
+        } else if (error.toString && typeof error.toString === 'function') {
+          try {
+            errorMessage = error.toString();
+          } catch (e) {
+            // toString()でエラーが発生した場合はデフォルトメッセージを使用
+          }
+        }
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+      
+      setErrors({ general: errorMessage });
     } finally {
       setIsLoading(false);
     }
