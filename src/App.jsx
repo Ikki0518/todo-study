@@ -369,17 +369,45 @@ function App() {
             console.log('✅ ユーザーIDを正しい値に更新:', actualUserId);
           }
           
-          // タスクデータを読み込み（ローカルストレージフォールバック付き）
+          // タスクデータを読み込み（ローカルストレージ優先戦略）
           let tasksData = null;
+          
+          // 1. まずローカルストレージから読み込み
           try {
-            tasksData = await taskService.loadUserTasks(actualUserId);
-          } catch (dbError) {
-            console.warn('⚠️ データベース読み込み失敗、ローカルストレージから復元:', dbError);
-            // ローカルストレージからフォールバック
             const localData = localStorage.getItem(`tasks_${actualUserId}`);
+            const backupData = localStorage.getItem('suna_user_tasks_backup');
+            const fallbackData = localStorage.getItem(`tasks_fallback_${actualUserId}`);
+            
             if (localData) {
               tasksData = JSON.parse(localData);
-              console.log('✅ ローカルストレージからデータ復元');
+              console.log('✅ ローカルストレージからデータ読み込み完了');
+            } else if (backupData) {
+              const backup = JSON.parse(backupData);
+              tasksData = backup.tasksData;
+              console.log('✅ バックアップデータから復元');
+            } else if (fallbackData) {
+              const fallback = JSON.parse(fallbackData);
+              tasksData = fallback.tasksData;
+              console.log('✅ フォールバックデータから復元');
+            }
+          } catch (localError) {
+            console.warn('⚠️ ローカルストレージ読み込み失敗:', localError);
+          }
+          
+          // 2. ローカルストレージにデータがない場合のみSupabaseから読み込み
+          if (!tasksData || Object.keys(tasksData).length === 0) {
+            try {
+              console.log('🔄 ローカルデータなし、Supabaseから読み込み試行...');
+              tasksData = await taskService.loadUserTasks(actualUserId);
+              
+              // Supabaseから読み込めた場合はローカルストレージに保存
+              if (tasksData && Object.keys(tasksData).length > 0) {
+                localStorage.setItem(`tasks_${actualUserId}`, JSON.stringify(tasksData));
+                console.log('✅ Supabaseからデータ読み込み完了、ローカルストレージに保存');
+              }
+            } catch (dbError) {
+              console.warn('⚠️ Supabaseデータベース読み込み失敗（ローカルデータなし）:', dbError.message);
+              tasksData = {}; // 空のデータで初期化
             }
           }
           
@@ -509,12 +537,19 @@ function App() {
             console.warn('⚠️ ローカルストレージ保存失敗:', localError);
           }
           
-          // データベースに保存
-          await taskService.saveUserTasks(userId, tasksData);
-          console.log('✅ タスクデータ保存完了');
+          // データベースに保存（バックグラウンドで実行、エラーは無視）
+          try {
+            await taskService.saveUserTasks(userId, tasksData);
+            console.log('✅ Supabaseデータベース保存完了');
+          } catch (dbError) {
+            console.warn('⚠️ Supabaseデータベース保存失敗（ローカルストレージは保持）:', dbError.message);
+            // データベース保存失敗してもアプリケーションは継続
+          }
+          
+          console.log('✅ タスクデータ保存完了（ローカルストレージ優先）');
         } catch (error) {
           console.error('❌ タスクデータ保存失敗:', error);
-          // データベース保存失敗時もローカルストレージは保持
+          // ローカルストレージ保存も失敗した場合のみエラー
         }
       } else {
         console.warn('⚠️ 保存スキップ - ユーザー情報なし:', { currentUser: currentUserRef.current, userId });
@@ -2202,11 +2237,11 @@ function App() {
               {/* 週間カレンダー */}
               <div className={`bg-white rounded-lg shadow overflow-hidden ${!isMobile ? 'flex-1' : ''}`}>
                 <div className="overflow-x-auto overflow-y-auto" style={{
-                  minHeight: `${24 * (isMobile ? 30 : 35) + 50}px`, // 24時間 × 高さ + ヘッダー分
-                  height: `${24 * (isMobile ? 30 : 35) + 50}px`
+                  minHeight: `${24 * (isMobile ? 100 : 120) + 50}px`, // 24時間 × 高さ + ヘッダー分
+                  height: `${24 * (isMobile ? 100 : 120) + 50}px`
                 }}>
                   <div className={`${isMobile ? 'min-w-[320px]' : 'min-w-[600px]'} relative`} style={{
-                    minHeight: `${24 * (isMobile ? 30 : 35)}px` // 24時間分の確実な高さ確保
+                    minHeight: `${24 * (isMobile ? 100 : 120)}px` // 24時間分の確実な高さ確保
                   }}>
                   
                   {/* ヘッダー行 - 固定位置 */}
