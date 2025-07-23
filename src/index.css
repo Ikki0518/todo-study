@@ -1,3 +1,10 @@
+/* ピクセルパーフェクト調整 - 全要素のサイズ計算を統一 */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -48,6 +55,49 @@
 .calendar-cell {
   position: relative;
   z-index: 1;
+}
+
+
+/* --- カレンダーレイアウト完全再設計（最終版） --- */
+
+/* --- スクロール用コンテナ --- */
+.calendar-scroll-container {
+  height: 100%; /* 親要素の高さいっぱいに広がる */
+  overflow-y: auto; /* 中身が溢れたら自動でスクロールバーを出す */
+}
+
+/* --- グリッド本体 --- */
+.calendar-grid {
+  display: grid;
+  /* 列の定義：時間軸は自動幅、残りの3日分は利用可能なスペースを3等分 */
+  grid-template-columns: auto repeat(3, 1fr);
+}
+
+/* --- 全てのセルに共通の基本スタイル --- */
+.time-label,
+.time-slot,
+.time-cell {
+  height: 50px; /* 全ての行の高さを50pxに統一 */
+  border-bottom: 1px solid #e0e0e0; /* 全てのセルに下の罫線を引く */
+  padding: 4px; /* 文字と線の間の余白 */
+  position: relative; /* タスクの絶対配置のため */
+}
+
+/* --- 時間軸のスタイル --- */
+.time-label {
+  text-align: right;
+  padding-right: 8px;
+  color: #666;
+}
+
+/* --- 日付セルのスタイル --- */
+.time-slot {
+  border-left: 1px solid #e0e0e0; /* 全ての日付セルに左の罫線を引く */
+}
+
+/* --- 「本日」のセルにだけ追加するスタイル --- */
+.is-today {
+  background-color: #eef2ff; /* 背景色を変えるだけ。罫線は変更しない！ */
 }
 
 .scheduled-task {
@@ -449,6 +499,78 @@ code {
 .overflow-y-auto::-webkit-scrollbar-thumb {
   background: #c1c1c1;
   border-radius: 3px;
+}
+
+/* モバイルカレンダーUI統合スタイル */
+.enhanced-cell {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s ease-in-out;
+  position: relative;
+}
+
+.enhanced-cell:hover {
+  background-color: #f8fafc !important;
+  border-color: #cbd5e1;
+}
+
+.enhanced-cell.is-today {
+  background-color: #eff6ff;
+  border-color: #3b82f6;
+}
+
+.enhanced-cell.drag-hover {
+  background-color: #dbeafe !important;
+  border-color: #3b82f6;
+  transform: scale(1.02);
+}
+
+/* 時間ラベルの改善 */
+.time-label {
+  background-color: #f8fafc !important;
+  border-right: 1px solid #e2e8f0 !important;
+  color: #6b7280;
+  font-weight: 500;
+  text-align: right;
+  padding-right: 8px;
+}
+
+/* カレンダーグリッドの改善 */
+.calendar-grid {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: #ffffff;
+}
+
+/* ヘッダーセルの改善 */
+.enhanced-header-cell {
+  background-color: #f8fafc !important;
+  border-bottom: 1px solid #e2e8f0;
+  border-right: 1px solid #e2e8f0;
+  padding: 12px;
+  text-align: center;
+}
+
+.enhanced-header-cell:last-child {
+  border-right: none;
+}
+
+.enhanced-header-cell.is-today {
+  background-color: #eff6ff !important;
+  border-color: #3b82f6;
+}
+
+/* タスクカードの改善 */
+.enhanced-cell .absolute {
+  border-radius: 6px;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.enhanced-cell .absolute:hover {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  transform: translateY(-1px);
 }
 
 .overflow-y-auto::-webkit-scrollbar-thumb:hover {

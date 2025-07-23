@@ -21,7 +21,9 @@ import FloatingActionButton from './components/FloatingActionButton';
 import { MobileTaskPopup } from './components/MobileTaskPopup';
 import { ExamDateSettings } from './components/ExamDateSettings';
 import { MobileWeeklyPlannerDemo } from './components/MobileWeeklyPlannerDemo';
+import MobileCalendarUI from './components/MobileCalendarUI';
 import TaskPoolManager from './components/TaskPoolManager';
+import ImprovedDailyPlanner from './components/ImprovedDailyPlanner';
 import { generateStudyPlan, convertPlansToTasks, calculateStudyPlanStats } from './utils/studyPlanGenerator';
 import apiService from './services/apiService';
 import sessionService from './services/sessionService';
@@ -75,7 +77,7 @@ function App() {
         isLoggedIn: false,
         userRole: null,
         currentUser: null,
-        currentView: 'goals'
+        currentView: 'weekly-planner'
       };
     }
     
@@ -93,7 +95,7 @@ function App() {
           isLoggedIn: false,
           userRole: null,
           currentUser: null,
-          currentView: 'goals'
+          currentView: 'weekly-planner'
         };
       }
       
@@ -106,7 +108,7 @@ function App() {
           isLoggedIn: false,
           userRole: null,
           currentUser: null,
-          currentView: 'goals'
+          currentView: 'weekly-planner'
         };
       }
       
@@ -115,7 +117,7 @@ function App() {
         isLoggedIn: true,
         userRole: userData.userRole || 'STUDENT',
         currentUser: userData,
-        currentView: userData.userRole === 'INSTRUCTOR' ? 'dashboard' : 'goals'
+        currentView: userData.userRole === 'INSTRUCTOR' ? 'dashboard' : 'weekly-planner'
       };
       
     } catch (parseError) {
@@ -127,7 +129,7 @@ function App() {
         isLoggedIn: false,
         userRole: null,
         currentUser: null,
-        currentView: 'goals'
+        currentView: 'weekly-planner'
       };
     }
   };
@@ -143,7 +145,7 @@ function App() {
         email: 'test@example.com',
         userRole: 'STUDENT'
       },
-      currentView: 'goals'
+      currentView: 'weekly-planner'
     } :
     initializeAuthSync();
   
@@ -353,34 +355,76 @@ function App() {
         try {
           console.log('📖 ユーザーデータを読み込み開始:', currentUserRef.current.id);
           
-          // 🚨 緊急修正: 古いユーザーIDのデータをクリア
-          const actualUserId = '9c91a0e0-cfac-4178-9d84-74a567200f3a';
-          if (currentUserRef.current.id !== actualUserId) {
-            console.log('🧹 古いユーザーIDデータをクリア:', currentUserRef.current.id);
-            // 古いローカルストレージデータを削除
-            localStorage.removeItem(`tasks_${currentUserRef.current.id}`);
-            localStorage.removeItem('suna_user_tasks');
-            localStorage.removeItem('suna_study_plans');
-            localStorage.removeItem('suna_exam_dates');
-            
-            // 正しいユーザーIDに更新
-            currentUserRef.current.id = actualUserId;
-            setCurrentUser(prev => ({ ...prev, id: actualUserId }));
-            console.log('✅ ユーザーIDを正しい値に更新:', actualUserId);
-          }
+          // ユーザーIDを取得（ログアウト時のデータ保持のため、IDの強制変更は行わない）
+          const actualUserId = currentUserRef.current.id;
+          console.log('📋 現在のユーザーID:', actualUserId);
           
           // タスクデータを読み込み（ローカルストレージ優先戦略）
           let tasksData = null;
           
-          // 1. まずローカルストレージから読み込み
+          // 1. まずローカルストレージから読み込み（永続化データを含む）
           try {
             const localData = localStorage.getItem(`tasks_${actualUserId}`);
             const backupData = localStorage.getItem('suna_user_tasks_backup');
             const fallbackData = localStorage.getItem(`tasks_fallback_${actualUserId}`);
+            const preservedData = localStorage.getItem('preserved_task_data');
+            const preservedBackup = localStorage.getItem('preserved_task_backup');
+            const userPreservedData = localStorage.getItem(`preserved_tasks_${actualUserId}`);
             
             if (localData) {
               tasksData = JSON.parse(localData);
               console.log('✅ ローカルストレージからデータ読み込み完了');
+            } else if (userPreservedData) {
+              // ユーザー固有の永続化データから復元（最優先）
+              const preserved = JSON.parse(userPreservedData);
+              tasksData = {
+                goals: preserved.goals || [],
+                todayTasks: preserved.todayTasks || [],
+                scheduledTasks: preserved.scheduledTasks || {},
+                completedTasks: preserved.completedTasks || {},
+                allTasksHistory: preserved.allTasksHistory || {},
+                studyBooks: preserved.studyBooks || [],
+                studyPlans: preserved.studyPlans || {},
+                dailyTaskPool: preserved.dailyTaskPool || []
+              };
+              console.log('✅ ユーザー固有永続化データから復元（ログアウト後のデータ保持）');
+              
+              // 復元後は通常のローカルストレージにも保存
+              localStorage.setItem(`tasks_${actualUserId}`, JSON.stringify(tasksData));
+            } else if (preservedData) {
+              // ログアウト時に保存された永続化データから復元
+              const preserved = JSON.parse(preservedData);
+              tasksData = {
+                goals: preserved.goals || [],
+                todayTasks: preserved.todayTasks || [],
+                scheduledTasks: preserved.scheduledTasks || {},
+                completedTasks: preserved.completedTasks || {},
+                allTasksHistory: preserved.allTasksHistory || {},
+                studyBooks: preserved.studyBooks || [],
+                studyPlans: preserved.studyPlans || {},
+                dailyTaskPool: preserved.dailyTaskPool || []
+              };
+              console.log('✅ 永続化データから復元（ログアウト後のデータ保持）');
+              
+              // 復元後は通常のローカルストレージにも保存
+              localStorage.setItem(`tasks_${actualUserId}`, JSON.stringify(tasksData));
+            } else if (preservedBackup) {
+              // バックアップの永続化データから復元
+              const preserved = JSON.parse(preservedBackup);
+              tasksData = {
+                goals: preserved.goals || [],
+                todayTasks: preserved.todayTasks || [],
+                scheduledTasks: preserved.scheduledTasks || {},
+                completedTasks: preserved.completedTasks || {},
+                allTasksHistory: preserved.allTasksHistory || {},
+                studyBooks: preserved.studyBooks || [],
+                studyPlans: preserved.studyPlans || {},
+                dailyTaskPool: preserved.dailyTaskPool || []
+              };
+              console.log('✅ 永続化バックアップデータから復元');
+              
+              // 復元後は通常のローカルストレージにも保存
+              localStorage.setItem(`tasks_${actualUserId}`, JSON.stringify(tasksData));
             } else if (backupData) {
               const backup = JSON.parse(backupData);
               tasksData = backup.tasksData;
@@ -412,11 +456,45 @@ function App() {
           }
           
           if (tasksData && Object.keys(tasksData).length > 0) {
-            if (tasksData.todayTasks) setTodayTasks(tasksData.todayTasks);
+            // 永続化データから復元された場合の処理
+            if (tasksData.todayTasks) {
+              setTodayTasks(tasksData.todayTasks);
+              console.log('✅ 今日のタスクを復元:', tasksData.todayTasks.length);
+            }
+            
+            if (tasksData.goals) {
+              setGoals(tasksData.goals);
+              console.log('✅ 目標を復元:', tasksData.goals.length);
+            }
+            
+            if (tasksData.dailyTaskPool) {
+              setDailyTaskPool(tasksData.dailyTaskPool);
+              console.log('✅ デイリータスクプールを復元:', tasksData.dailyTaskPool.length);
+            }
+            
+            if (tasksData.completedTasks) {
+              setCompletedTasks(tasksData.completedTasks);
+              console.log('✅ 完了タスクを復元:', Object.keys(tasksData.completedTasks).length);
+            }
+            
+            if (tasksData.studyBooks) {
+              setStudyBooks(tasksData.studyBooks);
+              console.log('✅ 学習書籍を復元:', tasksData.studyBooks.length);
+            }
+            
+            if (tasksData.studyPlans) {
+              setStudyPlans(tasksData.studyPlans);
+              console.log('✅ 学習計画を復元:', Object.keys(tasksData.studyPlans).length);
+            }
+            
+            if (tasksData.allTasksHistory) {
+              setAllTasksHistory(tasksData.allTasksHistory);
+              console.log('✅ タスク履歴を復元:', Object.keys(tasksData.allTasksHistory).length);
+            }
             
             // scheduledTasksの構造を変換：{date: {hour: task}} → {"date-hour": task}
             if (tasksData.scheduledTasks) {
-              console.log('🔍 既存のscheduledTasksを使用:', tasksData.scheduledTasks);
+              console.log('🔍 スケジュールタスクを復元:', tasksData.scheduledTasks);
               setScheduledTasks(tasksData.scheduledTasks);
             } else {
               // taskServiceから返されたデータを変換
@@ -424,7 +502,7 @@ function App() {
               const convertedScheduledTasks = {};
               Object.entries(tasksData).forEach(([dateKey, dayTasks]) => {
                 console.log(`🔍 処理中の日付: ${dateKey}`, dayTasks);
-                if (typeof dayTasks === 'object' && dayTasks !== null && !['todayTasks', 'dailyTaskPool', 'completedTasks', 'goals'].includes(dateKey)) {
+                if (typeof dayTasks === 'object' && dayTasks !== null && !['todayTasks', 'dailyTaskPool', 'completedTasks', 'goals', 'studyBooks', 'studyPlans', 'allTasksHistory'].includes(dateKey)) {
                   Object.entries(dayTasks).forEach(([hour, task]) => {
                     console.log(`🔍 時間: ${hour}, タスク:`, task);
                     if (task && typeof task === 'object' && task.id) {
@@ -462,9 +540,6 @@ function App() {
               });
             }
             
-            if (tasksData.dailyTaskPool) setDailyTaskPool(tasksData.dailyTaskPool);
-            if (tasksData.completedTasks) setCompletedTasks(tasksData.completedTasks);
-            if (tasksData.goals) setGoals(tasksData.goals);
             console.log('✅ タスクデータ読み込み完了:', { tasksCount: Object.keys(tasksData).length });
           } else {
             console.log('ℹ️ タスクデータなし - 新規ユーザー');
@@ -1914,9 +1989,9 @@ function App() {
           {userRole === 'STUDENT' ? (
             <div>
               <button
-                onClick={() => updateCurrentView('planner')}
+                onClick={() => updateCurrentView('weekly-planner')}
                 className={`w-full text-left px-4 py-2 rounded-md mb-2 ${
-                  currentView === 'planner' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100'
+                  currentView === 'weekly-planner' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100'
                 }`}
               >
                 📅 週間プランナー
@@ -2018,16 +2093,42 @@ function App() {
             <button
               onClick={async () => {
                 try {
+                  console.log('🔄 ログアウト処理開始 - タスクデータを保持');
+                  
+                  // ログアウト前にタスクデータを永続化ストレージに保存
+                  const taskDataToPreserve = {
+                    goals,
+                    todayTasks,
+                    scheduledTasks,
+                    completedTasks,
+                    allTasksHistory,
+                    studyBooks,
+                    studyPlans,
+                    dailyTaskPool,
+                    timestamp: new Date().toISOString(),
+                    userId: currentUser?.id || 'unknown'
+                  };
+                  
+                  // 永続化ストレージに保存（ログアウト後も保持）
+                  localStorage.setItem('preserved_task_data', JSON.stringify(taskDataToPreserve));
+                  localStorage.setItem('preserved_task_backup', JSON.stringify(taskDataToPreserve));
+                  
+                  // ユーザー固有のキーでも保存（冗長化）
+                  if (currentUser?.id) {
+                    localStorage.setItem(`preserved_tasks_${currentUser.id}`, JSON.stringify(taskDataToPreserve));
+                  }
+                  
+                  console.log('💾 タスクデータを永続化ストレージに保存完了');
+                  
                   // APIでログアウト
                   await apiService.logout();
                   
                   // セッションサービスでセッションをクリア
                   sessionService.clearSession();
                   
-                  // ローカルデータをクリア
+                  // 認証関連データのみクリア（タスクデータは保持）
                   localStorage.removeItem('currentUser')
                   localStorage.removeItem('authToken')
-                  localStorage.removeItem('allTasksHistory')
                   localStorage.removeItem('paymentStatus')
                   localStorage.removeItem('isPaid')
                   localStorage.removeItem('selectedPlan')
@@ -2039,19 +2140,20 @@ function App() {
                   // セッションストレージもクリア
                   sessionStorage.clear();
                   
-                  // 状態をリセット
+                  // 状態をリセット（タスクデータは保持）
                   setIsLoggedIn(false)
                   setCurrentUser(null)
                   setUserRole('STUDENT')
                   updateCurrentView('goals')
-                  setGoals([])
-                  setTodayTasks([])
-                  setScheduledTasks({})
-                  setCompletedTasks({})
-                  setStudyBooks([])
-                  setStudyPlans({})
-                  setDailyTaskPool([])
-                  setAllTasksHistory({})
+                  // タスクデータは保持するためクリアしない
+                  // setGoals([])
+                  // setTodayTasks([])
+                  // setScheduledTasks({})
+                  // setCompletedTasks({})
+                  // setAllTasksHistory({})
+                  // setStudyBooks([])
+                  // setStudyPlans({})
+                  // setDailyTaskPool([])
                   setUserKnowledge(null)
                   setHasValidSubscription(false)
                   setShowPricing(false)
@@ -2059,12 +2161,33 @@ function App() {
                   setShowLoginScreen(false)
                   setShowSignupScreen(false)
                   
-                  console.log('✅ ログアウト完了');
+                  console.log('✅ ログアウト完了 - タスクデータは保持されました');
                   
                   // 強制的にコンポーネントを再レンダリング
                   // ページリロードではなく状態リセットでSystemOverview画面を表示
                 } catch (error) {
                   console.error('Logout error:', error);
+                  
+                  // エラー時でもタスクデータを保存
+                  try {
+                    const taskDataToPreserve = {
+                      goals,
+                      todayTasks,
+                      scheduledTasks,
+                      completedTasks,
+                      allTasksHistory,
+                      studyBooks,
+                      studyPlans,
+                      dailyTaskPool,
+                      timestamp: new Date().toISOString()
+                    };
+                    localStorage.setItem('preserved_task_data', JSON.stringify(taskDataToPreserve));
+                    localStorage.setItem('preserved_task_backup', JSON.stringify(taskDataToPreserve));
+                    console.log('💾 エラー時でもタスクデータを保存完了');
+                  } catch (saveError) {
+                    console.error('タスクデータ保存エラー:', saveError);
+                  }
+                  
                   // エラーが発生してもログアウトを継続
                   sessionService.clearSession();
                   sessionStorage.clear();
@@ -2077,7 +2200,7 @@ function App() {
                   setShowSignupScreen(false)
                   
                   // エラーが発生してもSystemOverview画面を表示
-                  console.log('✅ エラー時ログアウト完了');
+                  console.log('✅ エラー時ログアウト完了 - タスクデータは保持されました');
                 }
               }}
               className="p-2 rounded-lg text-gray-600 hover:bg-red-50 hover:text-red-600 transition-colors"
@@ -2108,6 +2231,64 @@ function App() {
         </div>
 
         <div className="p-4 lg:p-6 h-full">
+          {userRole === 'STUDENT' && currentView === 'weekly-planner' && (
+            <div className="h-full">
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-6">週間プランナー</h1>
+              <ImprovedDailyPlanner
+                currentStreak={currentStreak}
+                todayString={new Date().toLocaleDateString('ja-JP', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                  weekday: 'long'
+                })}
+                weekOffset={weekOffset}
+                setWeekOffset={setWeekOffset}
+                dailyTaskPool={dailyTaskPool}
+                todayTasks={todayTasks}
+                setDailyTaskPool={setDailyTaskPool}
+                setTodayTasks={setTodayTasks}
+                handleTaskDragStart={handleDragStart}
+                selectedDate={selectedDate}
+                scheduledTasks={scheduledTasks}
+                setScheduledTasks={setScheduledTasks}
+                completedTasks={completedTasks}
+                handleDragOver={handleDragOver}
+                handleDrop={handleDrop}
+                handleTaskClick={handleTaskClick}
+                toggleTaskComplete={(taskId, location) => {
+                  const newCompletedTasks = { ...completedTasks };
+                  newCompletedTasks[location] = !newCompletedTasks[location];
+                  setCompletedTasks(newCompletedTasks);
+                }}
+                getPriorityColor={(priority) => {
+                  switch (priority) {
+                    case 'high': return '#dc2626';
+                    case 'medium': return '#f59e0b';
+                    case 'low': return '#10b981';
+                    default: return '#6b7280';
+                  }
+                }}
+                handleDragStart={handleDragStart}
+                handleTouchStart={(e, task) => {
+                  // タッチ開始処理
+                  console.log('Touch start:', task);
+                }}
+                handleTouchMove={(e) => {
+                  // タッチ移動処理
+                  e.preventDefault();
+                }}
+                handleTouchEnd={(e, dateKey, hour) => {
+                  // タッチ終了処理
+                  console.log('Touch end:', dateKey, hour);
+                }}
+                isDragging={draggingTaskId !== null}
+                draggedTask={currentDragTask}
+                studyPlans={studyPlans}
+                convertPlansToTasks={convertPlansToTasks}
+              />
+            </div>
+          )}
           {userRole === 'STUDENT' && currentView === 'planner' && (
           <div>
             <div className="mb-6">
@@ -2235,76 +2416,42 @@ function App() {
               )}
               
               {/* 週間カレンダー */}
-              <div className={`bg-white rounded-lg shadow overflow-hidden ${!isMobile ? 'flex-1' : ''}`}>
-                <div className="overflow-x-auto overflow-y-auto" style={{
-                  minHeight: `${24 * (isMobile ? 100 : 120) + 50}px`, // 24時間 × 高さ + ヘッダー分
-                  height: `${24 * (isMobile ? 100 : 120) + 50}px`
-                }}>
-                  <div className={`${isMobile ? 'min-w-[320px]' : 'min-w-[600px]'} relative`} style={{
-                    minHeight: `${24 * (isMobile ? 100 : 120)}px` // 24時間分の確実な高さ確保
-                  }}>
-                  
-                  {/* ヘッダー行 - 固定位置 */}
-                  <div className="sticky top-0 z-10 bg-white border-b border-gray-300 grid" style={{gridTemplateColumns: `${isMobile ? '40px' : '60px'} repeat(${dates.length}, 1fr)`}}>
-                    <div className="p-1 sm:p-2 text-center text-xs sm:text-sm font-medium bg-gray-50"></div>
+              <div className={`bg-white rounded-lg shadow overflow-hidden ${!isMobile ? 'flex-1' : ''}`} style={{
+                height: '80vh' // ビューポート単位でレスポンシブ高さ - 画面の80%を使用
+              }}>
+                <div className="calendar-scroll-container">
+                  <div className="calendar-grid">
+                    
+                    {/* ヘッダー行 */}
+                    <div className="time-label bg-gray-50"></div>
                     {dates.map((date, index) => {
                       const isToday = date.toDateString() === new Date().toDateString()
                       const day = date.getDate()
                       return (
                         <div
                           key={index}
-                          className={`p-1 sm:p-2 text-center border-l border-gray-300 ${isToday ? 'bg-blue-50' : 'bg-gray-50'}`}
+                          className={`time-slot enhanced-header-cell ${isToday ? 'is-today' : ''}`}
                         >
-                          <div className="text-xs text-gray-500">
+                          <div className="text-xs text-gray-600 font-medium">
                             {dayNames[date.getDay()]}
                           </div>
-                          <div className={`text-sm sm:text-lg font-semibold ${isToday ? 'text-blue-700' : ''}`}>
+                          <div className={`text-sm sm:text-lg font-semibold ${isToday ? 'text-blue-700' : 'text-gray-900'}`}>
                             {day}
                           </div>
                         </div>
                       )
                     })}
-                  </div>
                   
-                  {/* 現在時刻インジケーター - 常に表示 */}
-                  <div
-                    className="absolute left-0 right-0 pointer-events-none z-30"
-                    style={{
-                      top: `${getCurrentTimePosition()}px`,
-                      height: '3px'
-                    }}
-                  >
-                    {/* 現在時刻表示バー - 全幅に渡って表示 */}
-                    <div className="relative w-full h-full">
-                      {/* 左側の時刻表示 */}
-                      <div className="absolute -left-2 -top-4 bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded shadow-lg border border-white z-40">
-                        {getCurrentTimeString()}
-                      </div>
-                      
-                      {/* 現在時刻の青い線 - 全幅 */}
-                      <div className="absolute inset-0 bg-blue-500 shadow-lg">
-                        {/* 左端のドット */}
-                        <div className="absolute -left-1 -top-1 w-2 h-2 bg-blue-500 rounded-full border border-white"></div>
-                        {/* 右端のドット */}
-                        <div className="absolute -right-1 -top-1 w-2 h-2 bg-blue-500 rounded-full border border-white"></div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {[...Array(24)].map((_, hourIndex) => {
-                    const hour = hourIndex
-                    return (
-                      <div key={hour} className={`grid border-b border-gray-300 ${hour === 23 ? 'border-b-2' : ''}`} style={{
-                        gridTemplateColumns: `${isMobile ? '40px' : '60px'} repeat(${dates.length}, 1fr)`,
-                        minHeight: isMobile ? '100px' : '120px',
-                        height: isMobile ? '100px' : '120px'
-                      }}>
-                        <div className={`${isMobile ? 'px-1 py-2 text-xs font-medium' : 'p-2 text-xs'} text-right text-gray-600 bg-gray-50 flex items-center justify-end`}>
-                          <span className={isMobile ? 'text-xs leading-none' : ''}>
-                            {hour}:00
-                          </span>
-                        </div>
-                        {dates.map((date, dateIndex) => {
+                    {/* 時間スロット - 新しいシンプル構造 */}
+                    {[...Array(24)].map((_, hourIndex) => {
+                      const hour = hourIndex
+                      return [
+                        // 時間ラベル
+                        <div key={`label-${hour}`} className="time-label">
+                          {hour}:00
+                        </div>,
+                        // 3日分のセル
+                        ...dates.map((date, dateIndex) => {
                           const dateKey = date.toISOString().split('T')[0]
                           const taskKey = `${dateKey}-${hour}`
                           const scheduledTask = scheduledTasks[taskKey]
@@ -2365,15 +2512,13 @@ function App() {
                           return (
                             <div
                               key={dateIndex}
-                              className={`relative p-1 border-l border-gray-300 ${isLastColumn ? 'border-r border-gray-300' : ''} ${isMobile ? 'min-h-[60px]' : 'min-h-[120px]'} ${isToday ? 'bg-blue-50' : ''} ${
+                              className={`time-cell enhanced-cell ${isToday ? 'is-today' : ''} ${isLastColumn ? 'border-r border-gray-200' : ''} ${
                                 isOccupied ? '' : (
                                   draggingOverCalendar && currentDragTask ?
-                                    (isToday ? 'bg-green-100 border-green-300' : 'bg-green-50 border-green-200') :
-                                    (isToday ? 'hover:bg-blue-100' : 'hover:bg-gray-50')
+                                    'drag-hover' :
+                                    'hover:bg-blue-50'
                                 )
-                              } ${isMobile && !isOccupied ? 'cursor-pointer' : ''} ${
-                                draggingOverCalendar && currentDragTask && !isOccupied ? 'transition-all duration-200 border-2 border-dashed' : 'border-solid'
-                              }`}
+                              } ${isMobile && !isOccupied ? 'cursor-pointer' : ''}`}
                               data-cell-info={JSON.stringify({ dateKey, hour })}
                               onDragOver={!isMobile && !isOccupied ? handleDragOver : undefined}
                               onDragLeave={!isMobile && !isOccupied ? handleDragLeave : undefined}
@@ -2854,10 +2999,9 @@ function App() {
                               )}
                             </div>
                           )
-                        })}
-                      </div>
-                    )
-                  })}
+                        })
+                      ]
+                    })}
                   </div>
                 </div>
               </div>
@@ -3665,14 +3809,29 @@ function App() {
                   goals
                 };
                 
-                // Supabaseデータベースに非同期保存
+                // Supabaseデータベースに非同期保存（Overloadedエラー対応）
                 taskService.saveUserTasks(actualUserId, tasksData)
                   .then(() => {
                     console.log('✅ 新規タスク追加時のSupabaseデータベース保存完了:', { taskKey, scheduledTask });
                   })
                   .catch(error => {
-                    console.error('❌ 🚨 サーバーへのタスク保存リクエストが失敗しました');
-                    console.error('❌ 新規タスク追加時のSupabaseデータベース保存失敗:', error);
+                    // Overloadedエラーの判定
+                    const isOverloaded = error.message && (
+                      error.message.includes('Overloaded') ||
+                      error.message.includes('overloaded') ||
+                      error.message.includes('rate limit') ||
+                      error.message.includes('too many requests')
+                    );
+                    
+                    if (isOverloaded) {
+                      console.log('🔄 Overloadedエラー検出、フォールバック処理を実行');
+                      // ユーザーに通知
+                      alert('サーバーが一時的に混雑しています。データはローカルに保存されました。');
+                    } else {
+                      console.error('❌ 🚨 サーバーへのタスク保存リクエストが失敗しました');
+                      console.error('❌ 新規タスク追加時のSupabaseデータベース保存失敗:', error);
+                    }
+                    
                     console.error('❌ エラーの詳細情報:', {
                       name: error.name,
                       message: error.message,
@@ -3720,14 +3879,29 @@ function App() {
                     goals
                   };
                   
-                  // Supabaseデータベースに非同期保存
+                  // Supabaseデータベースに非同期保存（Overloadedエラー対応）
                   taskService.saveUserTasks(actualUserId, tasksData)
                     .then(() => {
                       console.log('✅ 今日のタスク追加時のSupabaseデータベース保存完了:', newTask);
                     })
                     .catch(error => {
-                      console.error('❌ 🚨 サーバーへのタスク保存リクエストが失敗しました (今日のタスク)');
-                      console.error('❌ 今日のタスク追加時のSupabaseデータベース保存失敗:', error);
+                      // Overloadedエラーの判定
+                      const isOverloaded = error.message && (
+                        error.message.includes('Overloaded') ||
+                        error.message.includes('overloaded') ||
+                        error.message.includes('rate limit') ||
+                        error.message.includes('too many requests')
+                      );
+                      
+                      if (isOverloaded) {
+                        console.log('🔄 Overloadedエラー検出、フォールバック処理を実行');
+                        // ユーザーに通知
+                        alert('サーバーが一時的に混雑しています。データはローカルに保存されました。');
+                      } else {
+                        console.error('❌ 🚨 サーバーへのタスク保存リクエストが失敗しました (今日のタスク)');
+                        console.error('❌ 今日のタスク追加時のSupabaseデータベース保存失敗:', error);
+                      }
+                      
                       console.error('❌ エラーの詳細情報:', {
                         name: error.name,
                         message: error.message,
@@ -3767,14 +3941,29 @@ function App() {
                     goals
                   };
                   
-                  // Supabaseデータベースに非同期保存
+                  // Supabaseデータベースに非同期保存（Overloadedエラー対応）
                   taskService.saveUserTasks(actualUserId, tasksData)
                     .then(() => {
                       console.log('✅ デイリータスクプール追加時のSupabaseデータベース保存完了:', newTask);
                     })
                     .catch(error => {
-                      console.error('❌ 🚨 サーバーへのタスク保存リクエストが失敗しました (デイリータスクプール)');
-                      console.error('❌ デイリータスクプール追加時のSupabaseデータベース保存失敗:', error);
+                      // Overloadedエラーの判定
+                      const isOverloaded = error.message && (
+                        error.message.includes('Overloaded') ||
+                        error.message.includes('overloaded') ||
+                        error.message.includes('rate limit') ||
+                        error.message.includes('too many requests')
+                      );
+                      
+                      if (isOverloaded) {
+                        console.log('🔄 Overloadedエラー検出、フォールバック処理を実行');
+                        // ユーザーに通知
+                        alert('サーバーが一時的に混雑しています。データはローカルに保存されました。');
+                      } else {
+                        console.error('❌ 🚨 サーバーへのタスク保存リクエストが失敗しました (デイリータスクプール)');
+                        console.error('❌ デイリータスクプール追加時のSupabaseデータベース保存失敗:', error);
+                      }
+                      
                       console.error('❌ エラーの詳細情報:', {
                         name: error.name,
                         message: error.message,

@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile Calendar UI Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #ffffff;
+            color: #374151;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .calendar-container {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            background-color: #ffffff;
+        }
+
+        /* ヘッダー */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background-color: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .menu-icon {
+            width: 24px;
+            height: 24px;
+            color: #374151;
+        }
+
+        .month-section {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .month-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .chevron-icon {
+            width: 20px;
+            height: 20px;
+            color: #6b7280;
+        }
+
+        .week-number {
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .search-icon {
+            width: 24px;
+            height: 24px;
+            color: #374151;
+        }
+
+        .today-badge {
+            width: 32px;
+            height: 32px;
+            background-color: #e5e7eb;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 500;
+            color: #374151;
+        }
+
+        /* タイムゾーン */
+        .timezone {
+            padding: 8px 16px;
+            font-size: 12px;
+            color: #6b7280;
+            background-color: #f8fafc;
+        }
+
+        /* 日付ヘッダー */
+        .date-header {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            background-color: #ffffff;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .date-cell {
+            padding: 12px;
+            text-align: center;
+        }
+
+        .day-name {
+            font-size: 12px;
+            color: #6b7280;
+            margin-bottom: 4px;
+        }
+
+        .date-number {
+            font-size: 14px;
+            font-weight: 500;
+            color: #374151;
+        }
+
+        .date-number.today {
+            background-color: #ef4444;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto;
+        }
+
+        /* All-day 行 */
+        .all-day-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            border-bottom: 1px solid #e2e8f0;
+            background-color: #ffffff;
+        }
+
+        .all-day-label {
+            padding: 12px;
+            font-size: 12px;
+            color: #6b7280;
+            border-right: 1px solid #e2e8f0;
+            background-color: #f8fafc;
+        }
+
+        .all-day-cell {
+            padding: 12px;
+            min-height: 40px;
+            border-right: 1px solid #e2e8f0;
+        }
+
+        .all-day-cell:last-child {
+            border-right: none;
+        }
+
+        /* タイムグリッド */
+        .time-grid {
+            flex: 1;
+            overflow: auto;
+            background-color: #ffffff;
+        }
+
+        .time-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .time-label {
+            padding: 12px;
+            font-size: 12px;
+            color: #6b7280;
+            border-right: 1px solid #e2e8f0;
+            background-color: #f8fafc;
+            text-align: right;
+            padding-right: 8px;
+        }
+
+        .time-cell {
+            padding: 4px;
+            min-height: 50px;
+            border-right: 1px solid #d1d5db;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            background-color: #ffffff;
+        }
+
+        .time-cell:hover {
+            background-color: #f8fafc;
+        }
+
+        .time-cell:last-child {
+            border-right: none;
+        }
+
+        /* フッター */
+        .footer {
+            background-color: #ffffff;
+            border-top: 1px solid #e2e8f0;
+            padding: 16px;
+        }
+
+        .no-meeting {
+            text-align: center;
+            color: #6b7280;
+            font-size: 14px;
+            margin-bottom: 16px;
+        }
+
+        /* フローティングアクションボタン */
+        .fab {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            width: 56px;
+            height: 56px;
+            background-color: #2563eb;
+            border: none;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .fab:hover {
+            background-color: #1d4ed8;
+        }
+
+        .plus-icon {
+            width: 24px;
+            height: 24px;
+            color: white;
+        }
+
+        /* アイコン用のSVG */
+        .icon {
+            display: inline-block;
+            vertical-align: middle;
+        }
+    </style>
+</head>
+<body>
+    <div class="calendar-container">
+        <!-- ヘッダー -->
+        <header class="header">
+            <!-- 左側：ハンバーガーメニューと月 -->
+            <div class="header-left">
+                <div class="menu-icon">☰</div>
+                <div class="month-section">
+                    <h1 class="month-title">July</h1>
+                    <div class="chevron-icon">▼</div>
+                </div>
+            </div>
+
+            <!-- 中央：週番号 -->
+            <div class="week-number">Week 29</div>
+
+            <!-- 右側：検索と今日の日付 -->
+            <div class="header-right">
+                <div class="search-icon">🔍</div>
+                <div class="today-badge">22</div>
+            </div>
+        </header>
+
+        <!-- タイムゾーン表示 -->
+        <div class="timezone">GMT+9</div>
+
+        <!-- 日付ヘッダー -->
+        <div class="date-header">
+            <!-- 空のセル（時間軸用） -->
+            <div class="date-cell"></div>
+            
+            <!-- 日付セル -->
+            <div class="date-cell">
+                <div class="day-name">Tue</div>
+                <div class="date-number">15</div>
+            </div>
+            <div class="date-cell">
+                <div class="day-name">Wed</div>
+                <div class="date-number today">16</div>
+            </div>
+            <div class="date-cell">
+                <div class="day-name">Thu</div>
+                <div class="date-number">17</div>
+            </div>
+        </div>
+
+        <!-- All-day 行 -->
+        <div class="all-day-row">
+            <div class="all-day-label">All-day</div>
+            <div class="all-day-cell"></div>
+            <div class="all-day-cell"></div>
+            <div class="all-day-cell"></div>
+        </div>
+
+        <!-- タイムグリッド -->
+        <div class="time-grid">
+            <div class="time-row">
+                <div class="time-label">01:00</div>
+                <div class="time-cell" onclick="handleCellClick('01:00', 0)"></div>
+                <div class="time-cell" onclick="handleCellClick('01:00', 1)"></div>
+                <div class="time-cell" onclick="handleCellClick('01:00', 2)"></div>
+            </div>
+            <div class="time-row">
+                <div class="time-label">02:00</div>
+                <div class="time-cell" onclick="handleCellClick('02:00', 0)"></div>
+                <div class="time-cell" onclick="handleCellClick('02:00', 1)"></div>
+                <div class="time-cell" onclick="handleCellClick('02:00', 2)"></div>
+            </div>
+            <div class="time-row">
+                <div class="time-label">03:00</div>
+                <div class="time-cell" onclick="handleCellClick('03:00', 0)"></div>
+                <div class="time-cell" onclick="handleCellClick('03:00', 1)"></div>
+                <div class="time-cell" onclick="handleCellClick('03:00', 2)"></div>
+            </div>
+            <div class="time-row">
+                <div class="time-label">04:00</div>
+                <div class="time-cell" onclick="handleCellClick('04:00', 0)"></div>
+                <div class="time-cell" onclick="handleCellClick('04:00', 1)"></div>
+                <div class="time-cell" onclick="handleCellClick('04:00', 2)"></div>
+            </div>
+            <div class="time-row">
+                <div class="time-label">05:00</div>
+                <div class="time-cell" onclick="handleCellClick('05:00', 0)"></div>
+                <div class="time-cell" onclick="handleCellClick('05:00', 1)"></div>
+                <div class="time-cell" onclick="handleCellClick('05:00', 2)"></div>
+            </div>
+            <div class="time-row">
+                <div class="time-label">06:00</div>
+                <div class="time-cell" onclick="handleCellClick('06:00', 0)"></div>
+                <div class="time-cell" onclick="handleCellClick('06:00', 1)"></div>
+                <div class="time-cell" onclick="handleCellClick('06:00', 2)"></div>
+            </div>
+        </div>
+
+        <!-- フッター -->
+        <footer class="footer">
+            <div class="no-meeting">No upcoming meeting</div>
+            
+            <!-- フローティングアクションボタン -->
+            <button class="fab" onclick="handleAddEvent()">
+                <div class="plus-icon">+</div>
+            </button>
+        </footer>
+    </div>
+
+    <script>
+        function handleCellClick(time, dateIndex) {
+            console.log(`Clicked on ${time} for date ${dateIndex}`);
+            alert(`セルクリック: ${time} - 日付 ${dateIndex}`);
+        }
+
+        function handleAddEvent() {
+            console.log('Add new event');
+            alert('新規イベントを追加');
+        }
+    </script>
+</body>
+</html>
