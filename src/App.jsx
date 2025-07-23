@@ -1085,9 +1085,9 @@ function App() {
       if (dayPlans && dayPlans.length > 0) {
         const tasks = convertPlansToTasks(dayPlans)
         
-        // 各タスクを適切な時間にスケジュール（9時から開始）
+        // 各タスクを適切な時間にスケジュール（12時から開始、3時間間隔）
         tasks.forEach((task, index) => {
-          const hour = 9 + (index * 2) // 2時間間隔でスケジュール
+          const hour = 12 + (index * 3) // 3時間間隔でスケジュール
           if (hour < 22) { // 22時までに制限
             const taskKey = `${dateKey}-${hour}`
             
@@ -1095,7 +1095,7 @@ function App() {
             if (!newScheduledTasks[taskKey]) {
               newScheduledTasks[taskKey] = {
                 ...task,
-                duration: 2, // 2時間のデフォルト期間
+                duration: 3, // 3時間のデフォルト期間
                 scheduledAt: new Date().toISOString()
               }
               totalScheduledTasks++
