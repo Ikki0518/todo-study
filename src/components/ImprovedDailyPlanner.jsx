@@ -1,16 +1,144 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import {
-  ChevronDown,
+import { 
+  ChevronDown, 
   Plus,
   Calendar,
   X,
   ChevronUp,
   ChevronLeft,
   ChevronRight,
-  Move,
-  GripVertical
+  Sparkles // Gemini API機能用のアイコン
 } from 'lucide-react';
-import { DailyTaskPool } from './DailyTaskPool';
+
+// === ★★★ タイムゾーン問題を解決するためのヘルパー関数です ★★★ ===
+const toYYYYMMDD = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+// === ★★★ Gemini API 機能を追加した DailyTaskPool コンポーネントです ★★★ ===
+const DailyTaskPool = ({
+  dailyTasks = [],
+  overdueTasks = [],
+  onTaskDragStart,
+  draggingTaskId,
+  onTasksUpdate // タスクリストを更新するための関数
+}) => {
+  const [breakingDownTaskId, setBreakingDownTaskId] = useState(null);
+
+  const handleBreakdownTask = async (taskToBreakdown) => {
+    setBreakingDownTaskId(taskToBreakdown.id);
+    try {
+      const prompt = `以下のタスクを、実行可能な具体的なサブタスクに分割してください： 「${taskToBreakdown.title}」。結果は「subtasks」というキーを持つJSONオブジェクトで、値はサブタスク名の文字列の配列にしてください。`;
+      
+      const chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
+      const payload = {
+        contents: chatHistory,
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "OBJECT",
+            properties: {
+              "subtasks": {
+                "type": "ARRAY",
+                "items": { "type": "STRING" }
+              }
+            },
+          }
+        }
+      };
+
+      const apiKey = ""; // APIキーは不要です
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+      
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        throw new Error(`API request failed with status ${response.status}`);
+      }
+      
+      const result = await response.json();
+      
+      if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts[0]) {
+        const jsonText = result.candidates[0].content.parts[0].text;
+        const parsedJson = JSON.parse(jsonText);
+        const subtasks = parsedJson.subtasks || [];
+
+        const newTasks = subtasks.map(subtaskTitle => ({
+          id: Date.now().toString() + Math.random(), // ユニークなIDを生成
+          title: subtaskTitle,
+          // 元のタスクの他のプロパティを継承することもできます
+        }));
+
+        // 元のタスクを削除し、新しいサブタスクを追加
+        const updatedTasks = dailyTasks.filter(t => t.id !== taskToBreakdown.id);
+        onTasksUpdate([...updatedTasks, ...newTasks]);
+      } else {
+        console.error("No valid content received from Gemini API");
+      }
+
+    } catch (error) {
+      console.error("Error breaking down task:", error);
+      // ここでユーザーにエラーを通知するUIを表示することもできます
+    } finally {
+      setBreakingDownTaskId(null);
+    }
+  };
+
+  return (
+    <div>
+      {overdueTasks.length > 0 && (
+        <div className="mb-4">
+          <h3 className="font-bold text-red-600 mb-2">期限切れのタスク</h3>
+          {overdueTasks.map(task => (
+            <div
+              key={task.id}
+              draggable
+              onDragStart={(e) => onTaskDragStart(e, task)}
+              className={`p-2 mb-2 rounded border-l-4 ${draggingTaskId === task.id ? 'opacity-50' : ''} border-red-500 bg-red-50 cursor-grab flex justify-between items-center`}
+            >
+              <p className="font-semibold">{task.title}</p>
+            </div>
+          ))}
+        </div>
+      )}
+      
+      <h3 className="font-bold text-gray-800 mb-2">今日のタスク</h3>
+      {dailyTasks.length > 0 ? (
+        dailyTasks.map(task => (
+          <div
+            key={task.id}
+            draggable
+            onDragStart={(e) => onTaskDragStart(e, task)}
+            className={`p-2 mb-2 rounded border-l-4 ${draggingTaskId === task.id ? 'opacity-50' : ''} border-blue-500 bg-blue-50 cursor-grab flex justify-between items-center`}
+          >
+            <p className="font-semibold">{task.title}</p>
+            <button 
+              onClick={() => handleBreakdownTask(task)} 
+              className="p-1 hover:bg-blue-200 rounded-full disabled:opacity-50"
+              disabled={breakingDownTaskId === task.id}
+              title="タスクを自動分割する ✨"
+            >
+              {breakingDownTaskId === task.id ? (
+                <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+              ) : (
+                <Sparkles className="w-4 h-4 text-blue-500" />
+              )}
+            </button>
+          </div>
+        ))
+      ) : (
+        <p className="text-gray-500 text-sm">タスクはありません。</p>
+      )}
+    </div>
+  );
+};
 
 // MonthViewコンポーネント（変更なし）
 const MonthView = ({ initialDate, onDateSelect }) => {
@@ -60,11 +188,7 @@ const MonthView = ({ initialDate, onDateSelect }) => {
     });
   };
 
-  const displayMonthName = useMemo(() => {
-    const month = displayDate.toLocaleDateString('en-US', { month: 'long' });
-    const year = displayDate.getFullYear();
-    return `${month} ${year}`;
-  }, [displayDate]);
+  const displayMonthName = useMemo(() => displayDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }), [displayDate]);
 
   const daysInMonth = useMemo(() => {
     const year = displayDate.getFullYear();
@@ -81,78 +205,33 @@ const MonthView = ({ initialDate, onDateSelect }) => {
   const firstDayOfMonth = useMemo(() => daysInMonth.length > 0 ? daysInMonth[0].getDay() : 0, [daysInMonth]);
   const today = new Date();
 
-  // カレンダーグリッドの総セル数を計算（6週間分 = 42セル）
-  const totalCells = 42;
-  const calendarDays = useMemo(() => {
-    const days = [];
-    
-    // 前月の日付を追加
-    const firstDay = new Date(displayDate.getFullYear(), displayDate.getMonth(), 1);
-    const startDate = new Date(firstDay);
-    startDate.setDate(startDate.getDate() - firstDayOfMonth);
-    
-    for (let i = 0; i < totalCells; i++) {
-      const currentDate = new Date(startDate);
-      currentDate.setDate(startDate.getDate() + i);
-      days.push(currentDate);
-    }
-    
-    return days;
-  }, [displayDate, firstDayOfMonth]);
-
   return (
     <div
-      className="p-6 bg-white border-b animate-slide-down"
-      style={{ height: '500px' }}
+      className="p-4 bg-white border-b animate-slide-down"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex justify-between items-center mb-2">
         <button onClick={goToPreviousMonth} className="p-2 rounded-full hover:bg-gray-100"><ChevronLeft className="w-5 h-5" /></button>
-        <h3 className="font-bold text-xl">{displayMonthName}</h3>
+        <h3 className="font-bold text-lg">{displayMonthName}</h3>
         <button onClick={goToNextMonth} className="p-2 rounded-full hover:bg-gray-100"><ChevronRight className="w-5 h-5" /></button>
       </div>
-      <div className="grid grid-cols-7 text-center text-sm text-gray-500 mb-3">
-        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => <div key={day} className="font-medium">{day}</div>)}
+      <div className="grid grid-cols-7 text-center text-xs text-gray-500 mb-2">
+        {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => <div key={day}>{day}</div>)}
       </div>
-      <div className="grid grid-cols-7 text-center text-sm" style={{ 
-        height: '400px',
-        gridTemplateRows: 'repeat(6, 1fr)',
-        gap: '8px',
-        display: 'grid'
-      }}>
-        {calendarDays.map((day, index) => {
+      <div className="grid grid-cols-7 text-center text-sm">
+        {Array.from({ length: firstDayOfMonth }).map((_, i) => <div key={`empty-${i}`}></div>)}
+        {daysInMonth.map(day => {
           const isToday = day.toDateString() === today.toDateString();
-          const isCurrentMonth = day.getMonth() === displayDate.getMonth();
-          const isCurrentYear = day.getFullYear() === displayDate.getFullYear();
-          const isCurrentMonthDay = isCurrentMonth && isCurrentYear;
-          
           return (
-            <div 
-              key={`${day.toISOString()}-${index}`} 
-              className="flex items-center justify-center"
-              style={{ 
-                height: 'calc(100% / 6)',
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '4px',
-                boxSizing: 'border-box',
-                gridRow: Math.floor(index / 7) + 1,
-                gridColumn: (index % 7) + 1,
-                minHeight: '60px'
-              }}
-            >
+            <div key={day.toISOString()} className="p-1">
               <button
                 onClick={() => onDateSelect(day)}
-                className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors text-sm font-medium ${
+                className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
                   isToday 
                     ? 'bg-red-500 text-white' 
-                    : isCurrentMonthDay
-                    ? 'hover:bg-gray-100'
-                    : 'text-gray-400 hover:bg-gray-50'
+                    : 'hover:bg-gray-100'
                 }`}
               >
                 {day.getDate()}
@@ -165,6 +244,7 @@ const MonthView = ({ initialDate, onDateSelect }) => {
   );
 };
 
+// NewTaskPopupコンポーネント
 const NewTaskPopup = ({ taskInfo, onSave, onCancel }) => {
     const [title, setTitle] = useState('');
     
@@ -177,7 +257,8 @@ const NewTaskPopup = ({ taskInfo, onSave, onCancel }) => {
         if (title.trim()) {
             onSave({
                 title: title,
-                scheduledDate: taskInfo.date.toISOString().split('T')[0],
+                // === ★★★ タイムゾーン問題を解決 ★★★ ===
+                scheduledDate: toYYYYMMDD(taskInfo.date),
                 scheduledHour: start,
                 duration: end - start,
             });
@@ -211,43 +292,6 @@ const NewTaskPopup = ({ taskInfo, onSave, onCancel }) => {
     );
 };
 
-const TimeIndicator = () => {
-  const [timeData, setTimeData] = useState({ top: 0, time: '' });
-
-  useEffect(() => {
-    const calculatePosition = () => {
-      const now = new Date();
-      const hours = now.getHours();
-      const minutes = now.getMinutes();
-      const seconds = now.getSeconds();
-      const newPosition = (hours + minutes / 60 + seconds / 3600) * 56;
-      
-      setTimeData({
-        top: newPosition,
-        time: now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
-      });
-    };
-
-    calculatePosition();
-    const intervalId = setInterval(calculatePosition, 1000); 
-
-    return () => clearInterval(intervalId);
-  }, []);
-
-  return (
-    <div className="absolute left-0 right-0 flex items-center" style={{ top: `${timeData.top}px`, transform: 'translateY(-50%)', zIndex: 25 }}>
-      <div className="absolute right-full pr-2">
-        <span className="text-xs text-red-500 font-semibold bg-white px-1">
-          {timeData.time}
-        </span>
-      </div>
-      <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-      <div className="flex-1 h-px bg-red-500"></div>
-    </div>
-  );
-};
-
-
 const ImprovedDailyPlanner = ({ 
   dailyTaskPool = [], 
   onTaskUpdate,
@@ -259,40 +303,15 @@ const ImprovedDailyPlanner = ({
   const [weekOffset, setWeekOffset] = useState(0); 
   const [draggingTask, setDraggingTask] = useState(null);
   const [draggingTaskId, setDraggingTaskId] = useState(null);
-  const [showTaskPool, setShowTaskPool] = useState(false);
   const [showMonthView, setShowMonthView] = useState(false);
-  const [taskPoolMode, setTaskPoolMode] = useState('popup'); // 'popup' or 'sidebar'
-  const [sidebarWidth, setSidebarWidth] = useState(320);
+  const [showTaskPool, setShowTaskPool] = useState(false);
   const scrollContainerRef = useRef(null);
   
-  const [scheduledTasks, setScheduledTasks] = useState(Array.isArray(initialScheduledTasks) ? initialScheduledTasks : []);
+  const [scheduledTasks, setScheduledTasks] = useState(initialScheduledTasks);
 
   const [newTaskInfo, setNewTaskInfo] = useState({ date: null, startHour: null, endHour: null, isCreating: false });
   const [showNewTaskPopup, setShowNewTaskPopup] = useState(false);
   const longPressTimer = useRef(null);
-  
-  // リサイズ機能用の状態
-  const [resizingTask, setResizingTask] = useState(null);
-  const [resizeHandle, setResizeHandle] = useState(null); // 'top' or 'bottom'
-  const [resizeStartY, setResizeStartY] = useState(0);
-  const [resizeOriginalHeight, setResizeOriginalHeight] = useState(0);
-  const [resizeOriginalTop, setResizeOriginalTop] = useState(0);
-  const [hoveredTask, setHoveredTask] = useState(null);
-  
-  // ドラッグオーバー状態の管理
-  const [dragOverCell, setDragOverCell] = useState(null);
-  const [dragScrollInterval, setDragScrollInterval] = useState(null);
-  
-  // 統合機能用の状態
-  const [showTaskStats, setShowTaskStats] = useState(true);
-  const [autoScheduleMode, setAutoScheduleMode] = useState(false);
-  
-  // モバイル対応用の状態
-  const [isMobile, setIsMobile] = useState(false);
-  const [touchStartData, setTouchStartData] = useState(null);
-  const [longPressMenuTask, setLongPressMenuTask] = useState(null);
-  const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
-  const [isDraggingOnMobile, setIsDraggingOnMobile] = useState(false);
   
   const startOfWeek = useMemo(() => {
     const today = new Date();
@@ -317,18 +336,6 @@ const ImprovedDailyPlanner = ({
   const todayDateString = today.toDateString();
   const currentMonth = today.toLocaleDateString('en-US', { month: 'long' });
   
-  // モバイル検出
-  useEffect(() => {
-    const checkIsMobile = () => {
-      setIsMobile(window.innerWidth <= 768 || 'ontouchstart' in window);
-    };
-    
-    checkIsMobile();
-    window.addEventListener('resize', checkIsMobile);
-    
-    return () => window.removeEventListener('resize', checkIsMobile);
-  }, []);
-
   useEffect(() => {
     if (scrollContainerRef.current && weekOffset === 0) {
       const currentHour = new Date().getHours();
@@ -345,8 +352,12 @@ const ImprovedDailyPlanner = ({
     if (Array.isArray(scheduledTasks)) {
       scheduledTasks.forEach(task => {
         if (task.scheduledDate) {
-          const dateKey = new Date(task.scheduledDate).toDateString();
+          const dateParts = task.scheduledDate.split('-').map(Number);
+          const localDate = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
+          const dateKey = localDate.toDateString();
+          
           if (!grouped[dateKey]) grouped[dateKey] = {};
+          
           if (task.allDay) {
             if (!grouped[dateKey].allDay) grouped[dateKey].allDay = [];
             grouped[dateKey].allDay.push(task);
@@ -361,286 +372,21 @@ const ImprovedDailyPlanner = ({
     return grouped;
   }, [scheduledTasks]);
 
-  // モバイル用の長押しメニュー処理
-  const handleTaskLongPress = (e, task) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    const rect = e.currentTarget.getBoundingClientRect();
-    setContextMenuPosition({
-      x: rect.left + rect.width / 2,
-      y: rect.top + rect.height / 2
-    });
-    setLongPressMenuTask(task);
-    
-    // バイブレーション
-    if (navigator.vibrate) {
-      navigator.vibrate(50);
-    }
-  };
-
-  // タスクのリサイズ処理
-  const handleResizeStart = (e, task, handle) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    setResizingTask(task);
-    setResizeHandle(handle);
-    setResizeStartY(e.clientY || e.touches?.[0]?.clientY);
-    setResizeOriginalHeight((task.duration || 1) * 56);
-    setResizeOriginalTop((task.scheduledHour || 0) * 56);
-    
-    // マウスイベントリスナーを追加
-    if (isMobile) {
-      document.addEventListener('touchmove', handleResizeMove, { passive: false });
-      document.addEventListener('touchend', handleResizeEnd);
-    } else {
-      document.addEventListener('mousemove', handleResizeMove);
-      document.addEventListener('mouseup', handleResizeEnd);
-    }
-  };
-
-  const handleResizeMove = (e) => {
-    if (!resizingTask || !resizeHandle) return;
-    
-    e.preventDefault();
-    const currentY = e.clientY || e.touches?.[0]?.clientY;
-    const deltaY = currentY - resizeStartY;
-    const deltaHours = Math.round(deltaY / 56);
-    
-    let newScheduledHour = resizingTask.scheduledHour || 0;
-    let newDuration = resizingTask.duration || 1;
-    
-    if (resizeHandle === 'top') {
-      // 上端をリサイズ：開始時間を変更
-      newScheduledHour = Math.max(0, Math.min(23, (resizingTask.scheduledHour || 0) + deltaHours));
-      newDuration = Math.max(1, (resizingTask.duration || 1) - deltaHours);
-    } else if (resizeHandle === 'bottom') {
-      // 下端をリサイズ：終了時間を変更
-      const maxEndHour = 24;
-      const newEndHour = Math.min(maxEndHour, Math.max(newScheduledHour + 1, (resizingTask.scheduledHour || 0) + (resizingTask.duration || 1) + deltaHours));
-      newDuration = newEndHour - newScheduledHour;
-    }
-    
-    // タスクを更新
-    const updatedTask = {
-      ...resizingTask,
-      scheduledHour: newScheduledHour,
-      duration: newDuration
-    };
-    
-    const newScheduledTasks = scheduledTasks.map(task => 
-      task.id === resizingTask.id ? updatedTask : task
-    );
-    
-    setScheduledTasks(newScheduledTasks);
-  };
-
-  const handleResizeEnd = () => {
-    if (resizingTask && onScheduledTaskUpdate) {
-      onScheduledTaskUpdate(scheduledTasks);
-    }
-    
-    setResizingTask(null);
-    setResizeHandle(null);
-    setResizeStartY(0);
-    setResizeOriginalHeight(0);
-    setResizeOriginalTop(0);
-    
-    // イベントリスナーを削除
-    if (isMobile) {
-      document.removeEventListener('touchmove', handleResizeMove);
-      document.removeEventListener('touchend', handleResizeEnd);
-    } else {
-      document.removeEventListener('mousemove', handleResizeMove);
-      document.removeEventListener('mouseup', handleResizeEnd);
-    }
-  };
-
-  // モバイル用タッチドラッグ処理
-  const handleTaskTouchStart = (e, task) => {
-    const touch = e.touches[0];
-    setTouchStartData({
-      startTime: Date.now(),
-      startX: touch.clientX,
-      startY: touch.clientY,
-      task: task,
-      element: e.currentTarget
-    });
-    
-    // 長押し検出
-    const longPressTimer = setTimeout(() => {
-      handleTaskLongPress(e, task);
-    }, 500);
-    
-    setTouchStartData(prev => ({ ...prev, longPressTimer }));
-  };
-
-  const handleTaskTouchMove = (e) => {
-    if (!touchStartData) return;
-    
-    const touch = e.touches[0];
-    const deltaX = Math.abs(touch.clientX - touchStartData.startX);
-    const deltaY = Math.abs(touch.clientY - touchStartData.startY);
-    
-    // 移動距離が一定以上の場合、ドラッグモードに移行
-    if ((deltaX > 15 || deltaY > 15) && !isDraggingOnMobile) {
-      clearTimeout(touchStartData.longPressTimer);
-      setIsDraggingOnMobile(true);
-      
-      // ドラッグ開始
-      setDraggingTask(touchStartData.task);
-      setDraggingTaskId(touchStartData.task.id);
-      
-      // 既存のスケジュールされたタスクを一時的に削除
-      if (scheduledTasks.some(t => t.id === touchStartData.task.id)) {
-        const tempTasks = scheduledTasks.filter(t => t.id !== touchStartData.task.id);
-        setScheduledTasks(tempTasks);
-      }
-      
-      // 視覚的フィードバック
-      touchStartData.element.style.opacity = '0.7';
-      touchStartData.element.style.transform = 'scale(1.05)';
-      touchStartData.element.style.zIndex = '100';
-      
-      // バイブレーション
-      if (navigator.vibrate) {
-        navigator.vibrate([100, 50, 100]);
-      }
-    }
-  };
-
-  const handleTaskTouchEnd = (e) => {
-    if (!touchStartData) return;
-    
-    clearTimeout(touchStartData.longPressTimer);
-    
-    if (isDraggingOnMobile) {
-      // ドロップ位置を検出
-      const touch = e.changedTouches[0];
-      const dropElement = document.elementFromPoint(touch.clientX, touch.clientY);
-      
-      // ドロップ先のセルを見つける
-      let dropCell = dropElement;
-      while (dropCell && !dropCell.dataset?.date && !dropCell.dataset?.hour) {
-        dropCell = dropCell.parentElement;
-      }
-      
-      if (dropCell?.dataset?.date) {
-        const targetDate = new Date(dropCell.dataset.date);
-        const targetHour = dropCell.dataset.hour ? parseInt(dropCell.dataset.hour) : null;
-        const isAllDay = dropCell.dataset.allday === 'true';
-        
-        handleDrop({
-          preventDefault: () => {},
-          dataTransfer: { dropEffect: 'move' }
-        }, targetDate, targetHour, isAllDay);
-      }
-      
-      // スタイルをリセット
-      touchStartData.element.style.opacity = '1';
-      touchStartData.element.style.transform = 'scale(1)';
-      touchStartData.element.style.zIndex = '10';
-      
-      setIsDraggingOnMobile(false);
-    }
-    
-    setTouchStartData(null);
-  };
-
-  // 既存タスクのドラッグ処理
-  const handleScheduledTaskDragStart = (e, task) => {
-    setDraggingTask(task);
-    setDraggingTaskId(task.id);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', JSON.stringify(task));
-    
-    // 既存のスケジュールされたタスクを一時的に削除
-    const tempTasks = scheduledTasks.filter(t => t.id !== task.id);
-    setScheduledTasks(tempTasks);
-  };
-
-  // ドラッグ中の自動スクロール機能
-  const handleDragScroll = (direction) => {
-    if (dragScrollInterval) return;
-    
-    const interval = setInterval(() => {
-      if (direction === 'left') {
-        setWeekOffset(prev => prev - 1);
-      } else if (direction === 'right') {
-        setWeekOffset(prev => prev + 1);
-      }
-    }, 500);
-    
-    setDragScrollInterval(interval);
-  };
-
-  const stopDragScroll = () => {
-    if (dragScrollInterval) {
-      clearInterval(dragScrollInterval);
-      setDragScrollInterval(null);
-    }
-  };
-
-  // ドラッグオーバー処理の改善
-  const handleDragOver = (e, targetDate, targetHour, isAllDay = false) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    
-    // 現在のドラッグオーバーセルを設定
-    const cellKey = `${targetDate.toDateString()}-${isAllDay ? 'allday' : targetHour}`;
-    setDragOverCell(cellKey);
-    
-    // 画面端での自動スクロール判定
-    const rect = e.currentTarget.getBoundingClientRect();
-    const containerRect = scrollContainerRef.current?.getBoundingClientRect();
-    
-    if (containerRect) {
-      if (e.clientX < containerRect.left + 50) {
-        handleDragScroll('left');
-      } else if (e.clientX > containerRect.right - 50) {
-        handleDragScroll('right');
-      } else {
-        stopDragScroll();
-      }
-    }
-  };
-
-  const handleDragLeave = (e, targetDate, targetHour, isAllDay = false) => {
-    const cellKey = `${targetDate.toDateString()}-${isAllDay ? 'allday' : targetHour}`;
-    if (dragOverCell === cellKey) {
-      setDragOverCell(null);
-    }
-    stopDragScroll();
-  };
-
   const handleTaskDragStart = (e, task) => {
     setDraggingTask(task);
     setDraggingTaskId(task.id);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', JSON.stringify(task));
   };
-
   const handleDrop = (e, targetDate, targetHour, isAllDay = false) => {
     e.preventDefault();
-    stopDragScroll();
-    setDragOverCell(null);
-    
     if (!draggingTask) return;
-    
-    let duration = draggingTask.duration || 1;
-    
-    // 既存のスケジュールされたタスクの場合、元の長さを保持
-    if (scheduledTasks.some(t => t.id === draggingTask.id)) {
-      duration = draggingTask.duration || 1;
-    }
-    
     const scheduledTask = {
       ...draggingTask,
-      scheduledDate: targetDate.toISOString().split('T')[0],
+      // === ★★★ タイムゾーン問題を解決 ★★★ ===
+      scheduledDate: toYYYYMMDD(targetDate),
       scheduledHour: isAllDay ? undefined : targetHour,
       allDay: isAllDay,
-      duration: isAllDay ? undefined : duration,
       id: draggingTask.id || Date.now().toString(),
     };
     
@@ -656,88 +402,13 @@ const ImprovedDailyPlanner = ({
         onScheduledTaskUpdate(newScheduledTasks);
     }
     
-    // タスクプールからの移動の場合のみ、プールから削除
-    if (onTaskUpdate && !scheduledTasks.some(t => t.id === draggingTask.id)) {
+    if (onTaskUpdate) {
         const updatedTasks = dailyTaskPool.filter(task => task.id !== draggingTask.id);
         onTaskUpdate(updatedTasks);
     }
-    
     setDraggingTask(null);
     setDraggingTaskId(null);
   };
-
-  // 自動スケジューリング機能
-  const handleAutoSchedule = () => {
-    const unscheduledTasks = dailyTaskPool.filter(task => 
-      !task.completed && !scheduledTasks.some(st => st.id === task.id)
-    );
-    
-    if (unscheduledTasks.length === 0) return;
-    
-    const newScheduledTasks = [...scheduledTasks];
-    let currentHour = 9; // 開始時間
-    const today = new Date();
-    
-    unscheduledTasks.forEach(task => {
-      // 既存のタスクとの競合をチェック
-      while (currentHour < 22) { // 22時まで
-        const hasConflict = newScheduledTasks.some(st => 
-          st.scheduledDate === today.toISOString().split('T')[0] &&
-          st.scheduledHour <= currentHour &&
-          (st.scheduledHour + (st.duration || 1)) > currentHour
-        );
-        
-        if (!hasConflict) break;
-        currentHour++;
-      }
-      
-      if (currentHour < 22) {
-        const scheduledTask = {
-          ...task,
-          id: task.id || Date.now().toString() + Math.random(),
-          scheduledDate: today.toISOString().split('T')[0],
-          scheduledHour: currentHour,
-          duration: task.estimatedDuration || 1,
-          allDay: false
-        };
-        
-        newScheduledTasks.push(scheduledTask);
-        currentHour += (task.estimatedDuration || 1);
-      }
-    });
-    
-    setScheduledTasks(newScheduledTasks);
-    if (onScheduledTaskUpdate) {
-      onScheduledTaskUpdate(newScheduledTasks);
-    }
-    
-    // タスクプールから移動
-    if (onTaskUpdate) {
-      const updatedTasks = dailyTaskPool.filter(task => 
-        task.completed || newScheduledTasks.some(st => st.id === task.id)
-      );
-      onTaskUpdate(updatedTasks);
-    }
-  };
-
-  // タスク統計の計算
-  const taskStats = useMemo(() => {
-    const totalTasks = dailyTaskPool.length;
-    const completedTasks = dailyTaskPool.filter(task => task.completed).length;
-    const scheduledTasksCount = scheduledTasks.filter(task => {
-      const taskDate = new Date(task.scheduledDate);
-      return weekDays.some(day => day.toDateString() === taskDate.toDateString());
-    }).length;
-    
-    return {
-      total: totalTasks,
-      completed: completedTasks,
-      scheduled: scheduledTasksCount,
-      unscheduled: totalTasks - completedTasks - scheduledTasksCount,
-      completionRate: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
-    };
-  }, [dailyTaskPool, scheduledTasks, weekDays]);
-
   const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   const handleCellTouchStart = (e, date, hour) => {
@@ -784,411 +455,181 @@ const ImprovedDailyPlanner = ({
   }, [newTaskInfo]);
 
   return (
-    <div className="flex h-screen bg-white text-gray-800 font-sans">
-      {/* サイドバー形式のタスクプール */}
-      {showTaskPool && taskPoolMode === 'sidebar' && (
-        <div 
-          className="flex-shrink-0 border-r bg-gray-50 flex flex-col"
-          style={{ width: `${sidebarWidth}px` }}
-        >
-          <div className="flex items-center justify-between p-4 border-b bg-white">
-            <h2 className="text-lg font-semibold">タスクプール</h2>
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => setTaskPoolMode('popup')}
-                className="p-1 rounded-full hover:bg-gray-100"
-                title="ポップアップモードに切り替え"
-              >
-                <X className="w-4 h-4 text-gray-600" />
-              </button>
-              <button 
-                onClick={() => setShowTaskPool(false)}
-                className="p-1 rounded-full hover:bg-gray-100"
-              >
-                <X className="w-4 h-4 text-gray-600" />
-              </button>
-            </div>
-          </div>
-          
-          {/* タスク統計 */}
-          {showTaskStats && (
-            <div className="p-3 bg-white border-b">
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="text-center p-2 bg-blue-50 rounded">
-                  <div className="font-semibold text-blue-600">{taskStats.total}</div>
-                  <div className="text-gray-600">総タスク</div>
-                </div>
-                <div className="text-center p-2 bg-green-50 rounded">
-                  <div className="font-semibold text-green-600">{taskStats.completed}</div>
-                  <div className="text-gray-600">完了</div>
-                </div>
-                <div className="text-center p-2 bg-purple-50 rounded">
-                  <div className="font-semibold text-purple-600">{taskStats.scheduled}</div>
-                  <div className="text-gray-600">スケジュール済</div>
-                </div>
-                <div className="text-center p-2 bg-orange-50 rounded">
-                  <div className="font-semibold text-orange-600">{taskStats.unscheduled}</div>
-                  <div className="text-gray-600">未スケジュール</div>
-                </div>
-              </div>
-              <div className="mt-2 text-center">
-                <div className="text-sm font-semibold">進捗率: {taskStats.completionRate}%</div>
-                <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
-                  <div 
-                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${taskStats.completionRate}%` }}
-                  ></div>
-                </div>
-              </div>
-            </div>
-          )}
-          
-          {/* 自動スケジューリング */}
-          <div className="p-3 border-b bg-white">
-            <button
-              onClick={handleAutoSchedule}
-              className="w-full bg-green-600 text-white px-3 py-2 rounded-md hover:bg-green-700 text-sm"
-              disabled={taskStats.unscheduled === 0}
-            >
-              🤖 自動スケジュール ({taskStats.unscheduled}件)
-            </button>
-          </div>
-          
-          <div className="flex-1 overflow-auto">
-            <DailyTaskPool
-              dailyTasks={dailyTaskPool}
-              onTasksUpdate={onTaskUpdate || (() => {})}
-              onTaskDragStart={handleTaskDragStart}
-              selectedDate={selectedDate}
-              overdueTasks={overdueTasks}
-              draggingTaskId={draggingTaskId}
-            />
+    <div className="flex flex-col h-screen bg-white text-gray-800 font-sans">
+      
+      {/* トップヘッダー */}
+      <header className="flex-shrink-0 flex items-center justify-between px-4 py-2 border-b z-30 bg-white">
+        <div className="flex items-center space-x-3">
+          <div 
+            className="flex items-center space-x-1 cursor-pointer"
+            onClick={() => setShowMonthView(!showMonthView)}
+          >
+            <h1 className="text-xl font-bold">{currentMonth}</h1>
+            {showMonthView ? <ChevronUp className="w-5 h-5 text-gray-500" /> : <ChevronDown className="w-5 h-5 text-gray-500" />}
           </div>
         </div>
-      )}
+        
+        <div className="flex items-center space-x-2">
+          <button onClick={() => setWeekOffset(offset => offset - 1)} className="p-1 rounded-full hover:bg-gray-100">
+            <ChevronLeft className="w-5 h-5 text-gray-600" />
+          </button>
+          <button 
+            onClick={() => setWeekOffset(0)}
+            className="w-8 h-8 text-sm font-semibold text-gray-700 bg-gray-100 rounded-full flex items-center justify-center hover:bg-gray-200"
+          >
+            {today.getDate()}
+          </button>
+          <button onClick={() => setWeekOffset(offset => offset + 1)} className="p-1 rounded-full hover:bg-gray-100">
+            <ChevronRight className="w-5 h-5 text-gray-600" />
+          </button>
+        </div>
+      </header>
       
-      {/* メインカレンダーエリア */}
-      <div className="flex flex-col flex-1">
-        {/* トップヘッダー */}
-        <header className="flex-shrink-0 flex items-center justify-between px-4 py-2 border-b z-30 bg-white">
-          <div className="flex items-center space-x-3">
-            <div 
-              className="flex items-center space-x-1 cursor-pointer"
-              onClick={() => setShowMonthView(!showMonthView)}
-            >
-              <h1 className="text-xl font-bold">{currentMonth}</h1>
-              {showMonthView ? <ChevronUp className="w-5 h-5 text-gray-500" /> : <ChevronDown className="w-5 h-5 text-gray-500" />}
+      {showMonthView && (
+        <MonthView 
+          initialDate={today} 
+          onDateSelect={(date) => {
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            const selected = new Date(date);
+            selected.setHours(0,0,0,0);
+            const diffTime = selected - today;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            setWeekOffset(Math.floor(diffDays / 3));
+            setShowMonthView(false);
+          }}
+        />
+      )}
+
+      {/* カレンダー本体（スクロールエリア） */}
+      <div ref={scrollContainerRef} className="flex-1 overflow-auto">
+        <div className="grid grid-cols-[64px_1fr]">
+          
+          {/* --- 左列：時間軸 --- */}
+          <div>
+            <div className="sticky top-0 z-20 bg-white">
+              <div className="h-20 border-r border-b"></div>
+              <div className="h-10 border-r border-b flex items-center justify-center text-xs text-gray-500">All-day</div>
             </div>
-            
-            {/* タスク統計表示（ヘッダー内） */}
-            {!showTaskPool && showTaskStats && (
-              <div className="flex items-center space-x-2 text-xs">
-                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                  📋 {taskStats.total}
-                </span>
-                <span className="bg-green-100 text-green-800 px-2 py-1 rounded">
-                  ✅ {taskStats.completed}
-                </span>
-                <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded">
-                  ⏱️ {taskStats.unscheduled}
-                </span>
-              </div>
-            )}
+            <div>
+              {hours.map(hour => (
+                <div key={hour} className="h-14 text-right pr-2 text-xs text-gray-400 border-r relative">
+                  <span className="absolute top-0 right-2 -translate-y-1/2 bg-white px-1">
+                    {hour > 0 ? `${String(hour).padStart(2, '0')}:00` : ''}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
           
-          <div className="flex items-center space-x-2">
-            <button onClick={() => setWeekOffset(offset => offset - 1)} className="p-1 rounded-full hover:bg-gray-100">
-              <ChevronLeft className="w-5 h-5 text-gray-600" />
-            </button>
-            <button 
-              onClick={() => setWeekOffset(0)}
-              className="w-8 h-8 text-sm font-semibold text-gray-700 bg-gray-100 rounded-full flex items-center justify-center hover:bg-gray-200"
-            >
-              {today.getDate()}
-            </button>
-            <button onClick={() => setWeekOffset(offset => offset + 1)} className="p-1 rounded-full hover:bg-gray-100">
-              <ChevronRight className="w-5 h-5 text-gray-600" />
-            </button>
-          </div>
-        </header>
-        
-        {showMonthView && (
-          <MonthView 
-            initialDate={today} 
-            onDateSelect={(date) => {
-              const today = new Date();
-              today.setHours(0,0,0,0);
-              const selected = new Date(date);
-              selected.setHours(0,0,0,0);
-              const diffTime = selected - today;
-              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-              setWeekOffset(Math.floor(diffDays / 3));
-              setShowMonthView(false);
-            }}
-          />
-        )}
-
-        {/* カレンダー本体（スクロールエリア） */}
-        <div ref={scrollContainerRef} className="flex-1 overflow-auto">
-          <div className="grid grid-cols-[72px_1fr]">
-            
-            {/* --- 左列：時間軸 --- */}
-            <div>
-              <div className="sticky top-0 z-20 bg-white">
-                <div className="h-20 border-r border-b"></div>
-                <div className="h-10 border-r border-b flex items-center justify-center text-xs text-gray-500">All-day</div>
+          {/* --- 右列：日付ヘッダーと時間グリッド本体 --- */}
+          <div className="col-start-2">
+            <div className="sticky top-0 bg-white z-10">
+              <div className="grid grid-cols-3">
+                {weekDays.map((date) => {
+                  const isToday = date.toDateString() === todayDateString;
+                  return (
+                    <div key={date.toISOString()} className="text-center p-2 border-b border-r last:border-r-0 h-20 flex flex-col justify-center">
+                      <div className="text-xs text-gray-500">{dayNames[date.getDay()].toUpperCase()}</div>
+                      <div className={`mt-1 text-lg font-semibold ${isToday ? 'bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center mx-auto' : ''}`}>
+                        {date.getDate()}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              <div>
-                {hours.map(hour => (
-                  <div key={hour} className="h-14 text-right pr-2 text-xs text-gray-400 border-r relative">
-                    <span className="absolute top-0 right-2 -translate-y-1/2 bg-white px-1">
-                      {hour > 0 ? `${String(hour).padStart(2, '0')}:00` : ''}
-                    </span>
+              <div className="grid grid-cols-3">
+                {weekDays.map((date) => (
+                  <div 
+                    key={date.toISOString()} 
+                    className="border-b border-r last:border-r-0 p-1 min-h-[40px]"
+                    onDrop={(e) => handleDrop(e, date, null, true)}
+                    onDragOver={(e) => e.preventDefault()}
+                  >
+                    {(tasksByDateAndHour[date.toDateString()]?.allDay || []).map(task => (
+                      <div key={task.id} className="bg-green-100 text-green-800 text-xs p-1 rounded truncate mb-1">
+                        {task.title}
+                      </div>
+                    ))}
                   </div>
                 ))}
               </div>
             </div>
-            
-            {/* --- 右列：日付ヘッダーと時間グリッド本体 --- */}
-            <div className="col-start-2">
-              <div className="sticky top-0 bg-white z-10">
-                <div className="grid grid-cols-3">
-                  {weekDays.map((date) => {
-                    const isToday = date.toDateString() === todayDateString;
-                    return (
-                      <div key={date.toISOString()} className="text-center p-2 border-b border-r last:border-r-0 h-20 flex flex-col justify-center">
-                        <div className="text-xs text-gray-500">{dayNames[date.getDay()].toUpperCase()}</div>
-                        <div className={`mt-1 text-lg font-semibold ${isToday ? 'bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center mx-auto' : ''}`}>
-                          {date.getDate()}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="grid grid-cols-3">
-                  {weekDays.map((date) => {
-                    const cellKey = `${date.toDateString()}-allday`;
-                    const isDragOver = dragOverCell === cellKey;
-                    
-                    return (
-                      <div 
-                        key={date.toISOString()} 
-                        className={`border-b border-r last:border-r-0 p-1 min-h-[40px] transition-colors ${
-                          isDragOver ? 'bg-blue-100 border-blue-300' : ''
-                        }`}
-                        onDrop={(e) => handleDrop(e, date, null, true)}
-                        onDragOver={(e) => handleDragOver(e, date, null, true)}
-                        onDragLeave={(e) => handleDragLeave(e, date, null, true)}
-                      >
-                        {(tasksByDateAndHour[date.toDateString()]?.allDay || []).map(task => (
-                          <div 
-                            key={task.id} 
-                            className="bg-green-100 text-green-800 text-xs p-1 rounded truncate mb-1 cursor-move"
-                            draggable
-                            onDragStart={(e) => handleScheduledTaskDragStart(e, task)}
-                          >
-                            {task.title}
-                          </div>
-                        ))}
-                        {isDragOver && (
-                          <div className="absolute inset-0 bg-blue-200 bg-opacity-30 border-2 border-blue-400 border-dashed rounded pointer-events-none">
-                            <div className="flex items-center justify-center h-full text-blue-600 text-xs font-semibold">
-                              ここにドロップ
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+            <div className="relative">
+              <div className="grid grid-cols-3">
+                {weekDays.map((date) => (
+                  <div key={date.toISOString()} className="relative border-r last:border-r-0">
+                    {hours.map(hour => (
+                      <div key={hour} className="h-14 border-b"></div>
+                    ))}
+                  </div>
+                ))}
               </div>
-              <div className="relative">
-                <div className="grid grid-cols-3">
-                  {weekDays.map((date) => (
-                    <div key={date.toISOString()} className="relative border-r last:border-r-0">
-                      {hours.map(hour => (
-                        <div key={hour} className="h-14 border-b"></div>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-                
-                <div className="absolute inset-0 grid grid-cols-3">
-                  {weekDays.map((date) => (
-                    <div key={date.toISOString()} className="relative">
-                      {Object.entries(tasksByDateAndHour[date.toDateString()] || {}).flatMap(([hour, tasks]) => {
-                        if (hour === 'allDay') return [];
-                        return tasks.map(task => (
-                          <div 
-                            key={task.id} 
-                            className="absolute w-full p-1 z-10 group" 
-                            style={{ top: `${parseInt(hour) * 56}px`, height: `${(task.duration || 1) * 56}px` }}
-                            onMouseEnter={() => setHoveredTask(task.id)}
-                            onMouseLeave={() => setHoveredTask(null)}
-                          >
-                            <div 
-                              className="bg-blue-200 text-blue-900 h-full rounded-lg p-2 text-xs overflow-hidden relative cursor-move hover:bg-blue-300 transition-colors"
-                              draggable
-                              onDragStart={(e) => handleScheduledTaskDragStart(e, task)}
-                            >
-                              {/* 上部リサイズハンドル */}
-                              <div
-                                className={`absolute top-0 left-0 right-0 h-2 cursor-n-resize bg-blue-400 rounded-t-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center ${
-                                  hoveredTask === task.id ? 'opacity-100' : ''
-                                }`}
-                                onMouseDown={(e) => handleResizeStart(e, task, 'top')}
-                                onTouchStart={(e) => handleResizeStart(e, task, 'top')}
-                              >
-                                <GripVertical className="w-3 h-3 text-white" />
-                              </div>
-                              
-                              {/* タスク内容 */}
-                              <div className="pt-2 pb-2">
-                                <p className="font-bold truncate">{task.title}</p>
-                                <p className="text-[10px] opacity-80">
-                                  {String(task.scheduledHour || 0).padStart(2, '0')}:00 - {String((task.scheduledHour || 0) + (task.duration || 1)).padStart(2, '0')}:00
-                                </p>
-                              </div>
-                              
-                              {/* 下部リサイズハンドル */}
-                              <div
-                                className={`absolute bottom-0 left-0 right-0 h-2 cursor-s-resize bg-blue-400 rounded-b-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center ${
-                                  hoveredTask === task.id ? 'opacity-100' : ''
-                                }`}
-                                onMouseDown={(e) => handleResizeStart(e, task, 'bottom')}
-                                onTouchStart={(e) => handleResizeStart(e, task, 'bottom')}
-                              >
-                                <GripVertical className="w-3 h-3 text-white" />
-                              </div>
-                              
-                              {/* 移動ハンドル */}
-                              <div className={`absolute top-1/2 left-1 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity ${
-                                  hoveredTask === task.id ? 'opacity-100' : ''
-                                }`}>
-                                <Move className="w-3 h-3 text-blue-600" />
-                              </div>
-                            </div>
+              
+              <div className="absolute inset-0 grid grid-cols-3">
+                {weekDays.map((date) => (
+                  <div key={date.toISOString()} className="relative">
+                    {Object.entries(tasksByDateAndHour[date.toDateString()] || {}).flatMap(([hour, tasks]) => {
+                      if (hour === 'allDay') return [];
+                      return tasks.map(task => (
+                        <div key={task.id} className="absolute inset-x-0 z-10 p-1" style={{ top: `${parseInt(hour) * 56}px`, height: `${(task.duration || 1) * 56}px` }}>
+                          <div className="bg-blue-200 text-blue-900 h-full rounded-lg p-2 text-xs overflow-hidden">
+                            <p className="font-bold">{task.title}</p>
                           </div>
-                        ));
-                      })}
-                      {hours.map(hour => {
-                        const cellKey = `${date.toDateString()}-${hour}`;
-                        const isDragOver = dragOverCell === cellKey;
-                        
-                        return (
-                          <div 
-                            key={hour} 
-                            className={`h-14 relative transition-colors ${
-                              isDragOver ? 'bg-blue-100' : ''
-                            }`} 
-                            onDrop={(e) => handleDrop(e, date, hour)} 
-                            onDragOver={(e) => handleDragOver(e, date, hour)}
-                            onDragLeave={(e) => handleDragLeave(e, date, hour)}
-                            onTouchStart={(e) => handleCellTouchStart(e, date, hour)}
-                            onTouchMove={(e) => handleCellTouchMove(e, date, hour)}
-                            onTouchEnd={handleCellTouchEnd}
-                            onMouseDown={(e) => handleCellMouseDown(e, date, hour)}
-                            onMouseMove={(e) => handleCellMouseMove(e, date, hour)}
-                          >
-                            {isDragOver && (
-                              <div className="absolute inset-0 bg-blue-200 bg-opacity-30 border-2 border-blue-400 border-dashed rounded pointer-events-none">
-                                <div className="flex items-center justify-center h-full text-blue-600 text-xs font-semibold">
-                                  {String(hour).padStart(2, '0')}:00
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                      {newTaskInfo.isCreating && newTaskInfo.date.toDateString() === date.toDateString() && (
-                          <div 
-                              className="absolute w-full bg-blue-200 bg-opacity-50 border-2 border-blue-500 rounded-lg pointer-events-none"
-                              style={{
-                                  top: `${Math.min(newTaskInfo.startHour, newTaskInfo.endHour) * 56}px`,
-                                  height: `${(Math.abs(newTaskInfo.endHour - newTaskInfo.startHour) + 1) * 56}px`,
-                                  zIndex: 20,
-                              }}
-                          ></div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {weekDays.some(day => day.toDateString() === todayDateString) && <TimeIndicator />}
+                        </div>
+                      ));
+                    })}
+                    {hours.map(hour => (
+                      <div 
+                        key={hour} 
+                        className="h-14" 
+                        onDrop={(e) => handleDrop(e, date, hour)} 
+                        onDragOver={(e) => e.preventDefault()}
+                        onTouchStart={(e) => handleCellTouchStart(e, date, hour)}
+                        onTouchMove={(e) => handleCellTouchMove(e, date, hour)}
+                        onTouchEnd={handleCellTouchEnd}
+                        onMouseDown={(e) => handleCellMouseDown(e, date, hour)}
+                        onMouseMove={(e) => handleCellMouseMove(e, date, hour)}
+                      ></div>
+                    ))}
+                    {newTaskInfo.isCreating && newTaskInfo.date.toDateString() === date.toDateString() && (
+                        <div 
+                            className="absolute w-full bg-blue-200 bg-opacity-50 border-2 border-blue-500 rounded-lg pointer-events-none"
+                            style={{
+                                top: `${Math.min(newTaskInfo.startHour, newTaskInfo.endHour) * 56}px`,
+                                height: `${(Math.abs(newTaskInfo.endHour - newTaskInfo.startHour) + 1) * 56}px`,
+                                zIndex: 20,
+                            }}
+                        ></div>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           </div>
-        </div>
-        
-        {/* フローティングアクションボタン */}
-        <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-30">
-          <button 
-            className="w-12 h-12 bg-green-600 hover:bg-green-700 rounded-full flex items-center justify-center shadow-lg transition-colors"
-            onClick={() => {
-              if (showTaskPool && taskPoolMode === 'sidebar') {
-                setShowTaskPool(false);
-              } else {
-                setShowTaskPool(true);
-                setTaskPoolMode('sidebar');
-              }
-            }}
-            title={showTaskPool && taskPoolMode === 'sidebar' ? 'タスクプールを閉じる' : 'タスクプール（サイドバー）'}
-          >
-            <Calendar className="w-6 h-6 text-white" />
-          </button>
-          <button 
-            className="w-10 h-10 bg-purple-600 hover:bg-purple-700 rounded-full flex items-center justify-center shadow-lg transition-colors"
-            onClick={() => {
-              setShowTaskPool(true);
-              setTaskPoolMode('popup');
-            }}
-            title="タスクプール（ポップアップ）"
-          >
-            <Plus className="w-4 h-4 text-white" />
-          </button>
-          <button 
-            className="w-8 h-8 bg-orange-600 hover:bg-orange-700 rounded-full flex items-center justify-center shadow-lg transition-colors"
-            onClick={handleAutoSchedule}
-            title="自動スケジュール"
-            disabled={taskStats.unscheduled === 0}
-          >
-            <span className="text-white text-xs">🤖</span>
-          </button>
         </div>
       </div>
+      
+      {/* フローティングアクションボタン */}
+      <div className="fixed bottom-24 right-6 flex flex-col gap-3 z-30">
+        <button
+          className="w-12 h-12 bg-green-600 hover:bg-green-700 rounded-full flex items-center justify-center shadow-lg transition-colors"
+          onClick={() => setShowTaskPool(true)}
+          title="タスクプール表示"
+        >
+          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          </svg>
+        </button>
+        <button
+          className="w-14 h-14 bg-blue-600 hover:bg-blue-700 rounded-full flex items-center justify-center shadow-lg transition-colors"
+          title="新規タスク追加"
+        >
+          <Plus className="w-6 h-6 text-white" />
+        </button>
+      </div>
 
-      {/* ポップアップ形式のタスクプール */}
-      {showTaskPool && taskPoolMode === 'popup' && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[80vh] flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h2 className="text-lg font-semibold">タスクプール</h2>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => setTaskPoolMode('sidebar')}
-                  className="p-1 rounded-full hover:bg-gray-100"
-                  title="サイドバーモードに切り替え"
-                >
-                  <Move className="w-4 h-4 text-gray-600" />
-                </button>
-                <button onClick={() => setShowTaskPool(false)} className="p-2 rounded-full hover:bg-gray-100">
-                  <X className="w-5 h-5 text-gray-600" />
-                </button>
-              </div>
-            </div>
-            <div className="flex-1 overflow-auto p-4">
-              <DailyTaskPool
-                dailyTasks={dailyTaskPool}
-                onTasksUpdate={onTaskUpdate || (() => {})}
-                onTaskDragStart={handleTaskDragStart}
-                selectedDate={selectedDate}
-                overdueTasks={overdueTasks}
-                draggingTaskId={draggingTaskId}
-              />
-            </div>
-          </div>
-        </div>
-      )}
+
       {showNewTaskPopup && (
         <NewTaskPopup 
             taskInfo={newTaskInfo}
@@ -1212,6 +653,32 @@ const ImprovedDailyPlanner = ({
                 setNewTaskInfo({ date: null, startHour: null, endHour: null, isCreating: false });
             }}
         />
+      )}
+
+      {/* タスクプールモーダル */}
+      {showTaskPool && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[80vh] overflow-y-auto">
+            <div className="p-4 border-b flex justify-between items-center">
+              <h2 className="text-lg font-semibold">タスクプール</h2>
+              <button
+                onClick={() => setShowTaskPool(false)}
+                className="p-1 hover:bg-gray-100 rounded-full"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4">
+              <DailyTaskPool
+                dailyTasks={dailyTaskPool}
+                overdueTasks={overdueTasks}
+                onTaskDragStart={handleTaskDragStart}
+                draggingTaskId={draggingTaskId}
+                onTasksUpdate={onTaskUpdate}
+              />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

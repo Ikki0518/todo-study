@@ -1,4 +1,5 @@
 // ローカルストレージベースのタスクサービス
+import { useState, useEffect } from 'react';
 import {
   sanitizeObjectForJSON,
   handleJSONError
@@ -296,3 +297,56 @@ if (typeof window !== 'undefined') {
   window.debugLocalTaskService = localTaskService.debugLocalData;
   window.clearLocalTaskService = localTaskService.clearAllLocalData;
 }
+
+// useLocalTaskService React フック
+export const useLocalTaskService = () => {
+  const [todayTasks, setTodayTasks] = useState([]);
+  const [dailyTaskPool, setDailyTaskPool] = useState([]);
+  const [scheduledTasks, setScheduledTasks] = useState([]);
+  const [goals, setGoals] = useState([]);
+  const [completedTasks, setCompletedTasks] = useState([]);
+
+  const userId = 'test-user'; // デフォルトユーザーID
+
+  // タスクデータを読み込み
+  const loadTaskData = async () => {
+    try {
+      const data = await localTaskService.loadUserTasks(userId);
+      if (data) {
+        setTodayTasks(data.todayTasks || []);
+        setDailyTaskPool(data.dailyTaskPool || []);
+        setScheduledTasks(data.scheduledTasks || []);
+        setGoals(data.goals || []);
+        setCompletedTasks(data.completedTasks || []);
+      }
+    } catch (error) {
+      console.error('タスクデータの読み込みに失敗:', error);
+    }
+  };
+
+  // タスクデータを保存
+  const saveTaskData = async (data) => {
+    try {
+      await localTaskService.saveUserTasks(userId, data);
+      
+      // 状態を更新
+      if (data.todayTasks !== undefined) setTodayTasks(data.todayTasks);
+      if (data.dailyTaskPool !== undefined) setDailyTaskPool(data.dailyTaskPool);
+      if (data.scheduledTasks !== undefined) setScheduledTasks(data.scheduledTasks);
+      if (data.goals !== undefined) setGoals(data.goals);
+      if (data.completedTasks !== undefined) setCompletedTasks(data.completedTasks);
+    } catch (error) {
+      console.error('タスクデータの保存に失敗:', error);
+    }
+  };
+
+  return {
+    todayTasks,
+    dailyTaskPool,
+    scheduledTasks,
+    goals,
+    completedTasks,
+    loadTaskData,
+    saveTaskData
+  };
+};
